@@ -12,9 +12,10 @@ class ZshManager:
         self.pkg_mgr = pkg_mgr
 
     def setup(self):
-        logger.info("Setting up Zsh...")
+        logger.info("Verifying Zsh installation...")
         
         if not self.pkg_mgr.is_installed("zsh"):
+            logger.info("Zsh not found. Installing...")
             self.pkg_mgr.install("zsh")
 
         current_shell = os.environ.get("SHELL", "")

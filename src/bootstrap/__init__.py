@@ -86,7 +86,6 @@ class BootstrapCLI:
 
         try:
             if "dotfiles" in enabled_modules:
-                print(f"[*] {action_name}ing dotfiles from {repo_url}...")
                 dotfiles = DotfilesManager(
                     repo_url=repo_url,
                     dotfiles_dir=dotfiles_dir,
@@ -94,20 +93,16 @@ class BootstrapCLI:
                     branch=branch
                 )
                 dotfiles.setup()
-                self.logger.info("Dotfiles setup complete!")
 
             if "zsh" in enabled_modules:
-                print("[*] Configuring Zsh...")
                 zsh = ZshManager(self.env, pkg_mgr)
                 zsh.setup()
 
             if "tmux" in enabled_modules:
-                print("[*] Configuring Tmux...")
                 tmux = TmuxManager(self.env, pkg_mgr)
                 tmux.setup()
 
             if "nvim" in enabled_modules:
-                print("[*] Configuring Neovim...")
                 nvim = NvimManager(self.env, pkg_mgr)
                 nvim.setup()
             

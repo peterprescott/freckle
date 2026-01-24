@@ -16,10 +16,11 @@ class NvimManager:
 
     def setup(self):
         """Ensures Neovim is installed and configured."""
-        logger.info("Setting up Neovim...")
+        logger.info("Verifying Neovim installation...")
         
         # 0. Ensure neovim is installed
         if not self.pkg_mgr.is_installed("nvim"):
+            logger.info("Neovim not found. Installing...")
             self.pkg_mgr.install("neovim")
 
         # 1. Ensure config directory exists

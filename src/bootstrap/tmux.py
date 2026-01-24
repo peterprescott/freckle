@@ -10,7 +10,8 @@ class TmuxManager:
         self.pkg_mgr = pkg_mgr
 
     def setup(self):
-        logger.info("Setting up Tmux...")
+        logger.info("Verifying Tmux installation...")
         
         if not self.pkg_mgr.is_installed("tmux"):
+            logger.info("Tmux not found. Installing...")
             self.pkg_mgr.install("tmux")

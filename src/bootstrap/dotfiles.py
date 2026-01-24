@@ -36,7 +36,7 @@ class DotfilesManager:
         """Main entry point for setting up dotfiles."""
         repo = self._get_repo()
         
-        logger.info(f"Fetching updates from origin...")
+        logger.info(f"Syncing dotfiles from origin...")
         repo.remotes.origin.fetch()
         
         # Ensure HEAD points to the correct branch
