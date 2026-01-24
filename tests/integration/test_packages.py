@@ -32,3 +32,29 @@ def test_install_brew_macos(mocker):
     
     # Verify brew command was called
     mock_run.assert_called_once_with(["brew", "install", "htop"], check=True)
+
+def test_get_binary_info_found(mocker):
+    mock_env = mocker.Mock()
+    mocker.patch("shutil.which", return_value="/usr/bin/zsh")
+    
+    # Mock subprocess.run to return a version string
+    mock_result = mocker.Mock()
+    mock_result.returncode = 0
+    mock_result.stdout = "zsh 5.8 (x86_64-debian-linux-gnu)\nother lines"
+    mocker.patch("subprocess.run", return_value=mock_result)
+    
+    pkg_mgr = PackageManager(mock_env)
+    info = pkg_mgr.get_binary_info("zsh")
+    
+    assert info["found"] is True
+    assert info["path"] == "/usr/bin/zsh"
+    assert info["version"] == "zsh 5.8 (x86_64-debian-linux-gnu)"
+
+def test_get_binary_info_not_found(mocker):
+    mock_env = mocker.Mock()
+    mocker.patch("shutil.which", return_value=None)
+    
+    pkg_mgr = PackageManager(mock_env)
+    info = pkg_mgr.get_binary_info("nonexistent")
+    
+    assert info["found"] is False
