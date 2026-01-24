@@ -80,31 +80,25 @@ class BootstrapCLI:
         action_name = "Setup" if is_first_run else "Sync"
         
         print(f"\n--- bootstrap {action_name} ---")
-        print(f"Platform: {self.env.os.value}")
+        print(f"Platform: {self.env.os_info['pretty_name']}")
         
         pkg_mgr = PackageManager(self.env)
+        
+        # Initialize managers
+        dotfiles = DotfilesManager(repo_url, dotfiles_dir, work_tree, branch)
+        tool_managers = [
+            ZshManager(self.env, pkg_mgr),
+            TmuxManager(self.env, pkg_mgr),
+            NvimManager(self.env, pkg_mgr)
+        ]
 
         try:
             if "dotfiles" in enabled_modules:
-                dotfiles = DotfilesManager(
-                    repo_url=repo_url,
-                    dotfiles_dir=dotfiles_dir,
-                    work_tree=work_tree,
-                    branch=branch
-                )
                 dotfiles.setup()
 
-            if "zsh" in enabled_modules:
-                zsh = ZshManager(self.env, pkg_mgr)
-                zsh.setup()
-
-            if "tmux" in enabled_modules:
-                tmux = TmuxManager(self.env, pkg_mgr)
-                tmux.setup()
-
-            if "nvim" in enabled_modules:
-                nvim = NvimManager(self.env, pkg_mgr)
-                nvim.setup()
+            for manager in tool_managers:
+                if manager.bin_name in enabled_modules:
+                    manager.setup()
             
             print(f"\n--- {action_name} Complete! ---\n")
             
@@ -128,29 +122,29 @@ class BootstrapCLI:
         print(f"User   : {self.env.user}")
         
         pkg_mgr = PackageManager(self.env)
+        
         dotfiles = None
         if repo_url:
             dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
 
-        # Core Tools Status
-        tools = {
-            "zsh": [".zshrc"],
-            "tmux": [".tmux.conf"],
-            "nvim": [".config/nvim/init.lua", ".config/nvim/init.vim"]
-        }
+        tool_managers = [
+            ZshManager(self.env, pkg_mgr),
+            TmuxManager(self.env, pkg_mgr),
+            NvimManager(self.env, pkg_mgr)
+        ]
         
         print("\nCore Tools:")
-        for tool, configs in tools.items():
-            info = pkg_mgr.get_binary_info(tool)
+        for manager in tool_managers:
+            info = pkg_mgr.get_binary_info(manager.bin_name)
             if info["found"]:
-                print(f"  {tool}:")
+                print(f"  {manager.name}:")
                 print(f"    Binary : {info['path']} ({info['version']})")
             else:
-                print(f"  {tool}: ✗ not found in PATH")
+                print(f"  {manager.name}: ✗ not found in PATH")
                 continue
 
             if dotfiles:
-                for cfg in configs:
+                for cfg in manager.config_files:
                     status = dotfiles.get_file_sync_status(cfg)
                     if status == "not-found":
                         continue

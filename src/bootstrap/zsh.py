@@ -1,28 +1,26 @@
 import subprocess
-import logging
 import os
-from .environment import Environment
-from .packages import PackageManager
+from .base import BaseToolManager
 
-logger = logging.getLogger(__name__)
+class ZshManager(BaseToolManager):
+    @property
+    def name(self) -> str:
+        return "Zsh"
 
-class ZshManager:
-    def __init__(self, env: Environment, pkg_mgr: PackageManager):
-        self.env = env
-        self.pkg_mgr = pkg_mgr
+    @property
+    def bin_name(self) -> str:
+        return "zsh"
 
-    def setup(self):
-        logger.info("Verifying Zsh installation...")
-        
-        if not self.pkg_mgr.is_installed("zsh"):
-            logger.info("Zsh not found. Installing...")
-            self.pkg_mgr.install("zsh")
+    @property
+    def config_files(self) -> list:
+        return [".zshrc"]
 
+    def _post_install(self):
         current_shell = os.environ.get("SHELL", "")
         if "zsh" not in current_shell:
             if os.environ.get("BOOTSTRAP_MOCK_PKGS"):
-                logger.info("[MOCK] Setting Zsh as default shell...")
+                self.logger.info("[MOCK] Setting Zsh as default shell...")
                 return
-            logger.info("Setting Zsh as default shell...")
+            self.logger.info("Setting Zsh as default shell...")
             zsh_path = subprocess.check_output(["which", "zsh"]).decode().strip()
             subprocess.run(["sudo", "chsh", "-s", zsh_path, self.env.user], check=True)

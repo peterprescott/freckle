@@ -1,17 +1,14 @@
-import logging
-from .environment import Environment
-from .packages import PackageManager
+from .base import BaseToolManager
 
-logger = logging.getLogger(__name__)
+class TmuxManager(BaseToolManager):
+    @property
+    def name(self) -> str:
+        return "Tmux"
 
-class TmuxManager:
-    def __init__(self, env: Environment, pkg_mgr: PackageManager):
-        self.env = env
-        self.pkg_mgr = pkg_mgr
+    @property
+    def bin_name(self) -> str:
+        return "tmux"
 
-    def setup(self):
-        logger.info("Verifying Tmux installation...")
-        
-        if not self.pkg_mgr.is_installed("tmux"):
-            logger.info("Tmux not found. Installing...")
-            self.pkg_mgr.install("tmux")
+    @property
+    def config_files(self) -> list:
+        return [".tmux.conf"]

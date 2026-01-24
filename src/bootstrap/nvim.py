@@ -1,45 +1,33 @@
 import subprocess
-import logging
-from pathlib import Path
-from .environment import Environment
-from .packages import PackageManager
+from .base import BaseToolManager
 
-logger = logging.getLogger(__name__)
+class NvimManager(BaseToolManager):
+    @property
+    def name(self) -> str:
+        return "Neovim"
 
-class NvimManager:
-    def __init__(self, env: Environment, pkg_mgr: PackageManager):
-        self.env = env
-        self.pkg_mgr = pkg_mgr
-        self.config_dir = env.home / ".config" / "nvim"
-        self.init_lua = self.config_dir / "init.lua"
-        self.init_vim = self.config_dir / "init.vim"
+    @property
+    def bin_name(self) -> str:
+        return "nvim"
 
-    def setup(self):
-        """Ensures Neovim is installed and configured."""
-        logger.info("Verifying Neovim installation...")
-        
-        # 0. Ensure neovim is installed
-        if not self.pkg_mgr.is_installed("nvim"):
-            logger.info("Neovim not found. Installing...")
-            self.pkg_mgr.install("neovim")
+    @property
+    def package_name(self) -> str:
+        return "neovim"
 
-        # 1. Ensure config directory exists
-        self.config_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 2. Check for lazy.nvim
+    @property
+    def config_files(self) -> list:
+        return [".config/nvim/init.lua", ".config/nvim/init.vim"]
+
+    def _post_install(self):
+        config_dir = self.env.home / ".config" / "nvim"
+        config_dir.mkdir(parents=True, exist_ok=True)
         self._ensure_lazy_nvim()
-        
-        # 3. Handle init.vim -> init.lua migration
-        if self.init_vim.exists() and not self.init_lua.exists():
-            logger.info("Found existing init.vim but no init.lua. Migration recommended.")
-            # In a real scenario, we might auto-migrate or just warn.
-            # For now, we'll let the user decide.
 
     def _ensure_lazy_nvim(self):
         """Installs lazy.nvim if it's missing."""
         lazy_path = self.env.home / ".local" / "share" / "nvim" / "lazy" / "lazy.nvim"
         if not lazy_path.exists():
-            logger.info("Installing lazy.nvim...")
+            self.logger.info("Installing lazy.nvim...")
             subprocess.run([
                 "git", "clone", "--filter=blob:none",
                 "https://github.com/folke/lazy.nvim.git",
@@ -47,4 +35,4 @@ class NvimManager:
                 str(lazy_path)
             ], check=True)
         else:
-            logger.debug("lazy.nvim already installed.")
+            self.logger.debug("lazy.nvim already installed.")
