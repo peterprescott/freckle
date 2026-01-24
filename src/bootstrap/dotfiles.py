@@ -166,7 +166,8 @@ class DotfilesManager:
         - 'modified'  : Has local changes relative to HEAD.
         - 'behind'    : Matches HEAD but is different from remote.
         - 'untracked' : Not in the repository.
-        - 'missing'   : Tracked but file doesn't exist in work tree.
+        - 'missing'   : Tracked in repo but file doesn't exist in work tree.
+        - 'not-found' : File doesn't exist locally AND is not tracked in repo.
         """
         if not self.dotfiles_dir.exists():
             return "not-initialized"
@@ -174,32 +175,44 @@ class DotfilesManager:
         repo = self._get_repo()
         local_file = self.work_tree / relative_path
         
-        if not local_file.exists():
-            return "missing"
-
+        # 1. Check if tracked in HEAD or Remote
+        is_tracked_head = False
         try:
-            # 1. Get hash of local file
+            head_sha = repo.git.rev_parse(f"HEAD:{relative_path}")
+            is_tracked_head = True
+        except GitCommandError:
+            head_sha = None
+
+        is_tracked_remote = False
+        try:
+            remote_sha = repo.git.rev_parse(f"origin/{self.branch}:{relative_path}")
+            is_tracked_remote = True
+        except GitCommandError:
+            remote_sha = None
+
+        # 2. Check local file
+        if not local_file.exists():
+            if is_tracked_head or is_tracked_remote:
+                return "missing"
+            else:
+                return "not-found"
+
+        # 3. File exists locally, check sync state
+        try:
             local_sha = repo.git.hash_object(str(local_file))
             
-            # 2. Get hash in HEAD
-            try:
-                head_sha = repo.git.rev_parse(f"HEAD:{relative_path}")
-            except GitCommandError:
+            if not is_tracked_head:
                 return "untracked"
 
-            # 3. Get hash in Remote
-            try:
-                remote_sha = repo.git.rev_parse(f"origin/{self.branch}:{relative_path}")
-            except GitCommandError:
-                # If not on remote, we compare with head
-                return "up-to-date" if local_sha == head_sha else "modified"
-
-            if local_sha == remote_sha:
+            if remote_sha and local_sha == remote_sha:
                 return "up-to-date"
             elif local_sha != head_sha:
                 return "modified"
-            else:
+            elif remote_sha and head_sha != remote_sha:
                 return "behind"
+            else:
+                # Tracked locally and no remote info or matches head
+                return "up-to-date"
                 
         except GitCommandError:
             return "error"

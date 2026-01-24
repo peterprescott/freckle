@@ -156,6 +156,9 @@ class BootstrapCLI:
             if dotfiles:
                 for cfg in configs:
                     status = dotfiles.get_file_sync_status(cfg)
+                    if status == "not-found":
+                        continue
+                        
                     status_str = {
                         "up-to-date": "✓ up-to-date",
                         "modified": "⚠ modified locally",
