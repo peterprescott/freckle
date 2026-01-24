@@ -141,7 +141,7 @@ class DotfilesManager:
         repo = self._get_repo()
         
         # Check remote changes
-        logger.info("Checking for remote updates...")
+        logger.debug("Checking for remote updates...")
         repo.remotes.origin.fetch()
         
         # Check local changes
