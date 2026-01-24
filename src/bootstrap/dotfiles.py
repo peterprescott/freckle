@@ -140,13 +140,13 @@ class DotfilesManager:
 
         repo = self._get_repo()
         
-        # Check local changes
-        # Provide work tree explicitly for status
-        local_changes = repo.git.execute(["git", "--work-tree", str(self.work_tree), "status", "--porcelain"])
-        
         # Check remote changes
         logger.info("Checking for remote updates...")
         repo.remotes.origin.fetch()
+        
+        # Check local changes
+        # Provide work tree explicitly for status
+        local_changes = repo.git.execute(["git", "--work-tree", str(self.work_tree), "status", "--porcelain"])
         
         local_commit = repo.head.commit.hexsha
         remote_commit = repo.refs[f"origin/{self.branch}"].commit.hexsha
@@ -158,3 +158,48 @@ class DotfilesManager:
             "local_commit": local_commit[:7],
             "remote_commit": remote_commit[:7]
         }
+
+    def get_file_sync_status(self, relative_path: str) -> str:
+        """
+        Returns the sync status of a specific file:
+        - 'up-to-date': Matches the remote branch.
+        - 'modified'  : Has local changes relative to HEAD.
+        - 'behind'    : Matches HEAD but is different from remote.
+        - 'untracked' : Not in the repository.
+        - 'missing'   : Tracked but file doesn't exist in work tree.
+        """
+        if not self.dotfiles_dir.exists():
+            return "not-initialized"
+
+        repo = self._get_repo()
+        local_file = self.work_tree / relative_path
+        
+        if not local_file.exists():
+            return "missing"
+
+        try:
+            # 1. Get hash of local file
+            local_sha = repo.git.hash_object(str(local_file))
+            
+            # 2. Get hash in HEAD
+            try:
+                head_sha = repo.git.rev_parse(f"HEAD:{relative_path}")
+            except GitCommandError:
+                return "untracked"
+
+            # 3. Get hash in Remote
+            try:
+                remote_sha = repo.git.rev_parse(f"origin/{self.branch}:{relative_path}")
+            except GitCommandError:
+                # If not on remote, we compare with head
+                return "up-to-date" if local_sha == head_sha else "modified"
+
+            if local_sha == remote_sha:
+                return "up-to-date"
+            elif local_sha != head_sha:
+                return "modified"
+            else:
+                return "behind"
+                
+        except GitCommandError:
+            return "error"

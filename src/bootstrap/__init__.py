@@ -154,15 +154,18 @@ class BootstrapCLI:
                 continue
 
             if dotfiles:
-                tracked = []
                 for cfg in configs:
-                    if dotfiles.is_file_tracked(cfg):
-                        tracked.append(cfg)
-                
-                if tracked:
-                    print(f"    Config : ✓ tracked ({', '.join(tracked)})")
-                else:
-                    print(f"    Config : ✗ not tracked by dotfiles")
+                    status = dotfiles.get_file_sync_status(cfg)
+                    status_str = {
+                        "up-to-date": "✓ up-to-date",
+                        "modified": "⚠ modified locally",
+                        "behind": "↓ update available (behind remote)",
+                        "untracked": "✗ not tracked",
+                        "missing": "✗ missing from home",
+                        "error": "⚠ error checking status"
+                    }.get(status, f"status: {status}")
+                    
+                    print(f"    Config : {status_str} ({cfg})")
             
         # Global Dotfiles Status
         if not repo_url:
