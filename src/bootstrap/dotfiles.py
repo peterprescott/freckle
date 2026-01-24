@@ -1,9 +1,10 @@
-import subprocess
 import shutil
 import logging
+import git
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
+from git import Repo, GitCommandError
 
 logger = logging.getLogger(__name__)
 
@@ -13,75 +14,73 @@ class DotfilesManager:
         self.dotfiles_dir = dotfiles_dir
         self.work_tree = work_tree
         self.branch = branch
-        self.git_cmd = ["git", "--git-dir", str(self.dotfiles_dir), "--work-tree", str(self.work_tree)]
+        self._repo: Optional[Repo] = None
+
+    def _get_repo(self) -> Repo:
+        """Initializes or returns the GitPython Repo object."""
+        if self._repo is None:
+            if not self.dotfiles_dir.exists():
+                logger.info(f"Cloning bare repository from {self.repo_url} to {self.dotfiles_dir}")
+                self._repo = Repo.clone_from(self.repo_url, self.dotfiles_dir, bare=True)
+            else:
+                self._repo = Repo(self.dotfiles_dir)
+            
+            # Ensure the remote 'origin' has the correct fetch refspec
+            # Bare repos often don't have this set by default
+            with self._repo.config_writer() as writer:
+                writer.set_value('remote "origin"', "fetch", "+refs/heads/*:refs/remotes/origin/*")
+                writer.release()
+
+            # Important: Tell the repo object where the work tree is
+            self._repo.git.update_environment(GIT_WORK_TREE=str(self.work_tree))
+        return self._repo
 
     def setup(self):
         """Main entry point for setting up dotfiles."""
-        if not self.dotfiles_dir.exists():
-            self._clone_bare()
-        else:
-            self._fetch_updates()
+        repo = self._get_repo()
+        
+        logger.info(f"Fetching updates from origin...")
+        # Just fetch origin. This updates refs/remotes/origin/*
+        repo.remotes.origin.fetch()
         
         # Ensure HEAD points to the correct branch
-        subprocess.run(
-            self.git_cmd + ["symbolic-ref", "HEAD", f"refs/heads/{self.branch}"],
-            check=True
-        )
+        repo.git.symbolic_ref("HEAD", f"refs/heads/{self.branch}")
         
-        self._configure_status()
-        self._checkout_with_retry()
+        # We need to make sure the local branch exists and points to the remote one
+        # If it's a fresh clone, we might need to create it.
+        try:
+            repo.git.update_ref(f"refs/heads/{self.branch}", f"origin/{self.branch}")
+        except GitCommandError:
+            # If origin branch doesn't exist, this might fail, but checkout will catch it
+            pass
 
-    def _clone_bare(self):
-        logger.info(f"Cloning bare repository from {self.repo_url} to {self.dotfiles_dir}")
-        subprocess.run(
-            ["git", "clone", "--bare", self.repo_url, str(self.dotfiles_dir)],
-            check=True
-        )
+        # Configure status to ignore untracked files in $HOME
+        with repo.config_writer() as writer:
+            writer.set_value("status", "showUntrackedFiles", "no")
+            writer.release()
+        
+        self._checkout_with_retry(repo)
 
-    def _fetch_updates(self):
-        logger.info(f"Fetching updates from remote branch: {self.branch}")
-        subprocess.run(
-            self.git_cmd + ["fetch", "origin", f"{self.branch}:{self.branch}"],
-            check=False # Might fail if branch doesn't exist yet locally, which is fine
-        )
-        subprocess.run(
-            self.git_cmd + ["fetch", "origin", self.branch],
-            check=True
-        )
-
-    def _configure_status(self):
-        """Configures the repo to not show untracked files in the work tree (HOME)."""
-        subprocess.run(
-            self.git_cmd + ["config", "--local", "status.showUntrackedFiles", "no"],
-            check=True
-        )
-
-    def _checkout_with_retry(self, max_retries: int = 5):
+    def _checkout_with_retry(self, repo: Repo, max_retries: int = 5):
         """Attempts checkout and handles conflicts by backing up files."""
         for attempt in range(max_retries):
             logger.info(f"Attempting checkout (attempt {attempt + 1})...")
-            result = subprocess.run(
-                self.git_cmd + ["checkout"],
-                capture_output=True,
-                text=True
-            )
-
-            if result.returncode == 0:
+            try:
+                repo.git.checkout()
                 logger.info("Checkout successful!")
                 return
+            except GitCommandError as e:
+                # Check if checkout failed due to existing files
+                if "The following untracked working tree files would be overwritten by checkout" in e.stderr:
+                    conflicting_files = self._parse_conflicting_files(e.stderr)
+                    if not conflicting_files:
+                        logger.error("Failed to parse conflicting files from git output.")
+                        raise
 
-            # Check if checkout failed due to existing files
-            if "The following untracked working tree files would be overwritten by checkout" in result.stderr:
-                conflicting_files = self._parse_conflicting_files(result.stderr)
-                if not conflicting_files:
-                    logger.error("Failed to parse conflicting files from git output.")
-                    result.check_returncode()
-
-                self._backup_files(conflicting_files)
-            else:
-                # Some other error occurred
-                logger.error(f"Git checkout failed: {result.stderr}")
-                result.check_returncode()
+                    self._backup_files(conflicting_files)
+                else:
+                    logger.error(f"Git checkout failed: {e.stderr}")
+                    raise
 
         logger.error(f"Failed to checkout dotfiles after {max_retries} attempts.")
         raise RuntimeError("Dotfiles checkout failed.")
@@ -99,7 +98,6 @@ class DotfilesManager:
                 capture = False
                 continue
             if capture and line:
-                # Git output usually prefixes with tab or spaces
                 files.append(line)
         return files
 
@@ -122,10 +120,7 @@ class DotfilesManager:
             else:
                 logger.warning(f"Conflicting file {src} not found during backup.")
 
-    def dotfiles_git(self, *args) -> subprocess.CompletedProcess:
+    def dotfiles_git(self, *args) -> str:
         """Helper to run arbitrary git commands on the dotfiles repo."""
-        return subprocess.run(
-            self.git_cmd + list(args),
-            capture_output=True,
-            text=True
-        )
+        repo = self._get_repo()
+        return repo.git.execute(list(args))

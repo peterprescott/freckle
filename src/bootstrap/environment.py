@@ -1,5 +1,6 @@
 import platform
 import sys
+import os
 from enum import Enum
 from pathlib import Path
 
@@ -12,7 +13,7 @@ class Environment:
     def __init__(self):
         self.os = self._detect_os()
         self.home = Path.home()
-        self.user = self.home.name
+        self.user = os.environ.get("USER") or os.environ.get("LOGNAME") or self.home.name
 
     def _detect_os(self) -> OS:
         system = platform.system().lower()
