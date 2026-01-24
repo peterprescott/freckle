@@ -1,5 +1,5 @@
 import subprocess
-from .base import BaseToolManager
+from ..base import BaseToolManager
 
 class NvimManager(BaseToolManager):
     @property

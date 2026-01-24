@@ -1,6 +1,6 @@
 import subprocess
 import os
-from .base import BaseToolManager
+from ..base import BaseToolManager
 
 class ZshManager(BaseToolManager):
     @property

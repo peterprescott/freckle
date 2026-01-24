@@ -5,9 +5,9 @@ import fire
 from pathlib import Path
 from .environment import Environment
 from .dotfiles import DotfilesManager
-from .nvim import NvimManager
-from .zsh import ZshManager
-from .tmux import TmuxManager
+from .managers.nvim import NvimManager
+from .managers.zsh import ZshManager
+from .managers.tmux import TmuxManager
 from .config import Config
 from .packages import PackageManager
 
