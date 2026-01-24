@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING
@@ -18,7 +19,8 @@ class Config:
     }
 
     def __init__(self, config_path: Optional[Path] = None, env: Optional[Environment] = None):
-        self.data = self.DEFAULT_CONFIG.copy()
+        # Use deepcopy to avoid mutating the class-level DEFAULT_CONFIG
+        self.data = copy.deepcopy(self.DEFAULT_CONFIG)
         self.env = env
         if config_path and config_path.exists():
             with open(config_path, "r") as f:
