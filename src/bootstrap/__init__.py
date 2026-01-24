@@ -76,10 +76,17 @@ class BootstrapCLI:
         work_tree = self.env.home
         enabled_modules = config.get("modules", [])
 
+        is_first_run = not dotfiles_dir.exists()
+        action_name = "Setup" if is_first_run else "Sync"
+        
+        print(f"\n--- bootstrap {action_name} ---")
+        print(f"Platform: {self.env.os.value}")
+        
         pkg_mgr = PackageManager(self.env)
 
         try:
             if "dotfiles" in enabled_modules:
+                print(f"[*] {action_name}ing dotfiles from {repo_url}...")
                 dotfiles = DotfilesManager(
                     repo_url=repo_url,
                     dotfiles_dir=dotfiles_dir,
@@ -90,23 +97,75 @@ class BootstrapCLI:
                 self.logger.info("Dotfiles setup complete!")
 
             if "zsh" in enabled_modules:
+                print("[*] Configuring Zsh...")
                 zsh = ZshManager(self.env, pkg_mgr)
                 zsh.setup()
 
             if "tmux" in enabled_modules:
+                print("[*] Configuring Tmux...")
                 tmux = TmuxManager(self.env, pkg_mgr)
                 tmux.setup()
 
             if "nvim" in enabled_modules:
+                print("[*] Configuring Neovim...")
                 nvim = NvimManager(self.env, pkg_mgr)
                 nvim.setup()
             
-            self.logger.info("Bootstrap sequence complete!")
+            print(f"\n--- {action_name} Complete! ---\n")
             
         except Exception as e:
             self.logger.error(f"Bootstrap failed: {e}")
             return 1
         return 0
+
+    def status(self):
+        """Show current setup status and check for updates"""
+        config_path = self.env.home / ".bootstrap.yaml"
+        config = Config(config_path, env=self.env)
+        
+        repo_url = config.get("dotfiles.repo_url")
+        dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        branch = config.get("dotfiles.branch")
+        
+        print(f"\n--- bootstrap Status ---")
+        print(f"OS: {self.env.os.value}")
+        print(f"User: {self.env.user}")
+        
+        # Package Manager Status
+        pkg_mgr = PackageManager(self.env)
+        tools = ["zsh", "tmux", "nvim"]
+        print("\nCore Tools:")
+        for tool in tools:
+            status = "✓ installed" if pkg_mgr.is_installed(tool) else "✗ missing"
+            print(f"  {tool:<6}: {status}")
+            
+        # Dotfiles Status
+        if not repo_url:
+            print("\nDotfiles: Not configured (run 'bootstrap init')")
+        else:
+            manager = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
+            print(f"\nDotfiles ({repo_url}):")
+            try:
+                report = manager.get_status()
+                if not report["installed"]:
+                    print("  Status: Not installed")
+                else:
+                    print(f"  Branch: {branch}")
+                    print(f"  Local Commit : {report['local_commit']}")
+                    print(f"  Remote Commit: {report['remote_commit']}")
+                    
+                    if report["local_changes"]:
+                        print("  Local Changes: Yes (uncommitted changes in your home directory)")
+                    else:
+                        print("  Local Changes: No")
+                        
+                    if report["behind"]:
+                        print("  Update Available: Yes (remote has new commits)")
+                    else:
+                        print("  Update Available: No (up to date)")
+            except Exception as e:
+                print(f"  Error checking status: {e}")
+        print("")
 
     def version(self):
         """Show the version of the bootstrap tool"""
@@ -137,7 +196,7 @@ def main():
     # If no command is provided, default to 'run'
     if len(sys.argv) == 1:
         sys.argv.append("run")
-    elif sys.argv[1] not in ["run", "init", "version"] and not sys.argv[1].startswith("-"):
+    elif sys.argv[1] not in ["run", "init", "version", "status"] and not sys.argv[1].startswith("-"):
         # If the first argument is not a command or a flag, it might be a flag for 'run'
         # e.g., 'bootstrap --repo ...'
         sys.argv.insert(1, "run")

@@ -124,3 +124,29 @@ class DotfilesManager:
         """Helper to run arbitrary git commands on the dotfiles repo."""
         repo = self._get_repo()
         return repo.git.execute(list(args))
+
+    def get_status(self) -> dict:
+        """Returns a status report of the dotfiles repository."""
+        if not self.dotfiles_dir.exists():
+            return {"installed": False}
+
+        repo = self._get_repo()
+        
+        # Check local changes
+        # Use git status --porcelain to see if there are any staged or unstaged changes
+        local_changes = repo.git.status(porcelain=True)
+        
+        # Check remote changes
+        logger.info("Checking for remote updates...")
+        repo.remotes.origin.fetch()
+        
+        local_commit = repo.head.commit.hexsha
+        remote_commit = repo.refs[f"origin/{self.branch}"].commit.hexsha
+        
+        return {
+            "installed": True,
+            "local_changes": len(local_changes.strip()) > 0,
+            "behind": local_commit != remote_commit,
+            "local_commit": local_commit[:7],
+            "remote_commit": remote_commit[:7]
+        }
