@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 class Config:
     DEFAULT_CONFIG = {
+        "vars": {},
         "dotfiles": {
             "repo_url": None,
             "branch": "master",
@@ -36,19 +37,37 @@ class Config:
                 base[k] = v
 
     def _apply_replacements(self, data: Any):
-        """Recursively replaces {username} etc in the config data."""
+        """Recursively replaces {local_user} and custom vars in the config data."""
+        # Build the dictionary of available replacements
+        replacements = {
+            "local_user": self.env.user if self.env else "user"
+        }
+        # Merge in custom vars from the config itself
+        if "vars" in self.data:
+            replacements.update(self.data["vars"])
+
+        self._walk_and_format(data, replacements)
+
+    def _walk_and_format(self, data: Any, replacements: Dict[str, str]):
         if isinstance(data, dict):
             for k, v in data.items():
                 if isinstance(v, (dict, list)):
-                    self._apply_replacements(v)
+                    self._walk_and_format(v, replacements)
                 elif isinstance(v, str):
-                    data[k] = v.format(username=self.env.user)
+                    try:
+                        data[k] = v.format(**replacements)
+                    except KeyError as e:
+                        # If a tag is missing, we just leave it alone
+                        pass
         elif isinstance(data, list):
             for i, v in enumerate(data):
                 if isinstance(v, (dict, list)):
-                    self._apply_replacements(v)
+                    self._walk_and_format(v, replacements)
                 elif isinstance(v, str):
-                    data[i] = v.format(username=self.env.user)
+                    try:
+                        data[i] = v.format(**replacements)
+                    except KeyError:
+                        pass
 
     def get(self, key_path: str, default: Any = None) -> Any:
         keys = key_path.split(".")

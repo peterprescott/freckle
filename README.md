@@ -11,6 +11,7 @@ This tool automates the "bare repo" strategy for dotfiles with intelligent confl
 - **Bare Repo Management**: Safely check out dotfiles into your home directory, backing up conflicts automatically.
 - **Core Trio Support**: Automated setup for Zsh (default shell), Tmux, and Neovim (with `lazy.nvim` bootstrapping).
 - **Platform Aware**: Supports Debian-based Linux (`apt`) and macOS (`homebrew`).
+- **Flexible Templating**: Use `{local_user}` or custom variables in your configuration.
 
 ## Installation
 
@@ -35,20 +36,25 @@ Execute the bootstrap sequence:
 bootstrap run
 ```
 
-You can also override settings via the CLI:
-```bash
-bootstrap run --repo https://github.com/youruser/.dotfiles.git --branch main
-```
-
 ## Configuration (`~/.bootstrap.yaml`)
 
-You can customize the tool's behavior in your configuration file. You can use `{username}` as a placeholder for your system username.
+You can customize the tool's behavior in your configuration file. 
 
+### Variables
+- `{local_user}`: Automatically replaced with your system username.
+- Custom variables: Define your own in the `vars` section.
+
+### Example
 ```yaml
+vars:
+  git_user: "peterprescott"
+  git_host: "github.com"
+
 dotfiles:
-  repo_url: "https://github.com/{username}/.dotfiles.git"
-  branch: "main"
-  dir: "~/.dotfiles"
+  repo_url: "https://{git_host}/{git_user}/.dotfiles.git"
+  branch: "master"
+  dir: "/home/{local_user}/.dotfiles"
+
 modules:
   - dotfiles
   - zsh
