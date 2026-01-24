@@ -9,7 +9,7 @@ from git import Repo, GitCommandError
 logger = logging.getLogger(__name__)
 
 class DotfilesManager:
-    def __init__(self, repo_url: str, dotfiles_dir: Path, work_tree: Path, branch: str = "master"):
+    def __init__(self, repo_url: str, dotfiles_dir: Path, work_tree: Path, branch: str = "main"):
         self.repo_url = repo_url
         self.dotfiles_dir = dotfiles_dir
         self.work_tree = work_tree

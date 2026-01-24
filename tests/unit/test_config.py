@@ -3,7 +3,7 @@ from bootstrap.config import Config
 
 def test_config_defaults():
     config = Config()
-    assert config.get("dotfiles.branch") == "master"
+    assert config.get("dotfiles.branch") == "main"
     assert config.get("dotfiles.repo_url") is None
 
 def test_config_templating(mocker):

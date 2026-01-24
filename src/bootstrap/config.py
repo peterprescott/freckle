@@ -11,7 +11,7 @@ class Config:
         "vars": {},
         "dotfiles": {
             "repo_url": None,
-            "branch": "master",
+            "branch": "main",
             "dir": "~/.dotfiles"
         },
         "modules": ["dotfiles", "zsh", "tmux", "nvim"]

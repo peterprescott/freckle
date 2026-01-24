@@ -52,7 +52,7 @@ vars:
 
 dotfiles:
   repo_url: "https://{git_host}/{git_user}/.dotfiles.git"
-  branch: "master"
+  branch: "main"
   dir: "/home/{local_user}/.dotfiles"
 
 modules:

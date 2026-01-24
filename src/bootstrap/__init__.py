@@ -30,7 +30,7 @@ def cmd_init(args, env: Environment):
 
     print("--- bootstrap Initialization ---")
     repo_url = input("Enter your dotfiles repository URL: ").strip()
-    branch = input("Enter your preferred branch (default: master): ").strip() or "master"
+    branch = input("Enter your preferred branch (default: main): ").strip() or "main"
     dotfiles_dir = input("Enter directory for bare repo (default: ~/.dotfiles): ").strip() or "~/.dotfiles"
 
     config_data = {
