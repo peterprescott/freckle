@@ -94,7 +94,44 @@ class BootstrapCLI:
 
         try:
             if "dotfiles" in enabled_modules:
-                dotfiles.setup()
+                if is_first_run:
+                    print(f"[*] Initial setup of dotfiles from {repo_url}...")
+                    dotfiles.setup()
+                else:
+                    report = dotfiles.get_detailed_status()
+                    local = report["has_local_changes"]
+                    remote = report["has_remote_changes"]
+
+                    if not local and not remote:
+                        print("✓ Dotfiles are up-to-date.")
+                    elif local and not remote:
+                        # Option B: Local change, no remote change
+                        print("⚠ You have local changes that are not backed up.")
+                        choice = input("Do you want to backup these changes now? (y/N): ").strip().lower()
+                        if choice == 'y':
+                            msg = input("Enter a backup message: ").strip() or f"Backup from {self.env.os_info['pretty_name']}"
+                            dotfiles.commit_and_push(msg)
+                    elif not local and remote:
+                        # Option C: Remote change, no local change
+                        print("↓ Remote repository has new updates.")
+                        choice = input("Do you want to update your local files? (y/N): ").strip().lower()
+                        if choice == 'y':
+                            dotfiles.force_checkout()
+                    elif local and remote:
+                        # Option D: Conflict
+                        print("‼ CONFLICT: Both local and remote have new (different) changes.")
+                        print(f"  Local Commit : {report['local_commit']}")
+                        print(f"  Remote Commit: {report['remote_commit']}")
+                        print("Options:")
+                        print("  1. Keep local changes and backup (overwrites remote history if needed, or merges)")
+                        print("  2. Discard local changes and update to remote version")
+                        print("  3. Do nothing (skip dotfiles sync)")
+                        choice = input("Select an option (1/2/3): ").strip()
+                        if choice == '1':
+                            msg = input("Enter a backup message: ").strip() or "Manual backup during conflict"
+                            dotfiles.commit_and_push(msg)
+                        elif choice == '2':
+                            dotfiles.force_checkout()
 
             for manager in tool_managers:
                 if manager.bin_name in enabled_modules:
@@ -166,20 +203,20 @@ class BootstrapCLI:
         else:
             print(f"\nDotfiles ({repo_url}):")
             try:
-                report = dotfiles.get_status()
-                if not report["installed"]:
+                report = dotfiles.get_detailed_status()
+                if not report["initialized"]:
                     print("  Status: Not initialized")
                 else:
                     print(f"  Branch: {branch}")
                     print(f"  Local Commit : {report['local_commit']}")
                     print(f"  Remote Commit: {report['remote_commit']}")
                     
-                    if report["local_changes"]:
+                    if report["has_local_changes"]:
                         print("  Local Changes: Yes (uncommitted changes in your home directory)")
                     else:
                         print("  Local Changes: No")
                         
-                    if report["behind"]:
+                    if report["has_remote_changes"]:
                         print("  Update Available: Yes (remote has new commits)")
                     else:
                         print("  Update Available: No (up to date)")
