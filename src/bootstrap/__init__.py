@@ -108,11 +108,36 @@ class BootstrapCLI:
             return 1
         return 0
 
+    def version(self):
+        """Show the version of the bootstrap tool"""
+        import importlib.metadata
+        try:
+            version = importlib.metadata.version("bootstrap")
+            print(f"bootstrap version {version}")
+        except importlib.metadata.PackageNotFoundError:
+            # Fallback for development if not installed
+            print("bootstrap version (development)")
+
 def main():
+    # Handle version flags before Fire takes over
+    if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v", "version"]:
+        # If it's the 'version' command, Fire would handle it, 
+        # but we handle it here for consistency with flags.
+        # However, for 'version' we can just let Fire handle it if we want.
+        # Let's handle flags specifically.
+        if sys.argv[1] in ["--version", "-v"]:
+            import importlib.metadata
+            try:
+                version = importlib.metadata.version("bootstrap")
+                print(f"bootstrap version {version}")
+            except importlib.metadata.PackageNotFoundError:
+                print("bootstrap version (development)")
+            return
+
     # If no command is provided, default to 'run'
     if len(sys.argv) == 1:
         sys.argv.append("run")
-    elif sys.argv[1] not in ["run", "init"] and not sys.argv[1].startswith("-"):
+    elif sys.argv[1] not in ["run", "init", "version"] and not sys.argv[1].startswith("-"):
         # If the first argument is not a command or a flag, it might be a flag for 'run'
         # e.g., 'bootstrap --repo ...'
         sys.argv.insert(1, "run")
