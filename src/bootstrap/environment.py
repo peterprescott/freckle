@@ -14,6 +14,7 @@ class Environment:
         self.os = self._detect_os()
         self.home = Path.home()
         self.user = os.environ.get("USER") or os.environ.get("LOGNAME") or self.home.name
+        self.os_info = self._get_os_info()
 
     def _detect_os(self) -> OS:
         system = platform.system().lower()
@@ -22,6 +23,35 @@ class Environment:
         elif system == "darwin":
             return OS.MACOS
         return OS.UNKNOWN
+
+    def _get_os_info(self) -> dict:
+        info = {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "machine": platform.machine(),
+            "pretty_name": platform.system()
+        }
+
+        if self.is_linux():
+            # Try to get distro info from /etc/os-release
+            os_release = Path("/etc/os-release")
+            if os_release.exists():
+                data = {}
+                with open(os_release) as f:
+                    for line in f:
+                        if "=" in line:
+                            k, v = line.rstrip().split("=", 1)
+                            data[k] = v.strip('"')
+                info["pretty_name"] = data.get("PRETTY_NAME", "Linux")
+                info["distro"] = data.get("ID", "linux")
+                info["distro_version"] = data.get("VERSION_ID", "")
+        elif self.is_macos():
+            info["pretty_name"] = f"macOS {platform.mac_ver()[0]}"
+            info["distro"] = "macos"
+            info["distro_version"] = platform.mac_ver()[0]
+
+        return info
 
     def is_linux(self) -> bool:
         return self.os == OS.LINUX

@@ -128,8 +128,9 @@ class BootstrapCLI:
         branch = config.get("dotfiles.branch")
         
         print(f"\n--- bootstrap Status ---")
-        print(f"OS: {self.env.os.value}")
-        print(f"User: {self.env.user}")
+        print(f"OS   : {self.env.os_info['pretty_name']} ({self.env.os_info['machine']})")
+        print(f"Kernel : {self.env.os_info['release']}")
+        print(f"User   : {self.env.user}")
         
         pkg_mgr = PackageManager(self.env)
         dotfiles = None
