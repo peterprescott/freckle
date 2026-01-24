@@ -55,9 +55,9 @@ def cmd_run(args, env: Environment):
     config = Config(config_path, env=env)
     
     # Override from CLI
-    if args.repo:
+    if getattr(args, "repo", None):
         config.data["dotfiles"]["repo_url"] = args.repo
-    if args.branch:
+    if getattr(args, "branch", None):
         config.data["dotfiles"]["branch"] = args.branch
 
     repo_url = config.get("dotfiles.repo_url")
