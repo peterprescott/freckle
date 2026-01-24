@@ -1,6 +1,7 @@
 import subprocess
 import logging
 import shutil
+import os
 from .environment import Environment, OS
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,10 @@ class PackageManager:
         self.env = env
 
     def install(self, package_name: str):
+        if os.environ.get("BOOTSTRAP_MOCK_PKGS"):
+            logger.info(f"[MOCK] Installing {package_name}")
+            return
+
         if self.env.is_macos():
             self._install_with_brew(package_name)
         elif self.env.is_linux():

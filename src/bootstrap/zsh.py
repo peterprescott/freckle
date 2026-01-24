@@ -19,6 +19,9 @@ class ZshManager:
 
         current_shell = os.environ.get("SHELL", "")
         if "zsh" not in current_shell:
+            if os.environ.get("BOOTSTRAP_MOCK_PKGS"):
+                logger.info("[MOCK] Setting Zsh as default shell...")
+                return
             logger.info("Setting Zsh as default shell...")
             zsh_path = subprocess.check_output(["which", "zsh"]).decode().strip()
             subprocess.run(["sudo", "chsh", "-s", zsh_path, self.env.user], check=True)
