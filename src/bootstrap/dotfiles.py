@@ -26,13 +26,10 @@ class DotfilesManager:
                 self._repo = Repo(self.dotfiles_dir)
             
             # Ensure the remote 'origin' has the correct fetch refspec
-            # Bare repos often don't have this set by default
             with self._repo.config_writer() as writer:
                 writer.set_value('remote "origin"', "fetch", "+refs/heads/*:refs/remotes/origin/*")
                 writer.release()
 
-            # Important: Tell the repo object where the work tree is
-            self._repo.git.update_environment(GIT_WORK_TREE=str(self.work_tree))
         return self._repo
 
     def setup(self):
@@ -40,18 +37,15 @@ class DotfilesManager:
         repo = self._get_repo()
         
         logger.info(f"Fetching updates from origin...")
-        # Just fetch origin. This updates refs/remotes/origin/*
         repo.remotes.origin.fetch()
         
         # Ensure HEAD points to the correct branch
         repo.git.symbolic_ref("HEAD", f"refs/heads/{self.branch}")
         
         # We need to make sure the local branch exists and points to the remote one
-        # If it's a fresh clone, we might need to create it.
         try:
             repo.git.update_ref(f"refs/heads/{self.branch}", f"origin/{self.branch}")
         except GitCommandError:
-            # If origin branch doesn't exist, this might fail, but checkout will catch it
             pass
 
         # Configure status to ignore untracked files in $HOME
@@ -66,7 +60,8 @@ class DotfilesManager:
         for attempt in range(max_retries):
             logger.info(f"Attempting checkout (attempt {attempt + 1})...")
             try:
-                repo.git.checkout()
+                # Provide work tree only when needed
+                repo.git.execute(["git", "--work-tree", str(self.work_tree), "checkout"])
                 logger.info("Checkout successful!")
                 return
             except GitCommandError as e:
@@ -125,6 +120,19 @@ class DotfilesManager:
         repo = self._get_repo()
         return repo.git.execute(list(args))
 
+    def is_file_tracked(self, relative_path: str) -> bool:
+        """Checks if a file is tracked in the dotfiles repository."""
+        if not self.dotfiles_dir.exists():
+            return False
+        repo = self._get_repo()
+        try:
+            # Use ls-tree to check if the file exists in the current branch
+            # We don't want the work tree here
+            result = repo.git.ls_tree("-r", self.branch, relative_path, "--name-only")
+            return len(result.strip()) > 0
+        except GitCommandError:
+            return False
+
     def get_status(self) -> dict:
         """Returns a status report of the dotfiles repository."""
         if not self.dotfiles_dir.exists():
@@ -133,8 +141,8 @@ class DotfilesManager:
         repo = self._get_repo()
         
         # Check local changes
-        # Use git status --porcelain to see if there are any staged or unstaged changes
-        local_changes = repo.git.status(porcelain=True)
+        # Provide work tree explicitly for status
+        local_changes = repo.git.execute(["git", "--work-tree", str(self.work_tree), "status", "--porcelain"])
         
         # Check remote changes
         logger.info("Checking for remote updates...")

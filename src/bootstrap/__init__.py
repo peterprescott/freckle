@@ -131,24 +131,48 @@ class BootstrapCLI:
         print(f"OS: {self.env.os.value}")
         print(f"User: {self.env.user}")
         
-        # Package Manager Status
         pkg_mgr = PackageManager(self.env)
-        tools = ["zsh", "tmux", "nvim"]
+        dotfiles = None
+        if repo_url:
+            dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
+
+        # Core Tools Status
+        tools = {
+            "zsh": [".zshrc"],
+            "tmux": [".tmux.conf"],
+            "nvim": [".config/nvim/init.lua", ".config/nvim/init.vim"]
+        }
+        
         print("\nCore Tools:")
-        for tool in tools:
-            status = "✓ installed" if pkg_mgr.is_installed(tool) else "✗ missing"
-            print(f"  {tool:<6}: {status}")
+        for tool, configs in tools.items():
+            info = pkg_mgr.get_binary_info(tool)
+            if info["found"]:
+                print(f"  {tool}:")
+                print(f"    Binary : {info['path']} ({info['version']})")
+            else:
+                print(f"  {tool}: ✗ not found in PATH")
+                continue
+
+            if dotfiles:
+                tracked = []
+                for cfg in configs:
+                    if dotfiles.is_file_tracked(cfg):
+                        tracked.append(cfg)
+                
+                if tracked:
+                    print(f"    Config : ✓ tracked ({', '.join(tracked)})")
+                else:
+                    print(f"    Config : ✗ not tracked by dotfiles")
             
-        # Dotfiles Status
+        # Global Dotfiles Status
         if not repo_url:
             print("\nDotfiles: Not configured (run 'bootstrap init')")
         else:
-            manager = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
             print(f"\nDotfiles ({repo_url}):")
             try:
-                report = manager.get_status()
+                report = dotfiles.get_status()
                 if not report["installed"]:
-                    print("  Status: Not installed")
+                    print("  Status: Not initialized")
                 else:
                     print(f"  Branch: {branch}")
                     print(f"  Local Commit : {report['local_commit']}")
