@@ -16,8 +16,9 @@ RUN apt-get update && apt-get install -y \
     neovim \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uv --chmod=755
+# Install uv - copy from official image and set permissions separately
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uv
+RUN chmod 755 /uv
 ENV PATH="/:$PATH"
 
 # Create a test user
