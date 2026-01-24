@@ -103,12 +103,22 @@ class DotfilesManager:
         repo = self._get_repo()
         logger.debug("Checking for remote updates...")
         repo.remotes.origin.fetch()
-        local_changes = repo.git.execute(["git", "--work-tree", str(self.work_tree), "status", "--porcelain"])
+        
+        # Get porcelain status to see which files changed
+        status_output = repo.git.execute(["git", "--work-tree", str(self.work_tree), "status", "--porcelain"])
+        changed_files = []
+        for line in status_output.splitlines():
+            if line.strip():
+                # Porcelain format is 'XY path'
+                changed_files.append(line[3:])
+        
         local_commit = repo.head.commit.hexsha
         remote_commit = repo.refs[f"origin/{self.branch}"].commit.hexsha
+        
         return {
             "initialized": True,
-            "has_local_changes": len(local_changes.strip()) > 0,
+            "has_local_changes": len(changed_files) > 0,
+            "changed_files": changed_files,
             "has_remote_changes": local_commit != remote_commit,
             "local_commit": local_commit[:7],
             "remote_commit": remote_commit[:7]

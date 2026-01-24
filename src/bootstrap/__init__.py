@@ -55,7 +55,7 @@ class BootstrapCLI:
         print("\nInitialization complete! You can now run 'bootstrap run'.")
         return 0
 
-    def run(self, repo=None, branch=None):
+    def run(self, repo=None, branch=None, backup=False, update=False):
         """Run the bootstrap sequence"""
         config_path = self.env.home / ".bootstrap.yaml"
         config = Config(config_path, env=self.env)
@@ -106,32 +106,45 @@ class BootstrapCLI:
                         print("✓ Dotfiles are up-to-date.")
                     elif local and not remote:
                         # Option B: Local change, no remote change
-                        print("⚠ You have local changes that are not backed up.")
-                        choice = input("Do you want to backup these changes now? (y/N): ").strip().lower()
-                        if choice == 'y':
-                            msg = input("Enter a backup message: ").strip() or f"Backup from {self.env.os_info['pretty_name']}"
+                        print("⚠ You have local changes that are not backed up:")
+                        for f in report["changed_files"]:
+                            print(f"    - {f}")
+                        
+                        if backup:
+                            msg = f"Automated backup from {self.env.os_info['pretty_name']}"
                             dotfiles.commit_and_push(msg)
+                        else:
+                            print("\nTo backup these changes, run: bootstrap run --backup")
+                            return 0 # Stop dotfiles sync but continue with others? 
+                                     # Actually user said "just stop", let's return.
                     elif not local and remote:
                         # Option C: Remote change, no local change
-                        print("↓ Remote repository has new updates.")
-                        choice = input("Do you want to update your local files? (y/N): ").strip().lower()
-                        if choice == 'y':
+                        print(f"↓ Remote repository ({branch}) has new updates.")
+                        if update:
                             dotfiles.force_checkout()
+                        else:
+                            print("\nTo update your local files, run: bootstrap run --update")
+                            return 0
                     elif local and remote:
                         # Option D: Conflict
                         print("‼ CONFLICT: Both local and remote have new (different) changes.")
                         print(f"  Local Commit : {report['local_commit']}")
                         print(f"  Remote Commit: {report['remote_commit']}")
-                        print("Options:")
-                        print("  1. Keep local changes and backup (overwrites remote history if needed, or merges)")
-                        print("  2. Discard local changes and update to remote version")
-                        print("  3. Do nothing (skip dotfiles sync)")
-                        choice = input("Select an option (1/2/3): ").strip()
-                        if choice == '1':
-                            msg = input("Enter a backup message: ").strip() or "Manual backup during conflict"
+                        
+                        print("\nLocal changes:")
+                        for f in report["changed_files"]:
+                            print(f"    - {f}")
+                            
+                        if backup:
+                            msg = "Manual backup during conflict"
                             dotfiles.commit_and_push(msg)
-                        elif choice == '2':
+                        elif update:
                             dotfiles.force_checkout()
+                        else:
+                            print("\nOptions to resolve conflict:")
+                            print("  - To keep local changes and backup: bootstrap run --backup")
+                            print("  - To discard local changes and update: bootstrap run --update")
+                            return 0
 
             for manager in tool_managers:
                 if manager.bin_name in enabled_modules:
