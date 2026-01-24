@@ -1,7 +1,7 @@
 [project]
 name = "bootstrap"
 version = "0.1.0"
-description = "Add your description here"
+description = "A robust, multi-platform system bootstrapper for Linux and macOS."
 readme = "README.md"
 authors = [
     { name = "Peter Prescott", email = "prescott.peter@gmail.com" }
