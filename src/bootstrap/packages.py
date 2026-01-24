@@ -6,11 +6,90 @@ from .environment import Environment, OS
 
 logger = logging.getLogger(__name__)
 
+
 class PackageManager:
+    """Platform-aware package manager for installing system packages."""
+    
+    # Map distro IDs to package manager configurations
+    DISTRO_PACKAGE_MANAGERS = {
+        # Debian-based
+        "debian": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
+        "ubuntu": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
+        "linuxmint": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
+        "pop": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
+        # Red Hat-based
+        "fedora": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
+        "rhel": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
+        "centos": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
+        "rocky": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
+        "alma": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
+        # Arch-based
+        "arch": {"cmd": "pacman", "install": ["pacman", "-S", "--noconfirm"], "update": ["pacman", "-Sy"]},
+        "manjaro": {"cmd": "pacman", "install": ["pacman", "-S", "--noconfirm"], "update": ["pacman", "-Sy"]},
+        "endeavouros": {"cmd": "pacman", "install": ["pacman", "-S", "--noconfirm"], "update": ["pacman", "-Sy"]},
+        # SUSE-based
+        "opensuse": {"cmd": "zypper", "install": ["zypper", "install", "-y"], "update": ["zypper", "refresh"]},
+        "suse": {"cmd": "zypper", "install": ["zypper", "install", "-y"], "update": ["zypper", "refresh"]},
+        # Alpine
+        "alpine": {"cmd": "apk", "install": ["apk", "add"], "update": ["apk", "update"]},
+    }
+
     def __init__(self, env: Environment):
         self.env = env
+        self._is_root = os.geteuid() == 0 if hasattr(os, 'geteuid') else False
+
+    def _get_privilege_cmd(self) -> list:
+        """Get the command prefix for privileged operations.
+        
+        Returns empty list if already root, ['sudo'] if sudo is available,
+        or raises an error if privileges are needed but unavailable.
+        """
+        if self._is_root:
+            return []
+        
+        if shutil.which("sudo"):
+            return ["sudo"]
+        
+        # Check for doas (common on BSD, some Linux)
+        if shutil.which("doas"):
+            return ["doas"]
+        
+        logger.warning("No privilege escalation tool found (sudo/doas). "
+                      "Package installation may fail if not running as root.")
+        return []
+
+    def _get_linux_package_manager(self) -> dict:
+        """Detect the appropriate package manager for this Linux distro."""
+        distro = self.env.os_info.get("distro", "").lower()
+        
+        # Try exact match first
+        if distro in self.DISTRO_PACKAGE_MANAGERS:
+            return self.DISTRO_PACKAGE_MANAGERS[distro]
+        
+        # Try partial match (e.g., "opensuse-leap" matches "opensuse")
+        for key, config in self.DISTRO_PACKAGE_MANAGERS.items():
+            if key in distro or distro in key:
+                return config
+        
+        # Fallback: detect by available package manager binary
+        if shutil.which("apt"):
+            return self.DISTRO_PACKAGE_MANAGERS["debian"]
+        elif shutil.which("dnf"):
+            return self.DISTRO_PACKAGE_MANAGERS["fedora"]
+        elif shutil.which("yum"):
+            return {"cmd": "yum", "install": ["yum", "install", "-y"], "update": None}
+        elif shutil.which("pacman"):
+            return self.DISTRO_PACKAGE_MANAGERS["arch"]
+        elif shutil.which("zypper"):
+            return self.DISTRO_PACKAGE_MANAGERS["opensuse"]
+        elif shutil.which("apk"):
+            return self.DISTRO_PACKAGE_MANAGERS["alpine"]
+        
+        logger.error(f"Could not detect package manager for distro: {distro}")
+        return None
 
     def install(self, package_name: str):
+        """Install a package using the appropriate package manager."""
         if os.environ.get("BOOTSTRAP_MOCK_PKGS"):
             logger.info(f"[MOCK] Installing {package_name}")
             return
@@ -18,31 +97,50 @@ class PackageManager:
         if self.env.is_macos():
             self._install_with_brew(package_name)
         elif self.env.is_linux():
-            self._install_with_apt(package_name)
+            self._install_linux(package_name)
         else:
             logger.error(f"Cannot install {package_name}: Unsupported OS")
 
+    def _install_linux(self, package_name: str):
+        """Install a package on Linux using the detected package manager."""
+        pkg_mgr = self._get_linux_package_manager()
+        if not pkg_mgr:
+            raise RuntimeError(f"No supported package manager found for this system")
+        
+        priv_cmd = self._get_privilege_cmd()
+        
+        # Run update if required by this package manager
+        if pkg_mgr.get("update"):
+            logger.info(f"Updating package lists...")
+            update_cmd = priv_cmd + pkg_mgr["update"]
+            subprocess.run(update_cmd, check=True)
+        
+        # Install the package
+        logger.info(f"Installing {package_name} via {pkg_mgr['cmd']}...")
+        install_cmd = priv_cmd + pkg_mgr["install"] + [package_name]
+        subprocess.run(install_cmd, check=True)
+
     def _ensure_brew(self):
-        if not shutil.which("brew"):
-            logger.info("Installing Homebrew...")
-            subprocess.run(
-                ["/bin/bash", "-c", "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"],
-                check=True
-            )
+        """Install Homebrew if not present."""
+        if shutil.which("brew"):
+            return
+        
+        logger.info("Installing Homebrew...")
+        # Must use shell=True because the command uses shell expansion $()
+        install_script = (
+            '/bin/bash -c "$(curl -fsSL '
+            'https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        )
+        subprocess.run(install_script, shell=True, check=True)
 
     def _install_with_brew(self, package_name: str):
+        """Install a package using Homebrew on macOS."""
         self._ensure_brew()
         logger.info(f"Installing {package_name} via Homebrew...")
         subprocess.run(["brew", "install", package_name], check=True)
 
-    def _install_with_apt(self, package_name: str):
-        # We could check if apt is available, but for now we assume it is on Linux/Debian
-        logger.info(f"Installing {package_name} via apt...")
-        # Note: This might require sudo
-        subprocess.run(["sudo", "apt", "update"], check=True)
-        subprocess.run(["sudo", "apt", "install", "-y", package_name], check=True)
-
     def is_installed(self, command_name: str) -> bool:
+        """Check if a command is available in PATH."""
         return shutil.which(command_name) is not None
 
     def get_binary_info(self, command_name: str) -> dict:
