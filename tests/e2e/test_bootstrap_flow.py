@@ -40,8 +40,8 @@ def test_full_bootstrap_flow(tmp_path):
     # 2. Run bootstrap init
     # We'll use the CLI directly. 'bootstrap' should be in the path if installed via uv.
     # Alternatively, we can use 'uv run bootstrap'
-    # Input: 1 (clone existing), repo URL, branch, dotfiles dir
-    init_input = f"1\n{remote_repo}\nmain\n{home}/.dotfiles\n"
+    # Input: y (clone existing), repo URL, branch, dotfiles dir
+    init_input = f"y\n{remote_repo}\nmain\n{home}/.dotfiles\n"
     subprocess.run(
         ["uv", "run", "bootstrap", "init"],
         input=init_input,

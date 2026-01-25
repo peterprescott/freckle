@@ -65,17 +65,9 @@ class BootstrapCLI:
         print("--- bootstrap Initialization ---\n")
         
         # Ask if they have an existing repo
-        print("Do you have an existing dotfiles repository?")
-        print("  [1] Yes - I want to clone my existing dotfiles repo")
-        print("  [2] No  - Create a new dotfiles repo from scratch")
+        choice = input("Do you have an existing dotfiles repository? [y/N]: ").strip().lower()
         
-        while True:
-            choice = input("\nChoose [1/2]: ").strip()
-            if choice in ["1", "2"]:
-                break
-            print("  Please enter 1 or 2")
-        
-        if choice == "1":
+        if choice in ["y", "yes"]:
             return self._init_clone_existing(config_path)
         else:
             return self._init_create_new(config_path)
@@ -111,8 +103,8 @@ class BootstrapCLI:
             
             break
         
-        branch = input("Enter your preferred branch (default: main): ").strip() or "main"
-        dotfiles_dir = input("Enter directory for bare repo (default: ~/.dotfiles): ").strip() or "~/.dotfiles"
+        branch = input("Enter your preferred branch (default: main): ").strip().lower() or "main"
+        dotfiles_dir = input("Enter directory for bare repo (default: .dotfiles): ").strip() or ".dotfiles"
 
         config_data = {
             "dotfiles": {
@@ -144,8 +136,8 @@ class BootstrapCLI:
         if repo_url and not validate_git_url(repo_url):
             print("  Warning: URL format looks unusual, but continuing anyway.")
         
-        branch = input("Enter branch name (default: main): ").strip() or "main"
-        dotfiles_dir = input("Enter directory for bare repo (default: ~/.dotfiles): ").strip() or "~/.dotfiles"
+        branch = input("Enter branch name (default: main): ").strip().lower() or "main"
+        dotfiles_dir = input("Enter directory for bare repo (default: .dotfiles): ").strip() or ".dotfiles"
         
         # Ask which files to track initially
         print("\nWhich dotfiles do you want to track? (Enter comma-separated list)")
