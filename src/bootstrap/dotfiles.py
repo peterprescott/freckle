@@ -72,51 +72,92 @@ class DotfilesManager:
                 self._repo = pygit2.Repository(str(self.dotfiles_dir))
         return self._repo
 
-    def _get_current_branch(self) -> Optional[str]:
-        """Get the current branch name, falling back through options.
+    def _get_available_branches(self) -> List[str]:
+        """Get list of all available branch names (local and remote)."""
+        repo = self._get_repo()
+        branches = set()
         
-        Tries in order:
-        1. The configured branch (if it exists locally or on remote)
-        2. HEAD's target branch
-        3. 'main' or 'master' if they exist
+        for ref in repo.references:
+            if ref.startswith("refs/heads/"):
+                branches.add(ref[len("refs/heads/"):])
+            elif ref.startswith("refs/remotes/origin/"):
+                branch = ref[len("refs/remotes/origin/"):]
+                if branch != "HEAD":
+                    branches.add(branch)
         
-        Returns None if no valid branch found.
+        return sorted(branches)
+
+    def _resolve_branch(self) -> Dict[str, Any]:
+        """Resolve which branch to use, with detailed context.
+        
+        Returns a dict with:
+        - effective: The branch to actually use
+        - configured: The originally configured branch
+        - reason: Why this branch was chosen ('exact', 'main_master_swap', 'fallback_head', 'fallback_default', 'not_found')
+        - available: List of available branches (if configured wasn't found)
+        - message: Human-readable explanation (if not exact match)
         """
         repo = self._get_repo()
+        configured = self.branch
+        available = self._get_available_branches()
         
         # Check if configured branch exists
-        if repo.references.get(f"refs/heads/{self.branch}"):
-            return self.branch
-        if repo.references.get(f"refs/remotes/origin/{self.branch}"):
-            return self.branch
+        if configured in available:
+            return {
+                "effective": configured,
+                "configured": configured,
+                "reason": "exact",
+                "available": available,
+                "message": None,
+            }
+        
+        # Common main/master swap
+        swap_map = {"main": "master", "master": "main"}
+        if configured in swap_map and swap_map[configured] in available:
+            swapped = swap_map[configured]
+            return {
+                "effective": swapped,
+                "configured": configured,
+                "reason": "main_master_swap",
+                "available": available,
+                "message": f"Branch '{configured}' not found; using '{swapped}' instead.",
+            }
         
         # Try HEAD
         try:
             if not repo.head_is_unborn:
                 head_ref = repo.head.name
                 if head_ref.startswith("refs/heads/"):
-                    return head_ref[len("refs/heads/"):]
+                    head_branch = head_ref[len("refs/heads/"):]
+                    return {
+                        "effective": head_branch,
+                        "configured": configured,
+                        "reason": "fallback_head",
+                        "available": available,
+                        "message": f"Branch '{configured}' not found; using current HEAD '{head_branch}'.",
+                    }
         except Exception:
             pass
         
         # Try common defaults
         for fallback in ["main", "master"]:
-            if repo.references.get(f"refs/heads/{fallback}"):
-                return fallback
-            if repo.references.get(f"refs/remotes/origin/{fallback}"):
-                return fallback
+            if fallback in available:
+                return {
+                    "effective": fallback,
+                    "configured": configured,
+                    "reason": "fallback_default",
+                    "available": available,
+                    "message": f"Branch '{configured}' not found; falling back to '{fallback}'.",
+                }
         
-        return None
-
-    def _get_effective_branch(self) -> str:
-        """Get the branch to use, with fallback logic and warnings."""
-        effective = self._get_current_branch()
-        if effective is None:
-            logger.warning(f"No valid branch found, using configured: {self.branch}")
-            return self.branch
-        if effective != self.branch:
-            logger.info(f"Configured branch '{self.branch}' not found, using '{effective}'")
-        return effective
+        # Nothing found - use configured anyway (will likely fail)
+        return {
+            "effective": configured,
+            "configured": configured,
+            "reason": "not_found",
+            "available": available,
+            "message": f"Branch '{configured}' not found. Available branches: {', '.join(available) or '(none)'}",
+        }
 
     def _get_tracked_files(self, branch: str = None) -> List[str]:
         """Get list of all files tracked in the target branch."""
@@ -286,7 +327,8 @@ class DotfilesManager:
             fetch_failed = not self._fetch()
         
         # Determine which branch to use (with fallback)
-        effective_branch = self._get_effective_branch()
+        branch_info = self._resolve_branch()
+        effective_branch = branch_info["effective"]
         
         # Get changed files by comparing work tree to HEAD
         changed_files = self._get_changed_files(branch=effective_branch)
@@ -299,6 +341,7 @@ class DotfilesManager:
             return {
                 "initialized": True,
                 "branch": effective_branch,
+                "branch_info": branch_info,
                 "has_local_changes": len(changed_files) > 0,
                 "changed_files": changed_files,
                 "is_ahead": False,
@@ -315,6 +358,7 @@ class DotfilesManager:
             return {
                 "initialized": True,
                 "branch": effective_branch,
+                "branch_info": branch_info,
                 "has_local_changes": len(changed_files) > 0,
                 "changed_files": changed_files,
                 "is_ahead": False,
@@ -333,6 +377,7 @@ class DotfilesManager:
         return {
             "initialized": True,
             "branch": effective_branch,
+            "branch_info": branch_info,
             "has_local_changes": len(changed_files) > 0,
             "changed_files": changed_files,
             "is_ahead": ahead > 0,

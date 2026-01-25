@@ -310,11 +310,29 @@ class BootstrapCLI:
                 if not report["initialized"]:
                     print("  Status: Not initialized")
                 else:
+                    branch_info = report.get('branch_info', {})
                     effective_branch = report.get('branch', branch)
-                    if effective_branch != branch:
-                        print(f"  Branch: {effective_branch} (configured: {branch})")
-                    else:
+                    
+                    # Show branch with context if there's a mismatch
+                    reason = branch_info.get('reason', 'exact')
+                    if reason == 'exact':
                         print(f"  Branch: {effective_branch}")
+                    elif reason == 'main_master_swap':
+                        print(f"  Branch: {effective_branch}")
+                        print(f"    Note: '{branch_info.get('configured')}' not found, using '{effective_branch}'")
+                    elif reason == 'not_found':
+                        print(f"  Branch: {effective_branch} (configured, but not found!)")
+                        available = branch_info.get('available', [])
+                        if available:
+                            print(f"    Available branches: {', '.join(available)}")
+                        else:
+                            print(f"    No branches found - is this repo initialized?")
+                    else:
+                        # fallback_head or fallback_default
+                        print(f"  Branch: {effective_branch}")
+                        if branch_info.get('message'):
+                            print(f"    Note: {branch_info['message']}")
+                    
                     print(f"  Local Commit : {report['local_commit']}")
                     print(f"  Remote Commit: {report.get('remote_commit', 'N/A')}")
                     
