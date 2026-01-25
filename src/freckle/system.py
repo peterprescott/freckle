@@ -90,7 +90,7 @@ class SystemPackageManager:
 
     def install(self, package_name: str):
         """Install a package using the appropriate package manager."""
-        if os.environ.get("BOOTSTRAP_MOCK_PKGS"):
+        if os.environ.get("FRECKLE_MOCK_PKGS"):
             logger.info(f"[MOCK] Installing {package_name}")
             return
 

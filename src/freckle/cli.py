@@ -448,7 +448,7 @@ class FreckleCLI:
             print(f"\n--- {action_name} Complete! ---\n")
             
         except Exception as e:
-            self.logger.error(f"Bootstrap failed: {e}")
+            self.logger.error(f"Freckle failed: {e}")
             return 1
         return 0
 
@@ -570,7 +570,7 @@ class FreckleCLI:
             NvimManager(self.env, pkg_mgr)
         ]
         
-        # Bootstrap config status
+        # Freckle config status
         print("\nConfiguration:")
         if config_path.exists():
             if dotfiles:

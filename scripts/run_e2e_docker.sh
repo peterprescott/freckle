@@ -1,18 +1,18 @@
 #!/bin/bash
 set -e
 
-# AnyMachine Bootstrap Docker E2E Runner
-# This script builds and runs the bootstrap tool in a clean Debian container.
+# Freckle Docker E2E Runner
+# This script builds and runs freckle in a clean Debian container.
 
 # Build the image
 echo "Building Docker E2E image..."
-docker build -t bootstrap-e2e -f tests/e2e/Dockerfile .
+docker build -t freckle-e2e -f tests/e2e/Dockerfile .
 
-# Run the container and execute bootstrap
+# Run the container and execute freckle
 echo "Running E2E test in container..."
-docker run --rm bootstrap-e2e /bin/bash -c "
-    echo '--- Running bootstrap run ---'
-    cd ~/bootstrap && bootstrap run
+docker run --rm freckle-e2e /bin/bash -c "
+    echo '--- Running freckle run ---'
+    cd ~/freckle && freckle run
     echo '--- Verifying state ---'
     [ -f ~/.zshrc ] && echo '✓ .zshrc exists' || (echo '✗ .zshrc missing' && exit 1)
     [ -f ~/.tmux.conf ] && echo '✓ .tmux.conf exists' || (echo '✗ .tmux.conf missing' && exit 1)

@@ -24,7 +24,7 @@ class ZshManager(BaseToolManager):
             self.logger.debug("Zsh is already the default shell")
             return
         
-        if os.environ.get("BOOTSTRAP_MOCK_PKGS"):
+        if os.environ.get("FRECKLE_MOCK_PKGS"):
             self.logger.info("[MOCK] Setting Zsh as default shell...")
             return
         
