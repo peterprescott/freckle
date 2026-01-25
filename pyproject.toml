@@ -3,14 +3,37 @@ name = "freckle"
 version = "0.2.0"
 description = "Keep track of all your dot(file)s. A dotfiles manager with tool installation."
 readme = "README.md"
+license = "MIT"
 authors = [
     { name = "Peter Prescott", email = "prescott.peter@gmail.com" }
 ]
 requires-python = ">=3.9"
+keywords = ["dotfiles", "configuration", "bootstrap", "setup", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Installation/Setup",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = [
     "fire>=0.7.1",
     "pyyaml>=6.0.3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/peterprescott/freckle"
+Repository = "https://github.com/peterprescott/freckle"
+Issues = "https://github.com/peterprescott/freckle/issues"
 
 [project.scripts]
 freckle = "freckle:main"
