@@ -231,6 +231,18 @@ class BootstrapCLI:
         
         # Create the repo
         dotfiles_path = Path(dotfiles_dir).expanduser()
+        
+        # Check if directory already exists
+        if dotfiles_path.exists():
+            print(f"\n⚠ Directory already exists: {dotfiles_path}")
+            choice = input("Remove it and start fresh? [y/N]: ").strip().lower()
+            if choice in ["y", "yes"]:
+                shutil.rmtree(dotfiles_path)
+                print(f"  Removed {dotfiles_path}")
+            else:
+                print("  Aborting. Remove the directory manually or choose a different location.")
+                return 1
+        
         dotfiles = DotfilesManager(repo_url or "", dotfiles_path, self.env.home, branch)
         
         try:
