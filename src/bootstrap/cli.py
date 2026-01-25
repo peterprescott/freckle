@@ -1,7 +1,6 @@
 """Command-line interface for the bootstrap tool."""
 
 import logging
-import sys
 from pathlib import Path
 
 import fire
@@ -25,12 +24,24 @@ from .utils import (
 class BootstrapCLI:
     """Bootstrap CLI for managing dotfiles and development tools."""
     
-    COMMANDS = ["run", "init", "version", "status"]
-    
     def __init__(self):
         setup_logging()
         self.env = Environment()
         self.logger = logging.getLogger(__name__)
+
+    def __call__(self, repo: str = None, branch: str = None, backup: bool = False, update: bool = False) -> int:
+        """Default action - runs the bootstrap sequence.
+        
+        Args:
+            repo: Override dotfiles repository URL.
+            branch: Override git branch.
+            backup: Commit and push local changes.
+            update: Pull and apply remote changes (discards local changes).
+            
+        Returns:
+            Exit code (0 for success, 1 for failure).
+        """
+        return self.run(repo=repo, branch=branch, backup=backup, update=update)
 
     def init(self, force: bool = False) -> int:
         """Initialize configuration.
@@ -236,12 +247,8 @@ class BootstrapCLI:
             return 1
         return 0
 
-    def status(self) -> int:
-        """Show current setup status and check for updates.
-        
-        Returns:
-            Exit code (0 for success).
-        """
+    def status(self):
+        """Show current setup status and check for updates."""
         config_path = self.env.home / ".bootstrap.yaml"
         config = Config(config_path, env=self.env)
         
@@ -326,36 +333,12 @@ class BootstrapCLI:
             except Exception as e:
                 print(f"  Error checking status: {e}")
         print("")
-        return 0
 
-    def version(self) -> int:
-        """Show the version of the bootstrap tool.
-        
-        Returns:
-            Exit code (0 for success).
-        """
+    def version(self):
+        """Show the version of the bootstrap tool."""
         print(f"bootstrap version {get_version()}")
-        return 0
 
 
 def main():
     """Main entry point for the bootstrap CLI."""
-    # Handle version flags before Fire takes over
-    if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v"]:
-        print(f"bootstrap version {get_version()}")
-        sys.exit(0)
-
-    # Use Fire with a default command
-    cli = BootstrapCLI()
-    
-    # Determine if we need to inject a default command
-    if len(sys.argv) == 1:
-        # No arguments: default to 'run'
-        fire.Fire(cli, command=["run"])
-    elif sys.argv[1] not in BootstrapCLI.COMMANDS and not sys.argv[1].startswith("-"):
-        # First arg is not a known command or flag: might be a flag for 'run'
-        # e.g., 'bootstrap --backup' should become 'bootstrap run --backup'
-        fire.Fire(cli, command=["run"] + sys.argv[1:])
-    else:
-        # Normal invocation
-        fire.Fire(cli)
+    fire.Fire(BootstrapCLI)
