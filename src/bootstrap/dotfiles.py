@@ -72,15 +72,62 @@ class DotfilesManager:
                 self._repo = pygit2.Repository(str(self.dotfiles_dir))
         return self._repo
 
-    def _get_tracked_files(self) -> List[str]:
+    def _get_current_branch(self) -> Optional[str]:
+        """Get the current branch name, falling back through options.
+        
+        Tries in order:
+        1. The configured branch (if it exists locally or on remote)
+        2. HEAD's target branch
+        3. 'main' or 'master' if they exist
+        
+        Returns None if no valid branch found.
+        """
+        repo = self._get_repo()
+        
+        # Check if configured branch exists
+        if repo.references.get(f"refs/heads/{self.branch}"):
+            return self.branch
+        if repo.references.get(f"refs/remotes/origin/{self.branch}"):
+            return self.branch
+        
+        # Try HEAD
+        try:
+            if not repo.head_is_unborn:
+                head_ref = repo.head.name
+                if head_ref.startswith("refs/heads/"):
+                    return head_ref[len("refs/heads/"):]
+        except Exception:
+            pass
+        
+        # Try common defaults
+        for fallback in ["main", "master"]:
+            if repo.references.get(f"refs/heads/{fallback}"):
+                return fallback
+            if repo.references.get(f"refs/remotes/origin/{fallback}"):
+                return fallback
+        
+        return None
+
+    def _get_effective_branch(self) -> str:
+        """Get the branch to use, with fallback logic and warnings."""
+        effective = self._get_current_branch()
+        if effective is None:
+            logger.warning(f"No valid branch found, using configured: {self.branch}")
+            return self.branch
+        if effective != self.branch:
+            logger.info(f"Configured branch '{self.branch}' not found, using '{effective}'")
+        return effective
+
+    def _get_tracked_files(self, branch: str = None) -> List[str]:
         """Get list of all files tracked in the target branch."""
         repo = self._get_repo()
+        branch = branch or self.branch
         
         # Try remote branch first, then local
         try:
-            ref = repo.references.get(f"refs/remotes/origin/{self.branch}")
+            ref = repo.references.get(f"refs/remotes/origin/{branch}")
             if ref is None:
-                ref = repo.references.get(f"refs/heads/{self.branch}")
+                ref = repo.references.get(f"refs/heads/{branch}")
             if ref is None:
                 return []
             
@@ -238,16 +285,20 @@ class DotfilesManager:
         if not offline:
             fetch_failed = not self._fetch()
         
+        # Determine which branch to use (with fallback)
+        effective_branch = self._get_effective_branch()
+        
         # Get changed files by comparing work tree to HEAD
-        changed_files = self._get_changed_files()
+        changed_files = self._get_changed_files(branch=effective_branch)
         
         # Get local and remote commits
-        local_ref = repo.references.get(f"refs/heads/{self.branch}")
-        remote_ref = repo.references.get(f"refs/remotes/origin/{self.branch}")
+        local_ref = repo.references.get(f"refs/heads/{effective_branch}")
+        remote_ref = repo.references.get(f"refs/remotes/origin/{effective_branch}")
         
         if local_ref is None:
             return {
                 "initialized": True,
+                "branch": effective_branch,
                 "has_local_changes": len(changed_files) > 0,
                 "changed_files": changed_files,
                 "is_ahead": False,
@@ -263,6 +314,7 @@ class DotfilesManager:
         if remote_ref is None:
             return {
                 "initialized": True,
+                "branch": effective_branch,
                 "has_local_changes": len(changed_files) > 0,
                 "changed_files": changed_files,
                 "is_ahead": False,
@@ -280,6 +332,7 @@ class DotfilesManager:
         
         return {
             "initialized": True,
+            "branch": effective_branch,
             "has_local_changes": len(changed_files) > 0,
             "changed_files": changed_files,
             "is_ahead": ahead > 0,
@@ -291,14 +344,15 @@ class DotfilesManager:
             "fetch_failed": fetch_failed,
         }
 
-    def _get_changed_files(self) -> List[str]:
+    def _get_changed_files(self, branch: str = None) -> List[str]:
         """Get list of files that differ between work tree and HEAD."""
         repo = self._get_repo()
         changed = []
+        branch = branch or self.branch
         
         # Get HEAD tree
         try:
-            head_ref = repo.references.get(f"refs/heads/{self.branch}")
+            head_ref = repo.references.get(f"refs/heads/{branch}")
             if head_ref is None:
                 return []
             head_commit = head_ref.peel(pygit2.Commit)
@@ -307,7 +361,7 @@ class DotfilesManager:
             return []
         
         # Compare each tracked file with work tree
-        tracked = self._get_tracked_files()
+        tracked = self._get_tracked_files(branch=branch)
         for file_path in tracked:
             local_path = self.work_tree / file_path
             

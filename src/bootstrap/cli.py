@@ -310,7 +310,11 @@ class BootstrapCLI:
                 if not report["initialized"]:
                     print("  Status: Not initialized")
                 else:
-                    print(f"  Branch: {branch}")
+                    effective_branch = report.get('branch', branch)
+                    if effective_branch != branch:
+                        print(f"  Branch: {effective_branch} (configured: {branch})")
+                    else:
+                        print(f"  Branch: {effective_branch}")
                     print(f"  Local Commit : {report['local_commit']}")
                     print(f"  Remote Commit: {report.get('remote_commit', 'N/A')}")
                     
