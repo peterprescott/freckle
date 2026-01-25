@@ -256,6 +256,18 @@ class DotfilesManager:
             logger.warning(f"Could not get tracked files: {e}")
             return []
 
+    def get_tracked_files(self) -> List[str]:
+        """Get list of all files tracked in the dotfiles repository.
+        
+        Returns:
+            List of file paths relative to home directory.
+        """
+        if not self.dotfiles_dir.exists():
+            return []
+        
+        branch_info = self._resolve_branch()
+        return self._get_tracked_files(branch=branch_info["effective"])
+
     def _find_existing_files(self, tracked_files: List[str]) -> List[str]:
         """Find which tracked files already exist in the work tree."""
         existing = []
