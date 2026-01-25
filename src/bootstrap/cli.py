@@ -1,6 +1,8 @@
 """Command-line interface for the bootstrap tool."""
 
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 
 import fire
@@ -126,36 +128,79 @@ class BootstrapCLI:
         """Initialize by creating a new dotfiles repo."""
         print("\n--- Create New Dotfiles Repository ---\n")
         
-        # Get remote URL (optional for now, can push later)
-        print("Enter the URL for your NEW (empty) dotfiles repository.")
-        print("(Create an empty repo on GitHub/GitLab first, then paste the URL here)")
-        print("Or leave blank to set up locally only (you can add remote later)\n")
-        
         repo_url = ""
-        while True:
-            repo_url = input("Repository URL (or blank): ").strip()
+        
+        # Check if gh CLI is available
+        has_gh = shutil.which("gh") is not None
+        
+        if has_gh:
+            print("GitHub CLI detected. Create a new repo on GitHub?")
+            create_gh = input("Create repo with 'gh repo create'? [Y/n]: ").strip().lower()
             
-            if not repo_url:
-                break
-            
-            if not validate_git_url(repo_url):
-                print("  Warning: URL format looks unusual.")
-            
-            # Check if remote exists (it should be empty, so ls-remote might fail)
-            print("  Checking repository access...")
-            accessible, error = verify_git_url_accessible(repo_url)
-            if not accessible:
-                print(f"  ✗ Cannot access repository: {error}")
-                print("  Make sure you've created the repo on GitHub/GitLab first.")
-                retry = input("  Try a different URL? [Y/n]: ").strip().lower()
-                if retry in ["n", "no"]:
-                    print("  Continuing without remote. You can add it later.")
-                    repo_url = ""
-                    break
-                continue
+            if create_gh not in ["n", "no"]:
+                repo_name = input("Repository name (default: dotfiles): ").strip() or "dotfiles"
+                private = input("Make it private? [Y/n]: ").strip().lower()
+                visibility = "--private" if private not in ["n", "no"] else "--public"
+                
+                print(f"\n  Creating {repo_name} on GitHub...")
+                try:
+                    result = subprocess.run(
+                        ["gh", "repo", "create", repo_name, visibility, "--confirm"],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    if result.returncode == 0:
+                        # Extract URL from output or construct it
+                        # gh repo create outputs the URL
+                        repo_url = result.stdout.strip()
+                        if not repo_url:
+                            # Fallback: construct URL from gh config
+                            user_result = subprocess.run(
+                                ["gh", "api", "user", "-q", ".login"],
+                                capture_output=True, text=True
+                            )
+                            if user_result.returncode == 0:
+                                username = user_result.stdout.strip()
+                                repo_url = f"https://github.com/{username}/{repo_name}.git"
+                        print(f"  ✓ Created: {repo_url}")
+                    else:
+                        print(f"  ✗ Failed: {result.stderr.strip()}")
+                        print("  Continuing without remote.")
+                except Exception as e:
+                    print(f"  ✗ Error: {e}")
+                    print("  Continuing without remote.")
+        
+        # If we don't have a URL yet, ask for one
+        if not repo_url:
+            if not has_gh:
+                print("To sync across machines, you'll need a remote repository.")
+                print("Create one on GitHub/GitLab, then enter the URL here.")
+                print("Or leave blank to set up locally only.\n")
             else:
-                print("  ✓ Repository accessible")
-                break
+                print("\nEnter repository URL, or blank to skip:\n")
+            
+            while True:
+                url_input = input("Repository URL (or blank): ").strip()
+                
+                if not url_input:
+                    break
+                
+                if not validate_git_url(url_input):
+                    print("  Warning: URL format looks unusual.")
+                
+                print("  Checking repository access...")
+                accessible, error = verify_git_url_accessible(url_input)
+                if not accessible:
+                    print(f"  ✗ Cannot access repository: {error}")
+                    retry = input("  Try a different URL? [Y/n]: ").strip().lower()
+                    if retry in ["n", "no"]:
+                        break
+                    continue
+                else:
+                    print("  ✓ Repository accessible")
+                    repo_url = url_input
+                    break
         
         branch = input("Enter branch name (default: main): ").strip().lower() or "main"
         dotfiles_dir = input("Enter directory for bare repo (default: .dotfiles): ").strip() or ".dotfiles"
