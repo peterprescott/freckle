@@ -367,6 +367,17 @@ class DotfilesManager:
             # Create empty initial commit so the branch exists
             self._git("commit", "--allow-empty", "-m", "Initialize dotfiles repository")
             logger.info("Created empty initial commit")
+        
+        # Push to remote if configured
+        if remote_url:
+            try:
+                result = self._git_bare("push", "-u", "origin", self.branch, check=False, timeout=60)
+                if result.returncode == 0:
+                    logger.info(f"Pushed to origin/{self.branch}")
+                else:
+                    logger.warning(f"Could not push to remote: {result.stderr.strip()}")
+            except Exception as e:
+                logger.warning(f"Could not push to remote: {e}")
 
     def _get_changed_files(self, branch: str = None) -> List[str]:
         """Get list of files that differ between work tree and HEAD."""
@@ -603,6 +614,36 @@ class DotfilesManager:
         except Exception as e:
             result["error"] = f"Push failed: {e}"
             logger.error(result["error"])
+        
+        return result
+
+    def push(self) -> Dict[str, Any]:
+        """Push local commits to remote.
+        
+        Returns:
+            Dictionary with result info:
+            - success: Whether push succeeded
+            - error: Error message if failed
+        """
+        result = {"success": False, "error": None}
+        
+        branch_info = self._resolve_branch()
+        effective_branch = branch_info["effective"]
+        
+        try:
+            push_result = self._git_bare("push", "-u", "origin", effective_branch, check=False, timeout=60)
+            if push_result.returncode == 0:
+                result["success"] = True
+                logger.info(f"Pushed to origin/{effective_branch}")
+            else:
+                result["error"] = push_result.stderr.strip()
+                logger.error(f"Push failed: {result['error']}")
+        except subprocess.TimeoutExpired:
+            result["error"] = "Push timed out"
+            logger.error(result["error"])
+        except Exception as e:
+            result["error"] = str(e)
+            logger.error(f"Push failed: {e}")
         
         return result
 

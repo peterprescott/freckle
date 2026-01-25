@@ -398,7 +398,27 @@ class BootstrapCLI:
                         # Local has commits not on remote
                         ahead_count = report.get('ahead_count', 0)
                         print(f"↑ Local is {ahead_count} commit(s) ahead of remote.")
-                        print("  You may want to push your changes.")
+                        if backup:
+                            result = dotfiles.push()
+                            if result["success"]:
+                                print("✓ Pushed to remote")
+                            else:
+                                print(f"✗ Push failed: {result['error']}")
+                        else:
+                            print("\nTo push, run: bootstrap run --backup")
+                            return 0
+                    elif report.get("remote_branch_missing") and not local_changes:
+                        # Local branch exists but remote doesn't (fresh repo)
+                        print("↑ Local branch has no remote counterpart.")
+                        if backup:
+                            result = dotfiles.push()
+                            if result["success"]:
+                                print("✓ Pushed to remote")
+                            else:
+                                print(f"✗ Push failed: {result['error']}")
+                        else:
+                            print("\nTo push, run: bootstrap run --backup")
+                            return 0
 
             for manager in tool_managers:
                 if manager.bin_name in enabled_modules:
