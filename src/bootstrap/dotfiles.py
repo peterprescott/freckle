@@ -226,6 +226,15 @@ class DotfilesManager:
         try:
             # Get the remote
             remote = repo.remotes["origin"]
+            
+            # Ensure fetch refspec is configured (bare repos may not have this)
+            # This allows fetch to create remote-tracking branches
+            expected_refspec = "+refs/heads/*:refs/remotes/origin/*"
+            current_refspecs = list(remote.fetch_refspecs)
+            if expected_refspec not in current_refspecs:
+                logger.info("Configuring fetch refspec for remote tracking")
+                remote.add_fetch(expected_refspec)
+            
             remote.fetch()
             return True
         except Exception as e:
@@ -449,10 +458,14 @@ class DotfilesManager:
         repo = self._get_repo()
         local_file = self.work_tree / relative_path
         
+        # Resolve the actual branch to use
+        branch_info = self._resolve_branch()
+        effective_branch = branch_info["effective"]
+        
         # Check if tracked in HEAD
         head_blob = None
         try:
-            head_ref = repo.references.get(f"refs/heads/{self.branch}")
+            head_ref = repo.references.get(f"refs/heads/{effective_branch}")
             if head_ref:
                 head_tree = head_ref.peel(pygit2.Commit).tree
                 entry = head_tree[relative_path]
@@ -463,7 +476,7 @@ class DotfilesManager:
         # Check if tracked in remote
         remote_blob = None
         try:
-            remote_ref = repo.references.get(f"refs/remotes/origin/{self.branch}")
+            remote_ref = repo.references.get(f"refs/remotes/origin/{effective_branch}")
             if remote_ref:
                 remote_tree = remote_ref.peel(pygit2.Commit).tree
                 entry = remote_tree[relative_path]
@@ -513,8 +526,16 @@ class DotfilesManager:
         repo = self._get_repo()
         result = {"success": False, "committed": False, "pushed": False, "error": None}
         
+        # Resolve the actual branch to use
+        branch_info = self._resolve_branch()
+        effective_branch = branch_info["effective"]
+        
+        if branch_info["reason"] == "not_found":
+            result["error"] = branch_info["message"]
+            return result
+        
         # Get changed files
-        changed = self._get_changed_files()
+        changed = self._get_changed_files(branch=effective_branch)
         if not changed:
             result["success"] = True
             result["error"] = "No changes to commit"
@@ -522,9 +543,9 @@ class DotfilesManager:
         
         try:
             # Build the new tree by updating the index
-            head_ref = repo.references.get(f"refs/heads/{self.branch}")
+            head_ref = repo.references.get(f"refs/heads/{effective_branch}")
             if head_ref is None:
-                result["error"] = f"Branch {self.branch} not found"
+                result["error"] = f"Branch {effective_branch} not found"
                 return result
             
             head_commit = head_ref.peel(pygit2.Commit)
@@ -560,7 +581,7 @@ class DotfilesManager:
             
             parent = head_commit.id
             commit_id = repo.create_commit(
-                f"refs/heads/{self.branch}",
+                f"refs/heads/{effective_branch}",
                 author,
                 committer,
                 message,
@@ -578,10 +599,10 @@ class DotfilesManager:
         # Push to remote
         try:
             remote = repo.remotes["origin"]
-            remote.push([f"refs/heads/{self.branch}"])
+            remote.push([f"refs/heads/{effective_branch}"])
             result["pushed"] = True
             result["success"] = True
-            logger.info(f"Pushed to origin/{self.branch}")
+            logger.info(f"Pushed to origin/{effective_branch}")
         except Exception as e:
             result["error"] = f"Push failed (changes committed locally): {e}"
             logger.error(result["error"])
@@ -600,15 +621,19 @@ class DotfilesManager:
         logger.info("Fetching latest from remote...")
         self._fetch()
         
+        # Resolve the actual branch to use
+        branch_info = self._resolve_branch()
+        effective_branch = branch_info["effective"]
+        
         # Get remote commit
-        remote_ref = repo.references.get(f"refs/remotes/origin/{self.branch}")
+        remote_ref = repo.references.get(f"refs/remotes/origin/{effective_branch}")
         if remote_ref is None:
-            raise RuntimeError(f"Remote branch origin/{self.branch} not found")
+            raise RuntimeError(f"Remote branch origin/{effective_branch} not found")
         
         remote_commit = remote_ref.peel(pygit2.Commit)
         
         # Update local branch to point to remote
-        repo.references.create(f"refs/heads/{self.branch}", remote_commit.id, force=True)
+        repo.references.create(f"refs/heads/{effective_branch}", remote_commit.id, force=True)
         
         # Force checkout
         logger.info("Discarding local changes and updating to remote...")
