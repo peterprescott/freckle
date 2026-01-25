@@ -43,7 +43,8 @@ class DotfilesManager:
             capture_output=True,
             text=True,
             timeout=timeout,
-            check=check
+            check=check,
+            cwd=str(self.work_tree)  # Run from work_tree to ensure correct path resolution
         )
 
     def _git_bare(self, *args, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess:
