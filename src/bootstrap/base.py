@@ -2,10 +2,10 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List
 from .environment import Environment
-from .packages import PackageManager
+from .system import SystemPackageManager
 
 class BaseToolManager(ABC):
-    def __init__(self, env: Environment, pkg_mgr: PackageManager):
+    def __init__(self, env: Environment, pkg_mgr: SystemPackageManager):
         self.env = env
         self.pkg_mgr = pkg_mgr
         self.logger = logging.getLogger(self.__class__.__module__)

@@ -12,7 +12,7 @@ from .environment import Environment
 from .managers.nvim import NvimManager
 from .managers.tmux import TmuxManager
 from .managers.zsh import ZshManager
-from .packages import PackageManager
+from .system import SystemPackageManager
 from .utils import (
     get_version,
     setup_logging,
@@ -146,7 +146,7 @@ class BootstrapCLI:
         print(f"\n--- bootstrap {action_name} ---")
         print(f"Platform: {self.env.os_info['pretty_name']}")
         
-        pkg_mgr = PackageManager(self.env)
+        pkg_mgr = SystemPackageManager(self.env)
         
         # Initialize managers
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, work_tree, branch)
@@ -261,7 +261,7 @@ class BootstrapCLI:
         print(f"Kernel : {self.env.os_info['release']}")
         print(f"User   : {self.env.user}")
         
-        pkg_mgr = PackageManager(self.env)
+        pkg_mgr = SystemPackageManager(self.env)
         
         dotfiles = None
         if repo_url:

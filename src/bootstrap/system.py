@@ -7,8 +7,8 @@ from .environment import Environment, OS
 logger = logging.getLogger(__name__)
 
 
-class PackageManager:
-    """Platform-aware package manager for installing system packages."""
+class SystemPackageManager:
+    """Platform-aware manager for installing system packages (apt, dnf, brew, etc.)."""
     
     # Map distro IDs to package manager configurations
     DISTRO_PACKAGE_MANAGERS = {

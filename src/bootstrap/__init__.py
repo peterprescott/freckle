@@ -4,7 +4,7 @@ from .cli import BootstrapCLI, main
 from .config import Config
 from .dotfiles import DotfilesManager
 from .environment import Environment
-from .packages import PackageManager
+from .system import SystemPackageManager
 from .utils import get_version
 
 __all__ = [
@@ -12,7 +12,7 @@ __all__ = [
     "Config",
     "DotfilesManager",
     "Environment",
-    "PackageManager",
+    "SystemPackageManager",
     "get_version",
     "main",
 ]

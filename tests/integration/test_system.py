@@ -1,5 +1,5 @@
 import subprocess
-from bootstrap.packages import PackageManager
+from bootstrap.system import SystemPackageManager
 
 def test_install_apt_linux(mocker):
     # Mock environment to be Linux with Debian distro
@@ -10,11 +10,11 @@ def test_install_apt_linux(mocker):
     
     mock_run = mocker.patch("subprocess.run")
     # Mock shutil.which to return sudo path
-    mocker.patch("bootstrap.packages.shutil.which", return_value="/usr/bin/sudo")
+    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/bin/sudo")
     # Mock os.geteuid to return non-root
-    mocker.patch("bootstrap.packages.os.geteuid", return_value=1000)
+    mocker.patch("bootstrap.system.os.geteuid", return_value=1000)
     
-    pkg_mgr = PackageManager(mock_env)
+    pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
     
     # Verify apt commands were called with sudo
@@ -33,9 +33,9 @@ def test_install_apt_as_root(mocker):
     
     mock_run = mocker.patch("subprocess.run")
     # Mock os.geteuid to return root
-    mocker.patch("bootstrap.packages.os.geteuid", return_value=0)
+    mocker.patch("bootstrap.system.os.geteuid", return_value=0)
     
-    pkg_mgr = PackageManager(mock_env)
+    pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
     
     # Verify apt commands were called WITHOUT sudo (since we're root)
@@ -52,10 +52,10 @@ def test_install_dnf_fedora(mocker):
     mock_env.os_info = {"distro": "fedora", "pretty_name": "Fedora 39"}
     
     mock_run = mocker.patch("subprocess.run")
-    mocker.patch("bootstrap.packages.shutil.which", return_value="/usr/bin/sudo")
-    mocker.patch("bootstrap.packages.os.geteuid", return_value=1000)
+    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/bin/sudo")
+    mocker.patch("bootstrap.system.os.geteuid", return_value=1000)
     
-    pkg_mgr = PackageManager(mock_env)
+    pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
     
     # Fedora uses dnf and doesn't need an update command before install
@@ -70,10 +70,10 @@ def test_install_brew_macos(mocker):
     mock_env.is_macos.return_value = True
     mock_env.os_info = {"distro": "macos", "pretty_name": "macOS 14.0"}
     
-    mocker.patch("bootstrap.packages.shutil.which", return_value="/usr/local/bin/brew")
+    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/local/bin/brew")
     mock_run = mocker.patch("subprocess.run")
     
-    pkg_mgr = PackageManager(mock_env)
+    pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
     
     # Verify brew command was called
@@ -83,7 +83,7 @@ def test_install_brew_macos(mocker):
 def test_get_binary_info_found(mocker):
     mock_env = mocker.Mock()
     mock_env.os_info = {}
-    mocker.patch("bootstrap.packages.shutil.which", return_value="/usr/bin/zsh")
+    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/bin/zsh")
     
     # Mock subprocess.run to return a version string
     mock_result = mocker.Mock()
@@ -91,7 +91,7 @@ def test_get_binary_info_found(mocker):
     mock_result.stdout = "zsh 5.8 (x86_64-debian-linux-gnu)\nother lines"
     mocker.patch("subprocess.run", return_value=mock_result)
     
-    pkg_mgr = PackageManager(mock_env)
+    pkg_mgr = SystemPackageManager(mock_env)
     info = pkg_mgr.get_binary_info("zsh")
     
     assert info["found"] is True
@@ -102,9 +102,9 @@ def test_get_binary_info_found(mocker):
 def test_get_binary_info_not_found(mocker):
     mock_env = mocker.Mock()
     mock_env.os_info = {}
-    mocker.patch("bootstrap.packages.shutil.which", return_value=None)
+    mocker.patch("bootstrap.system.shutil.which", return_value=None)
     
-    pkg_mgr = PackageManager(mock_env)
+    pkg_mgr = SystemPackageManager(mock_env)
     info = pkg_mgr.get_binary_info("nonexistent")
     
     assert info["found"] is False
