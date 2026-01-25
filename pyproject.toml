@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.9"
 dependencies = [
     "fire>=0.7.1",
-    "gitpython>=3.1.46",
+    "pygit2>=1.15.0,<1.16.0",
     "pyyaml>=6.0.3",
 ]
 
