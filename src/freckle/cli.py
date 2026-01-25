@@ -590,6 +590,9 @@ class FreckleCLI:
         else:
             print(f"  .freckle.yaml : ✗ not found (run 'freckle init')")
 
+        # Collect all config files associated with tool managers
+        tool_config_files = set()
+        
         print("\nCore Tools:")
         for manager in tool_managers:
             info = pkg_mgr.get_binary_info(manager.bin_name)
@@ -602,6 +605,7 @@ class FreckleCLI:
 
             if dotfiles:
                 for cfg in manager.config_files:
+                    tool_config_files.add(cfg)
                     status = dotfiles.get_file_sync_status(cfg)
                     if status == "not-found":
                         continue
@@ -616,6 +620,28 @@ class FreckleCLI:
                     }.get(status, f"status: {status}")
                     
                     print(f"    Config : {status_str} ({cfg})")
+        
+        # Show all other tracked files (not associated with a tool manager)
+        if dotfiles:
+            all_tracked = dotfiles.get_tracked_files()
+            # Exclude .freckle.yaml (shown in Configuration) and tool config files
+            other_tracked = [
+                f for f in all_tracked 
+                if f != ".freckle.yaml" and f not in tool_config_files
+            ]
+            
+            if other_tracked:
+                print("\nOther Tracked Files:")
+                for f in sorted(other_tracked):
+                    status = dotfiles.get_file_sync_status(f)
+                    status_str = {
+                        "up-to-date": "✓",
+                        "modified": "⚠ modified",
+                        "behind": "↓ behind",
+                        "missing": "✗ missing",
+                        "error": "?"
+                    }.get(status, "?")
+                    print(f"  {status_str} {f}")
             
         # Global Dotfiles Status
         if not repo_url:
