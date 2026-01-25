@@ -1,0 +1,361 @@
+"""Command-line interface for the bootstrap tool."""
+
+import logging
+import sys
+from pathlib import Path
+
+import fire
+import yaml
+
+from .config import Config
+from .dotfiles import DotfilesManager
+from .environment import Environment
+from .managers.nvim import NvimManager
+from .managers.tmux import TmuxManager
+from .managers.zsh import ZshManager
+from .packages import PackageManager
+from .utils import (
+    get_version,
+    setup_logging,
+    validate_git_url,
+    verify_git_url_accessible,
+)
+
+
+class BootstrapCLI:
+    """Bootstrap CLI for managing dotfiles and development tools."""
+    
+    COMMANDS = ["run", "init", "version", "status"]
+    
+    def __init__(self):
+        setup_logging()
+        self.env = Environment()
+        self.logger = logging.getLogger(__name__)
+
+    def init(self, force: bool = False) -> int:
+        """Initialize configuration.
+        
+        Args:
+            force: Overwrite existing configuration if present.
+            
+        Returns:
+            Exit code (0 for success, 1 for failure).
+        """
+        config_path = self.env.home / ".bootstrap.yaml"
+        
+        if config_path.exists() and not force:
+            self.logger.error(f"Config file already exists at {config_path}. Use --force to overwrite.")
+            return 1
+
+        print("--- bootstrap Initialization ---")
+        
+        # Get and validate repository URL
+        while True:
+            repo_url = input("Enter your dotfiles repository URL: ").strip()
+            
+            if not repo_url:
+                print("  Repository URL is required.")
+                continue
+            
+            if not validate_git_url(repo_url):
+                print("  Invalid URL format. Please enter a valid git URL.")
+                print("  Examples: https://github.com/user/repo.git")
+                print("            git@github.com:user/repo.git")
+                continue
+            
+            # Try to verify the URL is accessible
+            print("  Verifying repository access...")
+            accessible, error = verify_git_url_accessible(repo_url)
+            if not accessible:
+                print(f"  Warning: Could not access repository: {error}")
+                confirm = input("  Continue anyway? [y/N]: ").strip().lower()
+                if confirm not in ["y", "yes"]:
+                    continue
+            else:
+                print("  ✓ Repository accessible")
+            
+            break
+        
+        branch = input("Enter your preferred branch (default: main): ").strip() or "main"
+        dotfiles_dir = input("Enter directory for bare repo (default: ~/.dotfiles): ").strip() or "~/.dotfiles"
+
+        config_data = {
+            "dotfiles": {
+                "repo_url": repo_url,
+                "branch": branch,
+                "dir": dotfiles_dir
+            },
+            "modules": ["dotfiles", "zsh", "tmux", "nvim"]
+        }
+
+        with open(config_path, "w") as f:
+            yaml.dump(config_data, f, default_flow_style=False)
+        
+        self.logger.info(f"Created configuration at {config_path}")
+        print("\nInitialization complete! You can now run 'bootstrap run'.")
+        return 0
+
+    def run(self, repo: str = None, branch: str = None, backup: bool = False, update: bool = False) -> int:
+        """Run the bootstrap sequence.
+        
+        Args:
+            repo: Override dotfiles repository URL.
+            branch: Override git branch.
+            backup: Commit and push local changes.
+            update: Pull and apply remote changes (discards local changes).
+            
+        Returns:
+            Exit code (0 for success, 1 for failure).
+        """
+        config_path = self.env.home / ".bootstrap.yaml"
+        config = Config(config_path, env=self.env)
+        
+        # Override from CLI
+        if repo:
+            if not validate_git_url(repo):
+                self.logger.error(f"Invalid repository URL: {repo}")
+                return 1
+            config.data["dotfiles"]["repo_url"] = repo
+        if branch:
+            config.data["dotfiles"]["branch"] = branch
+
+        repo_url = config.get("dotfiles.repo_url")
+        if not repo_url:
+            self.logger.error("No dotfiles repository URL found. Run 'bootstrap init' first or use --repo.")
+            return 1
+
+        dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        branch = config.get("dotfiles.branch")
+        work_tree = self.env.home
+        enabled_modules = config.get("modules", [])
+
+        is_first_run = not dotfiles_dir.exists()
+        action_name = "Setup" if is_first_run else "Sync"
+        
+        print(f"\n--- bootstrap {action_name} ---")
+        print(f"Platform: {self.env.os_info['pretty_name']}")
+        
+        pkg_mgr = PackageManager(self.env)
+        
+        # Initialize managers
+        dotfiles = DotfilesManager(repo_url, dotfiles_dir, work_tree, branch)
+        tool_managers = [
+            ZshManager(self.env, pkg_mgr),
+            TmuxManager(self.env, pkg_mgr),
+            NvimManager(self.env, pkg_mgr)
+        ]
+
+        try:
+            if "dotfiles" in enabled_modules:
+                if is_first_run:
+                    print(f"[*] Initial setup of dotfiles from {repo_url}...")
+                    dotfiles.setup()
+                else:
+                    report = dotfiles.get_detailed_status()
+                    
+                    if report.get("fetch_failed"):
+                        print("⚠ Could not connect to remote (offline mode)")
+                    
+                    local_changes = report["has_local_changes"]
+                    is_behind = report.get("is_behind", False)
+                    is_ahead = report.get("is_ahead", False)
+
+                    if not local_changes and not is_behind and not is_ahead:
+                        print("✓ Dotfiles are up-to-date.")
+                    elif local_changes and not is_behind:
+                        # Local uncommitted changes, not behind remote
+                        print("⚠ You have local changes that are not backed up:")
+                        for f in report["changed_files"]:
+                            print(f"    - {f}")
+                        
+                        if is_ahead:
+                            print(f"\n  (Local is {report.get('ahead_count', 0)} commit(s) ahead of remote)")
+                        
+                        if backup:
+                            msg = f"Automated backup from {self.env.os_info['pretty_name']}"
+                            result = dotfiles.commit_and_push(msg)
+                            if result["success"]:
+                                print("✓ Changes backed up successfully")
+                            elif result["committed"] and not result["pushed"]:
+                                print(f"⚠ Changes committed locally but push failed: {result['error']}")
+                            else:
+                                print(f"✗ Backup failed: {result['error']}")
+                        else:
+                            print("\nTo backup these changes, run: bootstrap run --backup")
+                            return 0
+                    elif not local_changes and is_behind:
+                        # Remote has updates, no local uncommitted changes
+                        behind_count = report.get('behind_count', 0)
+                        print(f"↓ Remote repository ({branch}) has {behind_count} new commit(s).")
+                        if update:
+                            dotfiles.force_checkout()
+                            print("✓ Updated to latest remote version")
+                        else:
+                            print("\nTo update your local files, run: bootstrap run --update")
+                            return 0
+                    elif local_changes and is_behind:
+                        # Conflict: both local changes and remote updates
+                        print("‼ CONFLICT: You have local changes AND remote has new commits.")
+                        print(f"  Local Commit : {report['local_commit']}")
+                        print(f"  Remote Commit: {report['remote_commit']}")
+                        print(f"  Behind by: {report.get('behind_count', 0)} commit(s)")
+                        
+                        print("\nLocal changes:")
+                        for f in report["changed_files"]:
+                            print(f"    - {f}")
+                            
+                        if backup:
+                            msg = "Manual backup during conflict"
+                            result = dotfiles.commit_and_push(msg)
+                            if result["success"]:
+                                print("✓ Local changes backed up (you may need to merge/rebase)")
+                            else:
+                                print(f"⚠ Backup issue: {result['error']}")
+                        elif update:
+                            dotfiles.force_checkout()
+                            print("✓ Discarded local changes and updated to remote")
+                        else:
+                            print("\nOptions to resolve conflict:")
+                            print("  - To keep local changes and backup: bootstrap run --backup")
+                            print("  - To discard local changes and update: bootstrap run --update")
+                            return 0
+                    elif is_ahead and not local_changes:
+                        # Local has commits not on remote
+                        ahead_count = report.get('ahead_count', 0)
+                        print(f"↑ Local is {ahead_count} commit(s) ahead of remote.")
+                        print("  You may want to push your changes.")
+
+            for manager in tool_managers:
+                if manager.bin_name in enabled_modules:
+                    manager.setup()
+            
+            print(f"\n--- {action_name} Complete! ---\n")
+            
+        except Exception as e:
+            self.logger.error(f"Bootstrap failed: {e}")
+            return 1
+        return 0
+
+    def status(self) -> int:
+        """Show current setup status and check for updates.
+        
+        Returns:
+            Exit code (0 for success).
+        """
+        config_path = self.env.home / ".bootstrap.yaml"
+        config = Config(config_path, env=self.env)
+        
+        repo_url = config.get("dotfiles.repo_url")
+        dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        branch = config.get("dotfiles.branch")
+        
+        print(f"\n--- bootstrap Status ---")
+        print(f"OS     : {self.env.os_info['pretty_name']} ({self.env.os_info['machine']})")
+        print(f"Kernel : {self.env.os_info['release']}")
+        print(f"User   : {self.env.user}")
+        
+        pkg_mgr = PackageManager(self.env)
+        
+        dotfiles = None
+        if repo_url:
+            dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
+
+        tool_managers = [
+            ZshManager(self.env, pkg_mgr),
+            TmuxManager(self.env, pkg_mgr),
+            NvimManager(self.env, pkg_mgr)
+        ]
+        
+        print("\nCore Tools:")
+        for manager in tool_managers:
+            info = pkg_mgr.get_binary_info(manager.bin_name)
+            if info["found"]:
+                print(f"  {manager.name}:")
+                print(f"    Binary : {info['path']} ({info['version']})")
+            else:
+                print(f"  {manager.name}: ✗ not found in PATH")
+                continue
+
+            if dotfiles:
+                for cfg in manager.config_files:
+                    status = dotfiles.get_file_sync_status(cfg)
+                    if status == "not-found":
+                        continue
+                        
+                    status_str = {
+                        "up-to-date": "✓ up-to-date",
+                        "modified": "⚠ modified locally",
+                        "behind": "↓ update available (behind remote)",
+                        "untracked": "✗ not tracked",
+                        "missing": "✗ missing from home",
+                        "error": "⚠ error checking status"
+                    }.get(status, f"status: {status}")
+                    
+                    print(f"    Config : {status_str} ({cfg})")
+            
+        # Global Dotfiles Status
+        if not repo_url:
+            print("\nDotfiles: Not configured (run 'bootstrap init')")
+        else:
+            print(f"\nDotfiles ({repo_url}):")
+            try:
+                report = dotfiles.get_detailed_status()
+                if not report["initialized"]:
+                    print("  Status: Not initialized")
+                else:
+                    print(f"  Branch: {branch}")
+                    print(f"  Local Commit : {report['local_commit']}")
+                    print(f"  Remote Commit: {report.get('remote_commit', 'N/A')}")
+                    
+                    if report.get("fetch_failed"):
+                        print("  Remote Status: ⚠ Could not fetch (offline?)")
+                    
+                    if report["has_local_changes"]:
+                        print("  Local Changes: Yes (uncommitted changes in your home directory)")
+                    else:
+                        print("  Local Changes: No")
+                    
+                    if report.get("is_ahead"):
+                        print(f"  Ahead: Yes ({report.get('ahead_count', 0)} commits not pushed)")
+                        
+                    if report.get("is_behind"):
+                        print(f"  Behind: Yes ({report.get('behind_count', 0)} commits to pull)")
+                    elif not report.get("fetch_failed"):
+                        print("  Behind: No (up to date)")
+                        
+            except Exception as e:
+                print(f"  Error checking status: {e}")
+        print("")
+        return 0
+
+    def version(self) -> int:
+        """Show the version of the bootstrap tool.
+        
+        Returns:
+            Exit code (0 for success).
+        """
+        print(f"bootstrap version {get_version()}")
+        return 0
+
+
+def main():
+    """Main entry point for the bootstrap CLI."""
+    # Handle version flags before Fire takes over
+    if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v"]:
+        print(f"bootstrap version {get_version()}")
+        sys.exit(0)
+
+    # Use Fire with a default command
+    cli = BootstrapCLI()
+    
+    # Determine if we need to inject a default command
+    if len(sys.argv) == 1:
+        # No arguments: default to 'run'
+        fire.Fire(cli, command=["run"])
+    elif sys.argv[1] not in BootstrapCLI.COMMANDS and not sys.argv[1].startswith("-"):
+        # First arg is not a known command or flag: might be a flag for 'run'
+        # e.g., 'bootstrap --backup' should become 'bootstrap run --backup'
+        fire.Fire(cli, command=["run"] + sys.argv[1:])
+    else:
+        # Normal invocation
+        fire.Fire(cli)
