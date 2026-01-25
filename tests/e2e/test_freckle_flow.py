@@ -37,7 +37,7 @@ def _setup_mock_remote(tmp_path: Path, files: dict) -> Path:
     subprocess.run(["git", "add", "."], cwd=temp_worktree, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=temp_worktree, check=True, capture_output=True)
     subprocess.run(["git", "remote", "add", "origin", str(remote_repo)], cwd=temp_worktree, check=True, capture_output=True)
-    subprocess.run(["git", "push", "origin", "master:main"], cwd=temp_worktree, check=True, capture_output=True)
+    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=temp_worktree, check=True, capture_output=True)
     
     return remote_repo
 
@@ -83,7 +83,7 @@ def test_full_freckle_flow(tmp_path):
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=temp_worktree, check=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=temp_worktree, check=True)
     subprocess.run(["git", "remote", "add", "origin", str(remote_repo)], cwd=temp_worktree, check=True)
-    subprocess.run(["git", "push", "origin", "master:main"], cwd=temp_worktree, check=True)
+    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=temp_worktree, check=True)
 
     # 2. Run freckle init
     # We'll use the CLI directly. 'freckle' should be in the path if installed via uv.
@@ -317,8 +317,20 @@ modules:
     (home / ".freckle.yaml").write_text(config_content)
     
     original_cwd = os.getcwd()
+    # Save original git env vars to restore later
+    orig_git_env = {
+        k: os.environ.get(k) for k in [
+            "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
+            "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"
+        ]
+    }
     try:
         os.chdir(subdir)
+        # Set git identity for the commit (CI runners don't have global git config)
+        os.environ["GIT_AUTHOR_NAME"] = "Test User"
+        os.environ["GIT_AUTHOR_EMAIL"] = "test@test.com"
+        os.environ["GIT_COMMITTER_NAME"] = "Test User"
+        os.environ["GIT_COMMITTER_EMAIL"] = "test@test.com"
         
         # Use DotfilesManager directly to test create_new from subdirectory
         from freckle.dotfiles import DotfilesManager
@@ -343,6 +355,12 @@ modules:
         
     finally:
         os.chdir(original_cwd)
+        # Restore original git env vars
+        for k, v in orig_git_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def test_status_shows_correct_info_from_anywhere(tmp_path):

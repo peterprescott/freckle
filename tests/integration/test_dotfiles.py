@@ -37,7 +37,7 @@ def _create_bare_repo_with_files(tmp_path: Path, files: dict) -> Path:
     subprocess.run(["git", "add", "."], cwd=work_dir, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=work_dir, check=True, capture_output=True)
     subprocess.run(["git", "remote", "add", "origin", str(bare_repo)], cwd=work_dir, check=True, capture_output=True)
-    subprocess.run(["git", "push", "origin", "master:main"], cwd=work_dir, check=True, capture_output=True)
+    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=work_dir, check=True, capture_output=True)
     
     return bare_repo
 
