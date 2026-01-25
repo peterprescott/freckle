@@ -11,6 +11,7 @@ import yaml
 from .config import Config
 from .dotfiles import DotfilesManager
 from .environment import Environment
+from .managers.git import GitManager
 from .managers.nvim import NvimManager
 from .managers.tmux import TmuxManager
 from .managers.zsh import ZshManager
@@ -336,6 +337,7 @@ class FreckleCLI:
         # Initialize managers
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, work_tree, branch)
         tool_managers = [
+            GitManager(self.env, pkg_mgr),
             ZshManager(self.env, pkg_mgr),
             TmuxManager(self.env, pkg_mgr),
             NvimManager(self.env, pkg_mgr)
@@ -565,6 +567,7 @@ class FreckleCLI:
             dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
 
         tool_managers = [
+            GitManager(self.env, pkg_mgr),
             ZshManager(self.env, pkg_mgr),
             TmuxManager(self.env, pkg_mgr),
             NvimManager(self.env, pkg_mgr)
