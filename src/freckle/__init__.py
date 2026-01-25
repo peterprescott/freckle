@@ -1,6 +1,6 @@
-"""Bootstrap - A robust, multi-platform system bootstrapper for Linux and macOS."""
+"""Freckle - Keep track of all your dot(file)s."""
 
-from .cli import BootstrapCLI, main
+from .cli import FreckleCLI, main
 from .config import Config
 from .dotfiles import DotfilesManager
 from .environment import Environment
@@ -8,7 +8,7 @@ from .system import SystemPackageManager
 from .utils import get_version
 
 __all__ = [
-    "BootstrapCLI",
+    "FreckleCLI",
     "Config",
     "DotfilesManager",
     "Environment",

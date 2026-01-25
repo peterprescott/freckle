@@ -1,6 +1,6 @@
 import platform
 import os
-from bootstrap.environment import Environment, OS
+from freckle.environment import Environment, OS
 
 def test_detect_linux(mocker):
     mocker.patch("platform.system", return_value="Linux")

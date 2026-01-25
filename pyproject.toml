@@ -1,7 +1,7 @@
 [project]
-name = "bootstrap"
+name = "freckle"
 version = "0.1.1"
-description = "A robust, multi-platform system bootstrapper for Linux and macOS."
+description = "Keep track of all your dot(file)s. A dotfiles manager with tool installation."
 readme = "README.md"
 authors = [
     { name = "Peter Prescott", email = "prescott.peter@gmail.com" }
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-bootstrap = "bootstrap:main"
+freckle = "freckle:main"
 
 [build-system]
 requires = ["uv_build>=0.9.26,<0.10.0"]

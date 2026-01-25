@@ -1,4 +1,4 @@
-"""Utility functions for the bootstrap package."""
+"""Utility functions for the freckle package."""
 
 import importlib.metadata
 import logging
@@ -9,7 +9,7 @@ from typing import Tuple
 
 
 def setup_logging():
-    """Configure logging for the bootstrap application."""
+    """Configure logging for freckle."""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -26,7 +26,7 @@ def get_version() -> str:
         Version string, or "(development)" if not installed as a package.
     """
     try:
-        return importlib.metadata.version("bootstrap")
+        return importlib.metadata.version("freckle")
     except importlib.metadata.PackageNotFoundError:
         return "(development)"
 

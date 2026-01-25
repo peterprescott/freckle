@@ -1,5 +1,5 @@
 import subprocess
-from bootstrap.system import SystemPackageManager
+from freckle.system import SystemPackageManager
 
 def test_install_apt_linux(mocker):
     # Mock environment to be Linux with Debian distro
@@ -10,9 +10,9 @@ def test_install_apt_linux(mocker):
     
     mock_run = mocker.patch("subprocess.run")
     # Mock shutil.which to return sudo path
-    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/bin/sudo")
+    mocker.patch("freckle.system.shutil.which", return_value="/usr/bin/sudo")
     # Mock os.geteuid to return non-root
-    mocker.patch("bootstrap.system.os.geteuid", return_value=1000)
+    mocker.patch("freckle.system.os.geteuid", return_value=1000)
     
     pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
@@ -33,7 +33,7 @@ def test_install_apt_as_root(mocker):
     
     mock_run = mocker.patch("subprocess.run")
     # Mock os.geteuid to return root
-    mocker.patch("bootstrap.system.os.geteuid", return_value=0)
+    mocker.patch("freckle.system.os.geteuid", return_value=0)
     
     pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
@@ -52,8 +52,8 @@ def test_install_dnf_fedora(mocker):
     mock_env.os_info = {"distro": "fedora", "pretty_name": "Fedora 39"}
     
     mock_run = mocker.patch("subprocess.run")
-    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/bin/sudo")
-    mocker.patch("bootstrap.system.os.geteuid", return_value=1000)
+    mocker.patch("freckle.system.shutil.which", return_value="/usr/bin/sudo")
+    mocker.patch("freckle.system.os.geteuid", return_value=1000)
     
     pkg_mgr = SystemPackageManager(mock_env)
     pkg_mgr.install("htop")
@@ -70,7 +70,7 @@ def test_install_brew_macos(mocker):
     mock_env.is_macos.return_value = True
     mock_env.os_info = {"distro": "macos", "pretty_name": "macOS 14.0"}
     
-    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/local/bin/brew")
+    mocker.patch("freckle.system.shutil.which", return_value="/usr/local/bin/brew")
     mock_run = mocker.patch("subprocess.run")
     
     pkg_mgr = SystemPackageManager(mock_env)
@@ -83,7 +83,7 @@ def test_install_brew_macos(mocker):
 def test_get_binary_info_found(mocker):
     mock_env = mocker.Mock()
     mock_env.os_info = {}
-    mocker.patch("bootstrap.system.shutil.which", return_value="/usr/bin/zsh")
+    mocker.patch("freckle.system.shutil.which", return_value="/usr/bin/zsh")
     
     # Mock subprocess.run to return a version string
     mock_result = mocker.Mock()
@@ -102,7 +102,7 @@ def test_get_binary_info_found(mocker):
 def test_get_binary_info_not_found(mocker):
     mock_env = mocker.Mock()
     mock_env.os_info = {}
-    mocker.patch("bootstrap.system.shutil.which", return_value=None)
+    mocker.patch("freckle.system.shutil.which", return_value=None)
     
     pkg_mgr = SystemPackageManager(mock_env)
     info = pkg_mgr.get_binary_info("nonexistent")

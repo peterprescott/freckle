@@ -1,4 +1,4 @@
-"""Command-line interface for the bootstrap tool."""
+"""Command-line interface for freckle - keep track of all your dot(file)s."""
 
 import logging
 import shutil
@@ -23,8 +23,8 @@ from .utils import (
 )
 
 
-class BootstrapCLI:
-    """Bootstrap CLI for managing dotfiles and development tools."""
+class FreckleCLI:
+    """Freckle CLI - keep track of all your dot(file)s."""
     
     def __init__(self):
         setup_logging()
@@ -32,7 +32,7 @@ class BootstrapCLI:
         self.logger = logging.getLogger(__name__)
 
     def __call__(self, repo: str = None, branch: str = None, backup: bool = False, update: bool = False) -> int:
-        """Default action - runs the bootstrap sequence.
+        """Default action - runs the freckle sync sequence.
         
         Args:
             repo: Override dotfiles repository URL.
@@ -58,13 +58,13 @@ class BootstrapCLI:
         Returns:
             Exit code (0 for success, 1 for failure).
         """
-        config_path = self.env.home / ".bootstrap.yaml"
+        config_path = self.env.home / ".freckle.yaml"
         
         if config_path.exists() and not force:
             self.logger.error(f"Config file already exists at {config_path}. Use --force to overwrite.")
             return 1
 
-        print("--- bootstrap Initialization ---\n")
+        print("--- freckle Initialization ---\n")
         
         # Ask if they have an existing repo
         choice = input("Do you have an existing dotfiles repository? [y/N]: ").strip().lower()
@@ -121,7 +121,7 @@ class BootstrapCLI:
             yaml.dump(config_data, f, default_flow_style=False)
         
         self.logger.info(f"Created configuration at {config_path}")
-        print("\n✓ Configuration saved! Run 'bootstrap run' to clone and set up your dotfiles.")
+        print("\n✓ Configuration saved! Run 'freckle run' to clone and set up your dotfiles.")
         return 0
 
     def _init_create_new(self, config_path: Path) -> int:
@@ -208,16 +208,16 @@ class BootstrapCLI:
         # Ask which files to track initially
         print("\nWhich dotfiles do you want to track? (Enter comma-separated list)")
         print("Examples: .zshrc, .bashrc, .gitconfig, .tmux.conf, .config/nvim")
-        print("Or press Enter for common defaults: .bootstrap.yaml, .zshrc, .gitconfig, .tmux.conf\n")
+        print("Or press Enter for common defaults: .freckle.yaml, .zshrc, .gitconfig, .tmux.conf\n")
         
         files_input = input("Files to track: ").strip()
         if files_input:
             initial_files = [f.strip() for f in files_input.split(",") if f.strip()]
-            # Always include .bootstrap.yaml
-            if ".bootstrap.yaml" not in initial_files:
-                initial_files.insert(0, ".bootstrap.yaml")
+            # Always include .freckle.yaml
+            if ".freckle.yaml" not in initial_files:
+                initial_files.insert(0, ".freckle.yaml")
         else:
-            initial_files = [".bootstrap.yaml", ".zshrc", ".gitconfig", ".tmux.conf"]
+            initial_files = [".freckle.yaml", ".zshrc", ".gitconfig", ".tmux.conf"]
         
         # Check if dotfiles directory already exists
         dotfiles_path = Path(dotfiles_dir).expanduser()
@@ -246,7 +246,7 @@ class BootstrapCLI:
         
         self.logger.info(f"Created configuration at {config_path}")
         
-        # Now .bootstrap.yaml exists, re-check which files exist
+        # Now .freckle.yaml exists, re-check which files exist
         all_files_to_track = []
         for f in initial_files:
             path = self.env.home / f
@@ -276,8 +276,8 @@ class BootstrapCLI:
         
         if repo_url:
             print("\nNext steps:")
-            print("  1. Run 'bootstrap run --backup' to push your dotfiles")
-            print("  2. On other machines, run 'bootstrap init' and choose option 1")
+            print("  1. Run 'freckle run --backup' to push your dotfiles")
+            print("  2. On other machines, run 'freckle init' and choose option 1")
         else:
             print("\nNext steps:")
             print("  1. Create a repo on GitHub/GitLab")
@@ -287,7 +287,7 @@ class BootstrapCLI:
         return 0
 
     def run(self, repo: str = None, branch: str = None, backup: bool = False, update: bool = False) -> int:
-        """Run the bootstrap sequence.
+        """Run the freckle sync sequence.
         
         Args:
             repo: Override dotfiles repository URL.
@@ -298,7 +298,7 @@ class BootstrapCLI:
         Returns:
             Exit code (0 for success, 1 for failure).
         """
-        config_path = self.env.home / ".bootstrap.yaml"
+        config_path = self.env.home / ".freckle.yaml"
         config = Config(config_path, env=self.env)
         
         # Override from CLI
@@ -312,7 +312,7 @@ class BootstrapCLI:
 
         repo_url = config.get("dotfiles.repo_url")
         if not repo_url:
-            self.logger.error("No dotfiles repository URL found. Run 'bootstrap init' first or use --repo.")
+            self.logger.error("No dotfiles repository URL found. Run 'freckle init' first or use --repo.")
             return 1
 
         dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
@@ -323,7 +323,7 @@ class BootstrapCLI:
         is_first_run = not dotfiles_dir.exists()
         action_name = "Setup" if is_first_run else "Sync"
         
-        print(f"\n--- bootstrap {action_name} ---")
+        print(f"\n--- freckle {action_name} ---")
         print(f"Platform: {self.env.os_info['pretty_name']}")
         
         pkg_mgr = SystemPackageManager(self.env)
@@ -372,7 +372,7 @@ class BootstrapCLI:
                             else:
                                 print(f"✗ Backup failed: {result['error']}")
                         else:
-                            print("\nTo backup these changes, run: bootstrap run --backup")
+                            print("\nTo backup these changes, run: freckle run --backup")
                             return 0
                     elif not local_changes and is_behind:
                         # Remote has updates, no local uncommitted changes
@@ -382,7 +382,7 @@ class BootstrapCLI:
                             dotfiles.force_checkout()
                             print("✓ Updated to latest remote version")
                         else:
-                            print("\nTo update your local files, run: bootstrap run --update")
+                            print("\nTo update your local files, run: freckle run --update")
                             return 0
                     elif local_changes and is_behind:
                         # Conflict: both local changes and remote updates
@@ -407,8 +407,8 @@ class BootstrapCLI:
                             print("✓ Discarded local changes and updated to remote")
                         else:
                             print("\nOptions to resolve conflict:")
-                            print("  - To keep local changes and backup: bootstrap run --backup")
-                            print("  - To discard local changes and update: bootstrap run --update")
+                            print("  - To keep local changes and backup: freckle run --backup")
+                            print("  - To discard local changes and update: freckle run --update")
                             return 0
                     elif is_ahead and not local_changes:
                         # Local has commits not on remote
@@ -421,7 +421,7 @@ class BootstrapCLI:
                             else:
                                 print(f"✗ Push failed: {result['error']}")
                         else:
-                            print("\nTo push, run: bootstrap run --backup")
+                            print("\nTo push, run: freckle run --backup")
                             return 0
                     elif report.get("remote_branch_missing") and not local_changes:
                         # Local branch exists but remote doesn't (fresh repo)
@@ -433,7 +433,7 @@ class BootstrapCLI:
                             else:
                                 print(f"✗ Push failed: {result['error']}")
                         else:
-                            print("\nTo push, run: bootstrap run --backup")
+                            print("\nTo push, run: freckle run --backup")
                             return 0
 
             for manager in tool_managers:
@@ -451,33 +451,33 @@ class BootstrapCLI:
         """Add files to be tracked in your dotfiles repository.
         
         Usage:
-            bootstrap add .bootstrap.yaml
-            bootstrap add .vimrc .bashrc
-            bootstrap add .config/starship.toml
+            freckle add .freckle.yaml
+            freckle add .vimrc .bashrc
+            freckle add .config/starship.toml
         
-        After adding, run 'bootstrap run --backup' to commit and push.
+        After adding, run 'freckle run --backup' to commit and push.
         """
         if not files:
-            print("Usage: bootstrap add <file> [file2] [file3] ...")
+            print("Usage: freckle add <file> [file2] [file3] ...")
             print("\nExamples:")
-            print("  bootstrap add .bootstrap.yaml")
-            print("  bootstrap add .vimrc .bashrc")
-            print("  bootstrap add .config/starship.toml")
+            print("  freckle add .freckle.yaml")
+            print("  freckle add .vimrc .bashrc")
+            print("  freckle add .config/starship.toml")
             return 1
         
-        config_path = self.env.home / ".bootstrap.yaml"
+        config_path = self.env.home / ".freckle.yaml"
         config = Config(config_path, env=self.env)
         
         repo_url = config.get("dotfiles.repo_url")
         if not repo_url:
-            self.logger.error("Dotfiles not configured. Run 'bootstrap init' first.")
+            self.logger.error("Dotfiles not configured. Run 'freckle init' first.")
             return 1
         
         dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
         branch = config.get("dotfiles.branch")
         
         if not dotfiles_dir.exists():
-            self.logger.error("Dotfiles repository not found. Run 'bootstrap run' first.")
+            self.logger.error("Dotfiles repository not found. Run 'freckle run' first.")
             return 1
         
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
@@ -499,21 +499,21 @@ class BootstrapCLI:
                     print(f"    - {f} (failed to add)")
         
         if result["added"]:
-            print("\nTo commit and push, run: bootstrap run --backup")
+            print("\nTo commit and push, run: freckle run --backup")
             return 0
         else:
             return 1
 
     def status(self):
         """Show current setup status and check for updates."""
-        config_path = self.env.home / ".bootstrap.yaml"
+        config_path = self.env.home / ".freckle.yaml"
         config = Config(config_path, env=self.env)
         
         repo_url = config.get("dotfiles.repo_url")
         dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
         branch = config.get("dotfiles.branch")
         
-        print(f"\n--- bootstrap Status ---")
+        print(f"\n--- freckle Status ---")
         print(f"OS     : {self.env.os_info['pretty_name']} ({self.env.os_info['machine']})")
         print(f"Kernel : {self.env.os_info['release']}")
         print(f"User   : {self.env.user}")
@@ -534,7 +534,7 @@ class BootstrapCLI:
         print("\nConfiguration:")
         if config_path.exists():
             if dotfiles:
-                status = dotfiles.get_file_sync_status(".bootstrap.yaml")
+                status = dotfiles.get_file_sync_status(".freckle.yaml")
                 status_str = {
                     "up-to-date": "✓ up-to-date",
                     "modified": "⚠ modified locally",
@@ -544,11 +544,11 @@ class BootstrapCLI:
                     "not-found": "✓ local only",
                     "error": "⚠ error checking status"
                 }.get(status, f"status: {status}")
-                print(f"  .bootstrap.yaml : {status_str}")
+                print(f"  .freckle.yaml : {status_str}")
             else:
-                print(f"  .bootstrap.yaml : ✓ exists (dotfiles not configured)")
+                print(f"  .freckle.yaml : ✓ exists (dotfiles not configured)")
         else:
-            print(f"  .bootstrap.yaml : ✗ not found (run 'bootstrap init')")
+            print(f"  .freckle.yaml : ✗ not found (run 'freckle init')")
 
         print("\nCore Tools:")
         for manager in tool_managers:
@@ -579,7 +579,7 @@ class BootstrapCLI:
             
         # Global Dotfiles Status
         if not repo_url:
-            print("\nDotfiles: Not configured (run 'bootstrap init')")
+            print("\nDotfiles: Not configured (run 'freckle init')")
         else:
             print(f"\nDotfiles ({repo_url}):")
             try:
@@ -642,10 +642,10 @@ class BootstrapCLI:
         print("")
 
     def version(self):
-        """Show the version of the bootstrap tool."""
-        print(f"bootstrap version {get_version()}")
+        """Show the version of freckle."""
+        print(f"freckle version {get_version()}")
 
 
 def main():
-    """Main entry point for the bootstrap CLI."""
-    fire.Fire(BootstrapCLI)
+    """Main entry point for the freckle CLI."""
+    fire.Fire(FreckleCLI)

@@ -2,7 +2,7 @@
 
 import subprocess
 from pathlib import Path
-from bootstrap.dotfiles import DotfilesManager
+from freckle.dotfiles import DotfilesManager
 
 
 def _create_bare_repo_with_files(tmp_path: Path, files: dict) -> Path:

@@ -1,5 +1,5 @@
 from pathlib import Path
-from bootstrap.config import Config
+from freckle.config import Config
 
 def test_config_defaults():
     config = Config()

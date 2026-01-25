@@ -28,8 +28,8 @@ RUN useradd -m -s /bin/bash testuser && \
 USER testuser
 WORKDIR /home/testuser
 
-# Copy the bootstrap project
-COPY --chown=testuser:testuser . /home/testuser/bootstrap
+# Copy the freckle project
+COPY --chown=testuser:testuser . /home/testuser/freckle
 
 # Initialize a mock dotfiles repo for testing
 RUN mkdir -p /home/testuser/mock-dotfiles.git && \
@@ -48,8 +48,8 @@ RUN mkdir -p /home/testuser/temp-dots && \
     git remote add origin /home/testuser/mock-dotfiles.git && \
     git push origin master:main
 
-# Pre-install the bootstrap tool
-RUN cd /home/testuser/bootstrap && uv pip install .
+# Pre-install the freckle tool
+RUN cd /home/testuser/freckle && uv pip install .
 
 # Set default command
 CMD ["/bin/bash"]

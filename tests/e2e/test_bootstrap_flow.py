@@ -3,12 +3,12 @@ import os
 import shutil
 from pathlib import Path
 
-def test_full_bootstrap_flow(tmp_path):
+def test_full_freckle_flow(tmp_path):
     """
     E2E test that simulates a full user workflow:
     1. Create a mock remote dotfiles repo
-    2. Run bootstrap init
-    3. Run bootstrap run
+    2. Run freckle init
+    3. Run freckle run
     4. Verify files are correctly placed and configured
     """
     home = tmp_path / "fake_home"
@@ -18,7 +18,7 @@ def test_full_bootstrap_flow(tmp_path):
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["USER"] = "testuser"
-    env["BOOTSTRAP_MOCK_PKGS"] = "1"
+    env["FRECKLE_MOCK_PKGS"] = "1"
     
     # 1. Setup mock remote repo
     remote_repo = tmp_path / "remote_dots.git"
@@ -37,24 +37,24 @@ def test_full_bootstrap_flow(tmp_path):
     subprocess.run(["git", "remote", "add", "origin", str(remote_repo)], cwd=temp_worktree, check=True)
     subprocess.run(["git", "push", "origin", "master:main"], cwd=temp_worktree, check=True)
 
-    # 2. Run bootstrap init
-    # We'll use the CLI directly. 'bootstrap' should be in the path if installed via uv.
-    # Alternatively, we can use 'uv run bootstrap'
+    # 2. Run freckle init
+    # We'll use the CLI directly. 'freckle' should be in the path if installed via uv.
+    # Alternatively, we can use 'uv run freckle'
     # Input: y (clone existing), repo URL, branch, dotfiles dir
     init_input = f"y\n{remote_repo}\nmain\n{home}/.dotfiles\n"
     subprocess.run(
-        ["uv", "run", "bootstrap", "init"],
+        ["uv", "run", "freckle", "init"],
         input=init_input,
         text=True,
         env=env,
         check=True
     )
     
-    assert (home / ".bootstrap.yaml").exists()
+    assert (home / ".freckle.yaml").exists()
 
-    # 3. Run bootstrap run
+    # 3. Run freckle run
     subprocess.run(
-        ["uv", "run", "bootstrap", "run"],
+        ["uv", "run", "freckle", "run"],
         env=env,
         check=True
     )
