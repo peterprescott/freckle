@@ -220,7 +220,10 @@ class FreckleCLI:
             initial_files = [".freckle.yaml", ".zshrc", ".gitconfig", ".tmux.conf"]
         
         # Check if dotfiles directory already exists
+        # Resolve relative paths against home directory
         dotfiles_path = Path(dotfiles_dir).expanduser()
+        if not dotfiles_path.is_absolute():
+            dotfiles_path = self.env.home / dotfiles_path
         if dotfiles_path.exists():
             print(f"\n⚠ Directory already exists: {dotfiles_path}")
             choice = input("Remove it and start fresh? [y/N]: ").strip().lower()
@@ -316,6 +319,8 @@ class FreckleCLI:
             return 1
 
         dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        if not dotfiles_dir.is_absolute():
+            dotfiles_dir = self.env.home / dotfiles_dir
         branch = config.get("dotfiles.branch")
         work_tree = self.env.home
         enabled_modules = config.get("modules", [])
@@ -474,6 +479,8 @@ class FreckleCLI:
             return 1
         
         dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        if not dotfiles_dir.is_absolute():
+            dotfiles_dir = self.env.home / dotfiles_dir
         branch = config.get("dotfiles.branch")
         
         if not dotfiles_dir.exists():
@@ -511,6 +518,8 @@ class FreckleCLI:
         
         repo_url = config.get("dotfiles.repo_url")
         dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        if not dotfiles_dir.is_absolute():
+            dotfiles_dir = self.env.home / dotfiles_dir
         branch = config.get("dotfiles.branch")
         
         print(f"\n--- freckle Status ---")
