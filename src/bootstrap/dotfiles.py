@@ -544,6 +544,45 @@ class DotfilesManager:
         except Exception:
             return "error"
 
+    def add_files(self, files: List[str]) -> Dict[str, Any]:
+        """Add files to be tracked in the dotfiles repository.
+        
+        Args:
+            files: List of file paths relative to home directory
+            
+        Returns:
+            Dictionary with result info:
+            - success: Whether the operation completed
+            - added: List of files successfully added
+            - skipped: List of files that don't exist
+            - error: Error message if operation failed
+        """
+        result = {"success": False, "added": [], "skipped": [], "error": None}
+        
+        if not self.dotfiles_dir.exists():
+            result["error"] = "Dotfiles repository not initialized"
+            return result
+        
+        for f in files:
+            file_path = self.work_tree / f
+            if not file_path.exists():
+                result["skipped"].append(f)
+                continue
+            
+            try:
+                add_result = self._git("add", f, check=False)
+                if add_result.returncode != 0:
+                    logger.warning(f"Failed to add {f}: {add_result.stderr}")
+                    result["skipped"].append(f)
+                else:
+                    result["added"].append(f)
+            except Exception as e:
+                logger.warning(f"Error adding {f}: {e}")
+                result["skipped"].append(f)
+        
+        result["success"] = len(result["added"]) > 0 or len(result["skipped"]) == len(files)
+        return result
+
     def commit_and_push(self, message: str) -> Dict[str, Any]:
         """Commit local changes to tracked files and push to remote.
         

@@ -447,6 +447,63 @@ class BootstrapCLI:
             return 1
         return 0
 
+    def add(self, *files):
+        """Add files to be tracked in your dotfiles repository.
+        
+        Usage:
+            bootstrap add .bootstrap.yaml
+            bootstrap add .vimrc .bashrc
+            bootstrap add .config/starship.toml
+        
+        After adding, run 'bootstrap run --backup' to commit and push.
+        """
+        if not files:
+            print("Usage: bootstrap add <file> [file2] [file3] ...")
+            print("\nExamples:")
+            print("  bootstrap add .bootstrap.yaml")
+            print("  bootstrap add .vimrc .bashrc")
+            print("  bootstrap add .config/starship.toml")
+            return 1
+        
+        config_path = self.env.home / ".bootstrap.yaml"
+        config = Config(config_path, env=self.env)
+        
+        repo_url = config.get("dotfiles.repo_url")
+        if not repo_url:
+            self.logger.error("Dotfiles not configured. Run 'bootstrap init' first.")
+            return 1
+        
+        dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
+        branch = config.get("dotfiles.branch")
+        
+        if not dotfiles_dir.exists():
+            self.logger.error("Dotfiles repository not found. Run 'bootstrap run' first.")
+            return 1
+        
+        dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
+        
+        result = dotfiles.add_files(list(files))
+        
+        if result["added"]:
+            print(f"✓ Staged {len(result['added'])} file(s) for tracking:")
+            for f in result["added"]:
+                print(f"    + {f}")
+        
+        if result["skipped"]:
+            print(f"\n⚠ Skipped {len(result['skipped'])} file(s):")
+            for f in result["skipped"]:
+                file_path = self.env.home / f
+                if not file_path.exists():
+                    print(f"    - {f} (file not found)")
+                else:
+                    print(f"    - {f} (failed to add)")
+        
+        if result["added"]:
+            print("\nTo commit and push, run: bootstrap run --backup")
+            return 0
+        else:
+            return 1
+
     def status(self):
         """Show current setup status and check for updates."""
         config_path = self.env.home / ".bootstrap.yaml"
