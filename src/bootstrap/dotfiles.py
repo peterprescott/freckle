@@ -424,7 +424,41 @@ class DotfilesManager:
         }
 
     def _get_changed_files(self, branch: str = None) -> List[str]:
-        """Get list of files that differ between work tree and HEAD."""
+        """Get list of files that differ between work tree and HEAD.
+        
+        Uses git diff subprocess for accuracy - this properly handles
+        the index and work tree state that git sees.
+        """
+        branch = branch or self.branch
+        
+        try:
+            # Use git diff to find changed tracked files
+            # --name-only: just file names
+            # --diff-filter=ACDMRT: Added, Copied, Deleted, Modified, Renamed, Type-changed
+            result = subprocess.run(
+                ["git", "--git-dir", str(self.dotfiles_dir),
+                 "--work-tree", str(self.work_tree),
+                 "diff", "--name-only", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode != 0:
+                logger.warning(f"git diff failed: {result.stderr.strip()}")
+                return []
+            
+            changed = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+            return changed
+        except Exception as e:
+            logger.warning(f"Could not get changed files: {e}")
+            return []
+
+    def _get_changed_files_pygit2(self, branch: str = None) -> List[str]:
+        """Get list of files that differ between work tree and HEAD using pygit2.
+        
+        Note: This compares file content directly, bypassing the git index.
+        Use _get_changed_files() for accurate git-compatible results.
+        """
         repo = self._get_repo()
         changed = []
         branch = branch or self.branch
@@ -566,56 +600,41 @@ class DotfilesManager:
             result["error"] = "No changes to commit"
             return result
         
+        git_cmd = ["git", "--git-dir", str(self.dotfiles_dir), 
+                   "--work-tree", str(self.work_tree)]
+        
         try:
-            # Build the new tree by updating the index
-            head_ref = repo.references.get(f"refs/heads/{effective_branch}")
-            if head_ref is None:
-                result["error"] = f"Branch {effective_branch} not found"
+            # Stage only tracked files that have changes (git add -u)
+            add_result = subprocess.run(
+                git_cmd + ["add", "-u"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if add_result.returncode != 0:
+                result["error"] = f"git add failed: {add_result.stderr.strip()}"
                 return result
             
-            head_commit = head_ref.peel(pygit2.Commit)
-            
-            # Create index from HEAD tree
-            index = pygit2.Index()
-            index.read_tree(head_commit.tree)
-            
-            # Update changed files in the index
-            for file_path in changed:
-                local_path = self.work_tree / file_path
-                if local_path.exists():
-                    # Read file and create blob
-                    content = local_path.read_bytes()
-                    blob_id = repo.create_blob(content)
-                    
-                    # Add to index
-                    entry = pygit2.IndexEntry(file_path, blob_id, pygit2.GIT_FILEMODE_BLOB)
-                    index.add(entry)
-                else:
-                    # File was deleted
-                    try:
-                        index.remove(file_path)
-                    except KeyError:
-                        pass
-            
-            # Write the tree
-            tree_id = index.write_tree(repo)
-            
             # Create the commit
-            author = repo.default_signature
-            committer = repo.default_signature
-            
-            parent = head_commit.id
-            commit_id = repo.create_commit(
-                f"refs/heads/{effective_branch}",
-                author,
-                committer,
-                message,
-                tree_id,
-                [parent]
+            commit_result = subprocess.run(
+                git_cmd + ["commit", "-m", message],
+                capture_output=True,
+                text=True,
+                timeout=30
             )
+            if commit_result.returncode != 0:
+                # Check if it's just "nothing to commit"
+                if "nothing to commit" in commit_result.stdout or "nothing to commit" in commit_result.stderr:
+                    result["success"] = True
+                    result["error"] = "No changes to commit"
+                    return result
+                result["error"] = f"git commit failed: {commit_result.stderr.strip()}"
+                return result
             
             result["committed"] = True
-            logger.info(f"Created commit {str(commit_id)[:7]}")
+            # Extract commit hash from output
+            commit_output = commit_result.stdout.strip()
+            logger.info(f"Created commit: {commit_output.split()[1] if len(commit_output.split()) > 1 else 'OK'}")
             
         except Exception as e:
             result["error"] = f"Commit failed: {e}"
