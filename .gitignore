@@ -11,3 +11,6 @@ wheels/
 
 # Scratch/working notes (not for version control)
 SCRATCH/
+
+# Local documentation (not for version control)
+docs/
