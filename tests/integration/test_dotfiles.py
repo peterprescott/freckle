@@ -1,5 +1,6 @@
-"""Integration tests for DotfilesManager with pygit2."""
+"""Integration tests for DotfilesManager."""
 
+import os
 import subprocess
 from pathlib import Path
 from freckle.dotfiles import DotfilesManager
@@ -175,3 +176,156 @@ def test_not_initialized_status(tmp_path):
     
     file_status = manager.get_file_sync_status(".zshrc")
     assert file_status == "not-initialized"
+
+
+def test_add_files_from_different_cwd(tmp_path):
+    """Test that add_files works regardless of the process's current working directory.
+    
+    This tests the fix for the bug where running `freckle add` from ~/github
+    would fail because git was looking for files relative to cwd instead of
+    the work_tree.
+    """
+    # Create a bare repo
+    bare_repo = _create_bare_repo_with_files(tmp_path, {
+        ".zshrc": "initial zshrc"
+    })
+    
+    # Set up work tree (simulating ~)
+    work_tree = tmp_path / "home"
+    work_tree.mkdir()
+    dotfiles_dir = work_tree / ".dotfiles"
+    
+    # Create a subdirectory (simulating ~/github)
+    subdir = work_tree / "github"
+    subdir.mkdir()
+    
+    # Create a file to add in .config (simulating ~/.config/nvim/init.lua)
+    config_dir = work_tree / ".config" / "nvim"
+    config_dir.mkdir(parents=True)
+    init_lua = config_dir / "init.lua"
+    init_lua.write_text("-- nvim config")
+    
+    # Set up the dotfiles manager
+    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager.setup()
+    
+    # Save original cwd and change to the subdirectory
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(subdir)
+        
+        # This should work even though we're in ~/github, not ~
+        result = manager.add_files([".config/nvim/init.lua"])
+        
+        assert result["success"] is True
+        assert ".config/nvim/init.lua" in result["added"]
+        assert len(result["skipped"]) == 0
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_git_commands_run_from_work_tree(tmp_path):
+    """Test that git commands run with cwd set to work_tree.
+    
+    This ensures path resolution works correctly for bare repo operations.
+    """
+    bare_repo = _create_bare_repo_with_files(tmp_path, {
+        ".zshrc": "zsh config"
+    })
+    
+    work_tree = tmp_path / "home"
+    work_tree.mkdir()
+    dotfiles_dir = work_tree / ".dotfiles"
+    
+    # Create a deeply nested file
+    nested_dir = work_tree / ".config" / "deeply" / "nested"
+    nested_dir.mkdir(parents=True)
+    nested_file = nested_dir / "config.toml"
+    nested_file.write_text("nested = true")
+    
+    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager.setup()
+    
+    # Change to a completely different directory
+    other_dir = tmp_path / "somewhere_else"
+    other_dir.mkdir()
+    
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(other_dir)
+        
+        # All these operations should work from any cwd
+        result = manager.add_files([".config/deeply/nested/config.toml"])
+        assert result["success"] is True
+        
+        status = manager.get_detailed_status()
+        assert status["initialized"] is True
+        
+        file_status = manager.get_file_sync_status(".zshrc")
+        assert file_status == "up-to-date"
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_add_files_nonexistent(tmp_path):
+    """Test that add_files correctly skips non-existent files."""
+    bare_repo = _create_bare_repo_with_files(tmp_path, {".zshrc": "zsh"})
+    
+    work_tree = tmp_path / "home"
+    work_tree.mkdir()
+    dotfiles_dir = work_tree / ".dotfiles"
+    
+    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager.setup()
+    
+    result = manager.add_files(["nonexistent_file", "also_missing"])
+    
+    assert "nonexistent_file" in result["skipped"]
+    assert "also_missing" in result["skipped"]
+    assert len(result["added"]) == 0
+
+
+def test_operations_from_tmp(tmp_path):
+    """Test all major operations work when running from /tmp.
+    
+    This simulates a user who runs freckle from an arbitrary system directory.
+    """
+    bare_repo = _create_bare_repo_with_files(tmp_path, {
+        ".zshrc": "zsh config",
+        ".tmux.conf": "tmux config"
+    })
+    
+    work_tree = tmp_path / "home"
+    work_tree.mkdir()
+    dotfiles_dir = work_tree / ".dotfiles"
+    
+    # Create a new file to track
+    (work_tree / ".gitconfig").write_text("[user]\nname = Test")
+    
+    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    
+    # Run from /tmp (or tmp_path which is similar)
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        
+        # Setup should work
+        manager.setup()
+        assert (work_tree / ".zshrc").exists()
+        
+        # Status should work
+        status = manager.get_detailed_status()
+        assert status["initialized"] is True
+        
+        # Add should work
+        result = manager.add_files([".gitconfig"])
+        assert result["success"] is True
+        
+        # File sync status should work
+        assert manager.get_file_sync_status(".zshrc") == "up-to-date"
+        
+        # Modify and check
+        (work_tree / ".zshrc").write_text("modified")
+        assert manager.get_file_sync_status(".zshrc") == "modified"
+    finally:
+        os.chdir(original_cwd)
