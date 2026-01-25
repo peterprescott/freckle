@@ -334,7 +334,13 @@ class BootstrapCLI:
                             print(f"    Note: {branch_info['message']}")
                     
                     print(f"  Local Commit : {report['local_commit']}")
-                    print(f"  Remote Commit: {report.get('remote_commit', 'N/A')}")
+                    
+                    if report.get("remote_branch_missing"):
+                        print(f"  Remote Commit: ✗ No origin/{effective_branch} branch!")
+                        print(f"    The local '{effective_branch}' branch has no remote counterpart.")
+                        print(f"    To push it: git --git-dir=~/.dotfiles push -u origin {effective_branch}")
+                    else:
+                        print(f"  Remote Commit: {report.get('remote_commit', 'N/A')}")
                     
                     if report.get("fetch_failed"):
                         print("  Remote Status: ⚠ Could not fetch (offline?)")
@@ -344,12 +350,14 @@ class BootstrapCLI:
                     else:
                         print("  Local Changes: No")
                     
-                    if report.get("is_ahead"):
+                    if report.get("remote_branch_missing"):
+                        pass  # Already explained above
+                    elif report.get("is_ahead"):
                         print(f"  Ahead: Yes ({report.get('ahead_count', 0)} commits not pushed)")
                         
                     if report.get("is_behind"):
                         print(f"  Behind: Yes ({report.get('behind_count', 0)} commits to pull)")
-                    elif not report.get("fetch_failed"):
+                    elif not report.get("fetch_failed") and not report.get("remote_branch_missing"):
                         print("  Behind: No (up to date)")
                         
             except Exception as e:

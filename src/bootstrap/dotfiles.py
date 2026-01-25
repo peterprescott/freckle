@@ -405,6 +405,7 @@ class DotfilesManager:
                 "changed_files": changed_files,
                 "is_ahead": False,
                 "is_behind": False,
+                "remote_branch_missing": True,
                 "local_commit": local_commit,
                 "remote_commit": None,
                 "fetch_failed": fetch_failed,
@@ -469,8 +470,14 @@ class DotfilesManager:
             if result.returncode != 0:
                 return "modified"
             
-            # Check if differs from remote
+            # Check if remote branch exists
             remote_ref = f"origin/{effective_branch}"
+            ref_check = self._git_bare("show-ref", "--verify", f"refs/remotes/{remote_ref}", check=False)
+            if ref_check.returncode != 0:
+                # No remote branch - can't be behind, just say up-to-date with local
+                return "up-to-date"
+            
+            # Check if differs from remote
             result = self._git("diff", "--quiet", remote_ref, "--", relative_path, check=False)
             if result.returncode != 0:
                 # Check if HEAD differs from remote for this file
