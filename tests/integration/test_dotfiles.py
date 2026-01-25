@@ -92,7 +92,8 @@ def test_get_tracked_files(tmp_path):
     dotfiles_dir = tmp_path / "dotfiles"
     
     manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
-    manager._get_repo()  # Initialize repo
+    # Clone the repo first
+    manager._clone_bare()
     manager._fetch()
     
     tracked = manager._get_tracked_files()

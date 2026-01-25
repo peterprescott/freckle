@@ -1,4 +1,4 @@
-"""Dotfiles management using the bare repository pattern with pygit2."""
+"""Dotfiles management using the bare repository pattern with git subprocess."""
 
 import shutil
 import logging
@@ -7,40 +7,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-import pygit2
-
 logger = logging.getLogger(__name__)
-
-
-class CheckoutConflictCollector(pygit2.CheckoutCallbacks):
-    """Callback handler that collects checkout conflicts without aborting."""
-    
-    def __init__(self):
-        super().__init__()
-        self.conflicts: List[str] = []
-        self.updated: List[str] = []
-    
-    def checkout_notify_flags(self) -> int:
-        """Tell libgit2 what events to notify us about."""
-        return (
-            pygit2.GIT_CHECKOUT_NOTIFY_CONFLICT |
-            pygit2.GIT_CHECKOUT_NOTIFY_DIRTY |
-            pygit2.GIT_CHECKOUT_NOTIFY_UNTRACKED
-        )
-    
-    def checkout_notify(self, why: int, path: str, baseline, target, workdir) -> int:
-        """Called before each file is modified during checkout.
-        
-        Return 0 to continue, non-zero to abort checkout.
-        We collect conflicts but don't abort - we'll handle them after.
-        """
-        if why in (
-            pygit2.GIT_CHECKOUT_NOTIFY_CONFLICT,
-            pygit2.GIT_CHECKOUT_NOTIFY_DIRTY,
-            pygit2.GIT_CHECKOUT_NOTIFY_UNTRACKED
-        ):
-            self.conflicts.append(path)
-        return 0  # Continue collecting, don't abort
 
 
 class DotfilesManager:
@@ -57,36 +24,135 @@ class DotfilesManager:
         self.dotfiles_dir = Path(dotfiles_dir)
         self.work_tree = Path(work_tree)
         self.branch = branch
-        self._repo: Optional[pygit2.Repository] = None
 
-    def _get_repo(self) -> pygit2.Repository:
-        """Get or initialize the pygit2 Repository object."""
-        if self._repo is None:
-            if not self.dotfiles_dir.exists():
-                logger.info(f"Cloning bare repository from {self.repo_url} to {self.dotfiles_dir}")
-                self._repo = pygit2.clone_repository(
-                    self.repo_url,
-                    str(self.dotfiles_dir),
-                    bare=True
-                )
-            else:
-                self._repo = pygit2.Repository(str(self.dotfiles_dir))
-        return self._repo
+    def _git(self, *args, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess:
+        """Run a git command with --git-dir and --work-tree set.
+        
+        Args:
+            *args: Git command arguments (e.g., "status", "--porcelain")
+            check: If True, raise on non-zero exit code
+            timeout: Command timeout in seconds
+            
+        Returns:
+            CompletedProcess with stdout/stderr captured as text
+        """
+        cmd = ["git", "--git-dir", str(self.dotfiles_dir), 
+               "--work-tree", str(self.work_tree)] + list(args)
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=check
+        )
+
+    def _git_bare(self, *args, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess:
+        """Run a git command with just --git-dir (no work tree).
+        
+        Used for operations that don't need a work tree context.
+        """
+        cmd = ["git", "--git-dir", str(self.dotfiles_dir)] + list(args)
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=check
+        )
+
+    def _clone_bare(self):
+        """Clone the repository as a bare repo."""
+        logger.info(f"Cloning bare repository from {self.repo_url} to {self.dotfiles_dir}")
+        subprocess.run(
+            ["git", "clone", "--bare", self.repo_url, str(self.dotfiles_dir)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+
+    def _ensure_fetch_refspec(self):
+        """Ensure fetch refspec is configured for remote tracking.
+        
+        Bare repos created manually often lack the fetch refspec,
+        which prevents remote-tracking branches from being created.
+        """
+        try:
+            # Check current refspecs
+            result = self._git_bare("config", "--get-all", "remote.origin.fetch", check=False)
+            expected = "+refs/heads/*:refs/remotes/origin/*"
+            
+            if expected not in result.stdout:
+                logger.info("Configuring fetch refspec for remote tracking")
+                self._git_bare("config", "--add", "remote.origin.fetch", expected)
+        except Exception as e:
+            logger.debug(f"Could not configure fetch refspec: {e}")
+
+    def _fetch(self) -> bool:
+        """Fetch from remote origin. Returns True on success."""
+        self._ensure_fetch_refspec()
+        
+        try:
+            self._git_bare("fetch", "origin", timeout=60)
+            return True
+        except subprocess.TimeoutExpired:
+            logger.warning("Fetch timed out")
+            return False
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Fetch failed: {e.stderr.strip()}")
+            return False
+        except Exception as e:
+            logger.warning(f"Could not fetch from remote: {e}")
+            return False
 
     def _get_available_branches(self) -> List[str]:
         """Get list of all available branch names (local and remote)."""
-        repo = self._get_repo()
         branches = set()
         
-        for ref in repo.references:
-            if ref.startswith("refs/heads/"):
-                branches.add(ref[len("refs/heads/"):])
-            elif ref.startswith("refs/remotes/origin/"):
-                branch = ref[len("refs/remotes/origin/"):]
-                if branch != "HEAD":
+        try:
+            # Get local branches
+            result = self._git_bare("for-each-ref", "--format=%(refname:short)", "refs/heads/", check=False)
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    branches.add(line.strip())
+            
+            # Get remote branches
+            result = self._git_bare("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/", check=False)
+            for line in result.stdout.strip().split('\n'):
+                if line.strip() and not line.strip().endswith('/HEAD'):
+                    # Remove "origin/" prefix
+                    branch = line.strip()
+                    if branch.startswith("origin/"):
+                        branch = branch[7:]
                     branches.add(branch)
+        except Exception as e:
+            logger.debug(f"Could not get branches: {e}")
         
         return sorted(branches)
+
+    def _branch_exists(self, branch: str) -> bool:
+        """Check if a branch exists locally or on remote."""
+        try:
+            # Check local
+            result = self._git_bare("show-ref", "--verify", f"refs/heads/{branch}", check=False)
+            if result.returncode == 0:
+                return True
+            
+            # Check remote
+            result = self._git_bare("show-ref", "--verify", f"refs/remotes/origin/{branch}", check=False)
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def _get_head_branch(self) -> Optional[str]:
+        """Get the current HEAD branch name."""
+        try:
+            result = self._git_bare("symbolic-ref", "--short", "HEAD", check=False)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
 
     def _resolve_branch(self) -> Dict[str, Any]:
         """Resolve which branch to use, with detailed context.
@@ -94,11 +160,10 @@ class DotfilesManager:
         Returns a dict with:
         - effective: The branch to actually use
         - configured: The originally configured branch
-        - reason: Why this branch was chosen ('exact', 'main_master_swap', 'fallback_head', 'fallback_default', 'not_found')
-        - available: List of available branches (if configured wasn't found)
-        - message: Human-readable explanation (if not exact match)
+        - reason: Why this branch was chosen
+        - available: List of available branches
+        - message: Human-readable explanation
         """
-        repo = self._get_repo()
         configured = self.branch
         available = self._get_available_branches()
         
@@ -125,20 +190,15 @@ class DotfilesManager:
             }
         
         # Try HEAD
-        try:
-            if not repo.head_is_unborn:
-                head_ref = repo.head.name
-                if head_ref.startswith("refs/heads/"):
-                    head_branch = head_ref[len("refs/heads/"):]
-                    return {
-                        "effective": head_branch,
-                        "configured": configured,
-                        "reason": "fallback_head",
-                        "available": available,
-                        "message": f"Branch '{configured}' not found; using current HEAD '{head_branch}'.",
-                    }
-        except Exception:
-            pass
+        head_branch = self._get_head_branch()
+        if head_branch and head_branch in available:
+            return {
+                "effective": head_branch,
+                "configured": configured,
+                "reason": "fallback_head",
+                "available": available,
+                "message": f"Branch '{configured}' not found; using current HEAD '{head_branch}'.",
+            }
         
         # Try common defaults
         for fallback in ["main", "master"]:
@@ -151,7 +211,7 @@ class DotfilesManager:
                     "message": f"Branch '{configured}' not found; falling back to '{fallback}'.",
                 }
         
-        # Nothing found - use configured anyway (will likely fail)
+        # Nothing found
         return {
             "effective": configured,
             "configured": configured,
@@ -160,38 +220,40 @@ class DotfilesManager:
             "message": f"Branch '{configured}' not found. Available branches: {', '.join(available) or '(none)'}",
         }
 
+    def _setup_branch(self, branch: str):
+        """Set up the local branch to track remote after cloning."""
+        try:
+            # Fetch to get remote refs
+            self._fetch()
+            
+            # Check if remote branch exists
+            result = self._git_bare("show-ref", "--verify", f"refs/remotes/origin/{branch}", check=False)
+            if result.returncode != 0:
+                logger.warning(f"Remote branch origin/{branch} not found")
+                return
+            
+            # Create local branch tracking remote
+            self._git_bare("branch", "-f", branch, f"origin/{branch}", check=False)
+            
+            # Set HEAD to the branch
+            self._git_bare("symbolic-ref", "HEAD", f"refs/heads/{branch}")
+        except Exception as e:
+            logger.warning(f"Could not set up branch: {e}")
+
     def _get_tracked_files(self, branch: str = None) -> List[str]:
         """Get list of all files tracked in the target branch."""
-        repo = self._get_repo()
         branch = branch or self.branch
         
-        # Try remote branch first, then local
         try:
-            ref = repo.references.get(f"refs/remotes/origin/{branch}")
-            if ref is None:
-                ref = repo.references.get(f"refs/heads/{branch}")
-            if ref is None:
-                return []
-            
-            commit = ref.peel(pygit2.Commit)
-            tree = commit.tree
-            
-            files = []
-            self._collect_tree_files(tree, "", files)
-            return files
+            # Try remote branch first, then local
+            for ref in [f"origin/{branch}", branch]:
+                result = self._git_bare("ls-tree", "-r", "--name-only", ref, check=False)
+                if result.returncode == 0:
+                    return [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+            return []
         except Exception as e:
             logger.warning(f"Could not get tracked files: {e}")
             return []
-
-    def _collect_tree_files(self, tree: pygit2.Tree, prefix: str, files: List[str]):
-        """Recursively collect all file paths from a tree."""
-        for entry in tree:
-            path = f"{prefix}{entry.name}" if prefix else entry.name
-            if entry.type_str == "tree":
-                subtree = self._get_repo()[entry.id]
-                self._collect_tree_files(subtree, f"{path}/", files)
-            else:
-                files.append(path)
 
     def _find_existing_files(self, tracked_files: List[str]) -> List[str]:
         """Find which tracked files already exist in the work tree."""
@@ -221,116 +283,36 @@ class DotfilesManager:
         
         return backup_dir
 
-    def _ensure_fetch_refspec(self):
-        """Ensure fetch refspec is configured for remote tracking.
-        
-        Bare repos created manually often lack the fetch refspec,
-        which prevents remote-tracking branches from being created.
-        """
-        repo = self._get_repo()
-        try:
-            remote = repo.remotes["origin"]
-            expected_refspec = "+refs/heads/*:refs/remotes/origin/*"
-            current_refspecs = list(remote.fetch_refspecs)
-            
-            if expected_refspec not in current_refspecs:
-                logger.info("Configuring fetch refspec for remote tracking")
-                # add_fetch is on repo.remotes, not the remote object
-                repo.remotes.add_fetch("origin", expected_refspec)
-        except Exception as e:
-            logger.debug(f"Could not configure fetch refspec: {e}")
-
-    def _fetch(self) -> bool:
-        """Fetch from remote origin. Returns True on success.
-        
-        Uses git subprocess for reliability with credential helpers.
-        """
-        self._ensure_fetch_refspec()
-        
-        try:
-            # Use git subprocess - it handles credentials properly
-            result = subprocess.run(
-                ["git", "--git-dir", str(self.dotfiles_dir), "fetch", "origin"],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            if result.returncode != 0:
-                logger.warning(f"Fetch failed: {result.stderr.strip()}")
-                return False
-            return True
-        except subprocess.TimeoutExpired:
-            logger.warning("Fetch timed out")
-            return False
-        except Exception as e:
-            logger.warning(f"Could not fetch from remote: {e}")
-            return False
-
-    def _setup_branch(self):
-        """Set up the local branch to track remote after cloning."""
-        repo = self._get_repo()
-        
-        # Fetch to get remote refs
-        self._fetch()
-        
-        # Get the remote branch reference
-        remote_ref = repo.references.get(f"refs/remotes/origin/{self.branch}")
-        if remote_ref is None:
-            raise RuntimeError(f"Remote branch origin/{self.branch} not found")
-        
-        # Create local branch pointing to the same commit
-        commit = remote_ref.peel(pygit2.Commit)
-        repo.references.create(f"refs/heads/{self.branch}", commit.id, force=True)
-        
-        # Set HEAD to point to the local branch
-        repo.set_head(f"refs/heads/{self.branch}")
-
-    def _checkout_to_worktree(self, force: bool = False):
+    def _checkout_to_worktree(self, branch: str, force: bool = False):
         """Checkout files to the work tree directory."""
-        repo = self._get_repo()
-        
-        # Get the commit to checkout
-        ref = repo.references.get(f"refs/heads/{self.branch}")
-        if ref is None:
-            ref = repo.references.get(f"refs/remotes/origin/{self.branch}")
-        if ref is None:
-            raise RuntimeError(f"Branch {self.branch} not found")
-        
-        commit = ref.peel(pygit2.Commit)
-        
-        # Determine checkout strategy
-        if force:
-            strategy = pygit2.GIT_CHECKOUT_FORCE
-        else:
-            strategy = pygit2.GIT_CHECKOUT_SAFE | pygit2.GIT_CHECKOUT_RECREATE_MISSING
-        
-        # Checkout with the work tree directory
-        repo.checkout_tree(
-            commit,
-            strategy=strategy,
-            directory=str(self.work_tree)
-        )
+        try:
+            args = ["checkout"]
+            if force:
+                args.append("-f")
+            args.append(branch)
+            
+            self._git(*args)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Checkout failed: {e.stderr.strip()}")
 
     def setup(self):
-        """Initial setup: clone repo and checkout dotfiles to home directory.
-        
-        This method:
-        1. Clones the bare repository if it doesn't exist
-        2. Fetches and sets up the branch
-        3. Detects files that would conflict with checkout
-        4. Backs up conflicting files
-        5. Performs the checkout
-        """
+        """Initial setup: clone repo and checkout dotfiles to home directory."""
         if self.dotfiles_dir.exists():
             logger.info("Dotfiles repository already exists")
             return
         
-        # Clone and setup
-        repo = self._get_repo()  # This clones if needed
-        self._setup_branch()
+        # Clone bare repo
+        self._clone_bare()
+        
+        # Resolve branch
+        branch_info = self._resolve_branch()
+        effective_branch = branch_info["effective"]
+        
+        # Set up branch tracking
+        self._setup_branch(effective_branch)
         
         # Find files that would conflict
-        tracked = self._get_tracked_files()
+        tracked = self._get_tracked_files(branch=effective_branch)
         existing = self._find_existing_files(tracked)
         
         # Backup any existing files
@@ -338,40 +320,69 @@ class DotfilesManager:
         if backup_dir:
             logger.info(f"Backed up existing files to {backup_dir}")
         
-        # Now checkout (should succeed since we backed up conflicts)
-        self._checkout_to_worktree(force=True)
+        # Checkout
+        self._checkout_to_worktree(effective_branch, force=True)
         logger.info("Checkout complete!")
 
-    def get_detailed_status(self, offline: bool = False) -> Dict[str, Any]:
-        """Get detailed sync status of the dotfiles repository.
+    def _get_changed_files(self, branch: str = None) -> List[str]:
+        """Get list of files that differ between work tree and HEAD."""
+        branch = branch or self.branch
         
-        Args:
-            offline: If True, skip fetching from remote.
+        try:
+            result = self._git("diff", "--name-only", "HEAD", check=False)
+            if result.returncode != 0:
+                logger.warning(f"git diff failed: {result.stderr.strip()}")
+                return []
             
-        Returns:
-            Dictionary with sync status information.
-        """
+            return [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+        except Exception as e:
+            logger.warning(f"Could not get changed files: {e}")
+            return []
+
+    def _get_commit_info(self, ref: str) -> Optional[str]:
+        """Get short commit hash for a ref, or None if it doesn't exist."""
+        try:
+            result = self._git_bare("rev-parse", "--short", ref, check=False)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+    def _get_ahead_behind(self, local_ref: str, remote_ref: str) -> tuple:
+        """Get ahead/behind counts between two refs."""
+        try:
+            result = self._git_bare("rev-list", "--count", "--left-right", 
+                                    f"{local_ref}...{remote_ref}", check=False)
+            if result.returncode == 0:
+                parts = result.stdout.strip().split()
+                if len(parts) == 2:
+                    return int(parts[0]), int(parts[1])
+        except Exception:
+            pass
+        return 0, 0
+
+    def get_detailed_status(self, offline: bool = False) -> Dict[str, Any]:
+        """Get detailed sync status of the dotfiles repository."""
         if not self.dotfiles_dir.exists():
             return {"initialized": False}
-        
-        repo = self._get_repo()
         
         fetch_failed = False
         if not offline:
             fetch_failed = not self._fetch()
         
-        # Determine which branch to use (with fallback)
+        # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
         
-        # Get changed files by comparing work tree to HEAD
+        # Get changed files
         changed_files = self._get_changed_files(branch=effective_branch)
         
-        # Get local and remote commits
-        local_ref = repo.references.get(f"refs/heads/{effective_branch}")
-        remote_ref = repo.references.get(f"refs/remotes/origin/{effective_branch}")
+        # Get commit info
+        local_commit = self._get_commit_info(f"refs/heads/{effective_branch}")
+        remote_commit = self._get_commit_info(f"refs/remotes/origin/{effective_branch}")
         
-        if local_ref is None:
+        if local_commit is None:
             return {
                 "initialized": True,
                 "branch": effective_branch,
@@ -381,14 +392,11 @@ class DotfilesManager:
                 "is_ahead": False,
                 "is_behind": False,
                 "local_commit": None,
-                "remote_commit": None,
+                "remote_commit": remote_commit,
                 "fetch_failed": fetch_failed,
             }
         
-        local_commit = local_ref.peel(pygit2.Commit)
-        local_oid = local_commit.id
-        
-        if remote_ref is None:
+        if remote_commit is None:
             return {
                 "initialized": True,
                 "branch": effective_branch,
@@ -397,16 +405,16 @@ class DotfilesManager:
                 "changed_files": changed_files,
                 "is_ahead": False,
                 "is_behind": False,
-                "local_commit": str(local_oid)[:7],
+                "local_commit": local_commit,
                 "remote_commit": None,
                 "fetch_failed": fetch_failed,
             }
         
-        remote_commit = remote_ref.peel(pygit2.Commit)
-        remote_oid = remote_commit.id
-        
-        # Calculate ahead/behind
-        ahead, behind = repo.ahead_behind(local_oid, remote_oid)
+        # Get ahead/behind
+        ahead, behind = self._get_ahead_behind(
+            f"refs/heads/{effective_branch}",
+            f"refs/remotes/origin/{effective_branch}"
+        )
         
         return {
             "initialized": True,
@@ -418,85 +426,10 @@ class DotfilesManager:
             "is_behind": behind > 0,
             "ahead_count": ahead,
             "behind_count": behind,
-            "local_commit": str(local_oid)[:7],
-            "remote_commit": str(remote_oid)[:7],
+            "local_commit": local_commit,
+            "remote_commit": remote_commit,
             "fetch_failed": fetch_failed,
         }
-
-    def _get_changed_files(self, branch: str = None) -> List[str]:
-        """Get list of files that differ between work tree and HEAD.
-        
-        Uses git diff subprocess for accuracy - this properly handles
-        the index and work tree state that git sees.
-        """
-        branch = branch or self.branch
-        
-        try:
-            # Use git diff to find changed tracked files
-            # --name-only: just file names
-            # --diff-filter=ACDMRT: Added, Copied, Deleted, Modified, Renamed, Type-changed
-            result = subprocess.run(
-                ["git", "--git-dir", str(self.dotfiles_dir),
-                 "--work-tree", str(self.work_tree),
-                 "diff", "--name-only", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            if result.returncode != 0:
-                logger.warning(f"git diff failed: {result.stderr.strip()}")
-                return []
-            
-            changed = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
-            return changed
-        except Exception as e:
-            logger.warning(f"Could not get changed files: {e}")
-            return []
-
-    def _get_changed_files_pygit2(self, branch: str = None) -> List[str]:
-        """Get list of files that differ between work tree and HEAD using pygit2.
-        
-        Note: This compares file content directly, bypassing the git index.
-        Use _get_changed_files() for accurate git-compatible results.
-        """
-        repo = self._get_repo()
-        changed = []
-        branch = branch or self.branch
-        
-        # Get HEAD tree
-        try:
-            head_ref = repo.references.get(f"refs/heads/{branch}")
-            if head_ref is None:
-                return []
-            head_commit = head_ref.peel(pygit2.Commit)
-            head_tree = head_commit.tree
-        except Exception:
-            return []
-        
-        # Compare each tracked file with work tree
-        tracked = self._get_tracked_files(branch=branch)
-        for file_path in tracked:
-            local_path = self.work_tree / file_path
-            
-            if not local_path.exists():
-                # File is tracked but missing locally
-                changed.append(file_path)
-                continue
-            
-            # Get the blob from HEAD
-            try:
-                entry = head_tree[file_path]
-                head_blob = repo[entry.id]
-                
-                # Compare with local file
-                local_content = local_path.read_bytes()
-                if local_content != head_blob.data:
-                    changed.append(file_path)
-            except KeyError:
-                # File not in HEAD (shouldn't happen for tracked files)
-                pass
-        
-        return changed
 
     def get_file_sync_status(self, relative_path: str) -> str:
         """Get sync status of a specific file.
@@ -508,42 +441,21 @@ class DotfilesManager:
         - 'untracked': File exists locally but isn't tracked
         - 'up-to-date': File matches HEAD
         - 'modified': File has local changes
-        - 'behind': File differs from remote (remote is newer)
+        - 'behind': File differs from remote
         - 'error': Could not determine status
         """
         if not self.dotfiles_dir.exists():
             return "not-initialized"
         
-        repo = self._get_repo()
         local_file = self.work_tree / relative_path
         
-        # Resolve the actual branch to use
+        # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
         
-        # Check if tracked in HEAD
-        head_blob = None
-        try:
-            head_ref = repo.references.get(f"refs/heads/{effective_branch}")
-            if head_ref:
-                head_tree = head_ref.peel(pygit2.Commit).tree
-                entry = head_tree[relative_path]
-                head_blob = repo[entry.id]
-        except (KeyError, Exception):
-            pass
-        
-        # Check if tracked in remote
-        remote_blob = None
-        try:
-            remote_ref = repo.references.get(f"refs/remotes/origin/{effective_branch}")
-            if remote_ref:
-                remote_tree = remote_ref.peel(pygit2.Commit).tree
-                entry = remote_tree[relative_path]
-                remote_blob = repo[entry.id]
-        except (KeyError, Exception):
-            pass
-        
-        is_tracked = head_blob is not None or remote_blob is not None
+        # Check if tracked
+        tracked_files = self._get_tracked_files(branch=effective_branch)
+        is_tracked = relative_path in tracked_files
         
         if not local_file.exists():
             return "missing" if is_tracked else "not-found"
@@ -552,19 +464,19 @@ class DotfilesManager:
             return "untracked"
         
         try:
-            local_content = local_file.read_bytes()
-            
-            # Check if matches remote (up-to-date)
-            if remote_blob and local_content == remote_blob.data:
-                return "up-to-date"
-            
-            # Check if differs from HEAD (modified locally)
-            if head_blob and local_content != head_blob.data:
+            # Check if file differs from HEAD
+            result = self._git("diff", "--quiet", "HEAD", "--", relative_path, check=False)
+            if result.returncode != 0:
                 return "modified"
             
-            # Matches HEAD but differs from remote (behind)
-            if remote_blob and head_blob and head_blob.id != remote_blob.id:
-                return "behind"
+            # Check if differs from remote
+            remote_ref = f"origin/{effective_branch}"
+            result = self._git("diff", "--quiet", remote_ref, "--", relative_path, check=False)
+            if result.returncode != 0:
+                # Check if HEAD differs from remote for this file
+                result2 = self._git("diff", "--quiet", f"HEAD", remote_ref, "--", relative_path, check=False)
+                if result2.returncode != 0:
+                    return "behind"
             
             return "up-to-date"
         except Exception:
@@ -573,8 +485,6 @@ class DotfilesManager:
     def commit_and_push(self, message: str) -> Dict[str, Any]:
         """Commit local changes to tracked files and push to remote.
         
-        Only commits changes to files already tracked in the repository.
-        
         Returns:
             Dictionary with result info:
             - success: Whether the operation completed successfully
@@ -582,10 +492,9 @@ class DotfilesManager:
             - pushed: Whether the push succeeded
             - error: Error message if any step failed
         """
-        repo = self._get_repo()
         result = {"success": False, "committed": False, "pushed": False, "error": None}
         
-        # Resolve the actual branch to use
+        # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
         
@@ -600,30 +509,16 @@ class DotfilesManager:
             result["error"] = "No changes to commit"
             return result
         
-        git_cmd = ["git", "--git-dir", str(self.dotfiles_dir), 
-                   "--work-tree", str(self.work_tree)]
-        
         try:
-            # Stage only tracked files that have changes (git add -u)
-            add_result = subprocess.run(
-                git_cmd + ["add", "-u"],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            # Stage tracked files that have changes
+            add_result = self._git("add", "-u", check=False)
             if add_result.returncode != 0:
                 result["error"] = f"git add failed: {add_result.stderr.strip()}"
                 return result
             
-            # Create the commit
-            commit_result = subprocess.run(
-                git_cmd + ["commit", "-m", message],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            # Commit
+            commit_result = self._git("commit", "-m", message, check=False)
             if commit_result.returncode != 0:
-                # Check if it's just "nothing to commit"
                 if "nothing to commit" in commit_result.stdout or "nothing to commit" in commit_result.stderr:
                     result["success"] = True
                     result["error"] = "No changes to commit"
@@ -632,23 +527,18 @@ class DotfilesManager:
                 return result
             
             result["committed"] = True
-            # Extract commit hash from output
-            commit_output = commit_result.stdout.strip()
-            logger.info(f"Created commit: {commit_output.split()[1] if len(commit_output.split()) > 1 else 'OK'}")
+            logger.info(f"Created commit on {effective_branch}")
             
+        except subprocess.TimeoutExpired:
+            result["error"] = "Commit timed out"
+            return result
         except Exception as e:
             result["error"] = f"Commit failed: {e}"
             return result
         
-        # Push to remote using git subprocess (handles credentials properly)
+        # Push
         try:
-            push_result = subprocess.run(
-                ["git", "--git-dir", str(self.dotfiles_dir), 
-                 "push", "origin", effective_branch],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            push_result = self._git_bare("push", "origin", effective_branch, check=False, timeout=60)
             if push_result.returncode == 0:
                 result["pushed"] = True
                 result["success"] = True
@@ -660,37 +550,24 @@ class DotfilesManager:
             result["error"] = "Push timed out"
             logger.error(result["error"])
         except Exception as e:
-            result["error"] = f"Push failed (changes committed locally): {e}"
+            result["error"] = f"Push failed: {e}"
             logger.error(result["error"])
         
         return result
 
     def force_checkout(self):
-        """Discard local changes and update to match remote.
-        
-        Fetches latest from remote, resets to remote branch,
-        and force-checkouts files to work tree.
-        """
-        repo = self._get_repo()
-        
+        """Discard local changes and update to match remote."""
         # Fetch first
         logger.info("Fetching latest from remote...")
         self._fetch()
         
-        # Resolve the actual branch to use
+        # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
         
-        # Get remote commit
-        remote_ref = repo.references.get(f"refs/remotes/origin/{effective_branch}")
-        if remote_ref is None:
-            raise RuntimeError(f"Remote branch origin/{effective_branch} not found")
-        
-        remote_commit = remote_ref.peel(pygit2.Commit)
-        
-        # Update local branch to point to remote
-        repo.references.create(f"refs/heads/{effective_branch}", remote_commit.id, force=True)
-        
-        # Force checkout
-        logger.info("Discarding local changes and updating to remote...")
-        self._checkout_to_worktree(force=True)
+        # Reset to remote
+        try:
+            self._git("reset", "--hard", f"origin/{effective_branch}")
+            logger.info(f"Reset to origin/{effective_branch}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Reset failed: {e.stderr.strip()}")
