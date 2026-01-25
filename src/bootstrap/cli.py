@@ -208,31 +208,19 @@ class BootstrapCLI:
         # Ask which files to track initially
         print("\nWhich dotfiles do you want to track? (Enter comma-separated list)")
         print("Examples: .zshrc, .bashrc, .gitconfig, .tmux.conf, .config/nvim")
-        print("Or press Enter for common defaults: .zshrc, .gitconfig, .tmux.conf\n")
+        print("Or press Enter for common defaults: .bootstrap.yaml, .zshrc, .gitconfig, .tmux.conf\n")
         
         files_input = input("Files to track: ").strip()
         if files_input:
             initial_files = [f.strip() for f in files_input.split(",") if f.strip()]
+            # Always include .bootstrap.yaml
+            if ".bootstrap.yaml" not in initial_files:
+                initial_files.insert(0, ".bootstrap.yaml")
         else:
-            initial_files = [".zshrc", ".gitconfig", ".tmux.conf"]
+            initial_files = [".bootstrap.yaml", ".zshrc", ".gitconfig", ".tmux.conf"]
         
-        # Filter to files that actually exist
-        existing_files = []
-        for f in initial_files:
-            path = self.env.home / f
-            if path.exists():
-                existing_files.append(f)
-            else:
-                print(f"  Note: {f} doesn't exist yet, skipping")
-        
-        if not existing_files:
-            print("\nNo existing files to track. You can add files later with:")
-            print("  git --git-dir=~/.dotfiles --work-tree=~ add <file>")
-        
-        # Create the repo
+        # Check if dotfiles directory already exists
         dotfiles_path = Path(dotfiles_dir).expanduser()
-        
-        # Check if directory already exists
         if dotfiles_path.exists():
             print(f"\n⚠ Directory already exists: {dotfiles_path}")
             choice = input("Remove it and start fresh? [y/N]: ").strip().lower()
@@ -243,19 +231,7 @@ class BootstrapCLI:
                 print("  Aborting. Remove the directory manually or choose a different location.")
                 return 1
         
-        dotfiles = DotfilesManager(repo_url or "", dotfiles_path, self.env.home, branch)
-        
-        try:
-            dotfiles.create_new(initial_files=existing_files, remote_url=repo_url or None)
-            print(f"\n✓ Created new dotfiles repository at {dotfiles_dir}")
-            
-            if existing_files:
-                print(f"✓ Tracking {len(existing_files)} file(s): {', '.join(existing_files)}")
-        except Exception as e:
-            self.logger.error(f"Failed to create repository: {e}")
-            return 1
-        
-        # Save config
+        # Save config FIRST so it can be included in the initial commit
         config_data = {
             "dotfiles": {
                 "repo_url": repo_url or f"file://{dotfiles_path}",
@@ -269,6 +245,34 @@ class BootstrapCLI:
             yaml.dump(config_data, f, default_flow_style=False)
         
         self.logger.info(f"Created configuration at {config_path}")
+        
+        # Now .bootstrap.yaml exists, re-check which files exist
+        all_files_to_track = []
+        for f in initial_files:
+            path = self.env.home / f
+            if path.exists():
+                all_files_to_track.append(f)
+            else:
+                print(f"  Note: {f} doesn't exist yet, skipping")
+        
+        if not all_files_to_track:
+            print("\nNo existing files to track. You can add files later with:")
+            print(f"  git --git-dir=~/{dotfiles_dir} --work-tree=~ add <file>")
+        
+        # Create the repo
+        dotfiles = DotfilesManager(repo_url or "", dotfiles_path, self.env.home, branch)
+        
+        try:
+            dotfiles.create_new(initial_files=all_files_to_track, remote_url=repo_url or None)
+            print(f"\n✓ Created new dotfiles repository at {dotfiles_dir}")
+            
+            if all_files_to_track:
+                print(f"✓ Tracking {len(all_files_to_track)} file(s): {', '.join(all_files_to_track)}")
+        except Exception as e:
+            self.logger.error(f"Failed to create repository: {e}")
+            # Clean up the config file we created
+            config_path.unlink(missing_ok=True)
+            return 1
         
         if repo_url:
             print("\nNext steps:")
