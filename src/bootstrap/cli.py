@@ -473,6 +473,26 @@ class BootstrapCLI:
             NvimManager(self.env, pkg_mgr)
         ]
         
+        # Bootstrap config status
+        print("\nConfiguration:")
+        if config_path.exists():
+            if dotfiles:
+                status = dotfiles.get_file_sync_status(".bootstrap.yaml")
+                status_str = {
+                    "up-to-date": "✓ up-to-date",
+                    "modified": "⚠ modified locally",
+                    "behind": "↓ update available (behind remote)",
+                    "untracked": "✗ not tracked in dotfiles",
+                    "missing": "✓ local only",
+                    "not-found": "✓ local only",
+                    "error": "⚠ error checking status"
+                }.get(status, f"status: {status}")
+                print(f"  .bootstrap.yaml : {status_str}")
+            else:
+                print(f"  .bootstrap.yaml : ✓ exists (dotfiles not configured)")
+        else:
+            print(f"  .bootstrap.yaml : ✗ not found (run 'bootstrap init')")
+
         print("\nCore Tools:")
         for manager in tool_managers:
             info = pkg_mgr.get_binary_info(manager.bin_name)
