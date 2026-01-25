@@ -2,6 +2,7 @@
 
 import shutil
 import logging
+import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -220,23 +221,47 @@ class DotfilesManager:
         
         return backup_dir
 
-    def _fetch(self) -> bool:
-        """Fetch from remote origin. Returns True on success."""
+    def _ensure_fetch_refspec(self):
+        """Ensure fetch refspec is configured for remote tracking.
+        
+        Bare repos created manually often lack the fetch refspec,
+        which prevents remote-tracking branches from being created.
+        """
         repo = self._get_repo()
         try:
-            # Get the remote
             remote = repo.remotes["origin"]
-            
-            # Ensure fetch refspec is configured (bare repos may not have this)
-            # This allows fetch to create remote-tracking branches
             expected_refspec = "+refs/heads/*:refs/remotes/origin/*"
             current_refspecs = list(remote.fetch_refspecs)
+            
             if expected_refspec not in current_refspecs:
                 logger.info("Configuring fetch refspec for remote tracking")
-                remote.add_fetch(expected_refspec)
-            
-            remote.fetch()
+                # add_fetch is on repo.remotes, not the remote object
+                repo.remotes.add_fetch("origin", expected_refspec)
+        except Exception as e:
+            logger.debug(f"Could not configure fetch refspec: {e}")
+
+    def _fetch(self) -> bool:
+        """Fetch from remote origin. Returns True on success.
+        
+        Uses git subprocess for reliability with credential helpers.
+        """
+        self._ensure_fetch_refspec()
+        
+        try:
+            # Use git subprocess - it handles credentials properly
+            result = subprocess.run(
+                ["git", "--git-dir", str(self.dotfiles_dir), "fetch", "origin"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if result.returncode != 0:
+                logger.warning(f"Fetch failed: {result.stderr.strip()}")
+                return False
             return True
+        except subprocess.TimeoutExpired:
+            logger.warning("Fetch timed out")
+            return False
         except Exception as e:
             logger.warning(f"Could not fetch from remote: {e}")
             return False
@@ -596,13 +621,25 @@ class DotfilesManager:
             result["error"] = f"Commit failed: {e}"
             return result
         
-        # Push to remote
+        # Push to remote using git subprocess (handles credentials properly)
         try:
-            remote = repo.remotes["origin"]
-            remote.push([f"refs/heads/{effective_branch}"])
-            result["pushed"] = True
-            result["success"] = True
-            logger.info(f"Pushed to origin/{effective_branch}")
+            push_result = subprocess.run(
+                ["git", "--git-dir", str(self.dotfiles_dir), 
+                 "push", "origin", effective_branch],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if push_result.returncode == 0:
+                result["pushed"] = True
+                result["success"] = True
+                logger.info(f"Pushed to origin/{effective_branch}")
+            else:
+                result["error"] = f"Push failed: {push_result.stderr.strip()}"
+                logger.error(result["error"])
+        except subprocess.TimeoutExpired:
+            result["error"] = "Push timed out"
+            logger.error(result["error"])
         except Exception as e:
             result["error"] = f"Push failed (changes committed locally): {e}"
             logger.error(result["error"])
