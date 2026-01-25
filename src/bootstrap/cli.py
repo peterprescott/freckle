@@ -44,7 +44,11 @@ class BootstrapCLI:
         return self.run(repo=repo, branch=branch, backup=backup, update=update)
 
     def init(self, force: bool = False) -> int:
-        """Initialize configuration.
+        """Initialize configuration and set up dotfiles repository.
+        
+        Offers two modes:
+        1. Clone an existing dotfiles repository
+        2. Create a new dotfiles repository from scratch
         
         Args:
             force: Overwrite existing configuration if present.
@@ -58,7 +62,27 @@ class BootstrapCLI:
             self.logger.error(f"Config file already exists at {config_path}. Use --force to overwrite.")
             return 1
 
-        print("--- bootstrap Initialization ---")
+        print("--- bootstrap Initialization ---\n")
+        
+        # Ask if they have an existing repo
+        print("Do you have an existing dotfiles repository?")
+        print("  [1] Yes - I want to clone my existing dotfiles repo")
+        print("  [2] No  - Create a new dotfiles repo from scratch")
+        
+        while True:
+            choice = input("\nChoose [1/2]: ").strip()
+            if choice in ["1", "2"]:
+                break
+            print("  Please enter 1 or 2")
+        
+        if choice == "1":
+            return self._init_clone_existing(config_path)
+        else:
+            return self._init_create_new(config_path)
+
+    def _init_clone_existing(self, config_path: Path) -> int:
+        """Initialize by cloning an existing dotfiles repo."""
+        print("\n--- Clone Existing Repository ---\n")
         
         # Get and validate repository URL
         while True:
@@ -103,7 +127,89 @@ class BootstrapCLI:
             yaml.dump(config_data, f, default_flow_style=False)
         
         self.logger.info(f"Created configuration at {config_path}")
-        print("\nInitialization complete! You can now run 'bootstrap run'.")
+        print("\n✓ Configuration saved! Run 'bootstrap run' to clone and set up your dotfiles.")
+        return 0
+
+    def _init_create_new(self, config_path: Path) -> int:
+        """Initialize by creating a new dotfiles repo."""
+        print("\n--- Create New Dotfiles Repository ---\n")
+        
+        # Get remote URL (optional for now, can push later)
+        print("Enter the URL for your NEW dotfiles repository.")
+        print("(Create an empty repo on GitHub/GitLab first, then paste the URL here)")
+        print("Or leave blank to set up locally only (you can add remote later)\n")
+        
+        repo_url = input("Repository URL (or blank): ").strip()
+        
+        if repo_url and not validate_git_url(repo_url):
+            print("  Warning: URL format looks unusual, but continuing anyway.")
+        
+        branch = input("Enter branch name (default: main): ").strip() or "main"
+        dotfiles_dir = input("Enter directory for bare repo (default: ~/.dotfiles): ").strip() or "~/.dotfiles"
+        
+        # Ask which files to track initially
+        print("\nWhich dotfiles do you want to track? (Enter comma-separated list)")
+        print("Examples: .zshrc, .bashrc, .gitconfig, .tmux.conf, .config/nvim")
+        print("Or press Enter for common defaults: .zshrc, .gitconfig, .tmux.conf\n")
+        
+        files_input = input("Files to track: ").strip()
+        if files_input:
+            initial_files = [f.strip() for f in files_input.split(",") if f.strip()]
+        else:
+            initial_files = [".zshrc", ".gitconfig", ".tmux.conf"]
+        
+        # Filter to files that actually exist
+        existing_files = []
+        for f in initial_files:
+            path = self.env.home / f
+            if path.exists():
+                existing_files.append(f)
+            else:
+                print(f"  Note: {f} doesn't exist yet, skipping")
+        
+        if not existing_files:
+            print("\nNo existing files to track. You can add files later with:")
+            print("  git --git-dir=~/.dotfiles --work-tree=~ add <file>")
+        
+        # Create the repo
+        dotfiles_path = Path(dotfiles_dir).expanduser()
+        dotfiles = DotfilesManager(repo_url or "", dotfiles_path, self.env.home, branch)
+        
+        try:
+            dotfiles.create_new(initial_files=existing_files, remote_url=repo_url or None)
+            print(f"\n✓ Created new dotfiles repository at {dotfiles_dir}")
+            
+            if existing_files:
+                print(f"✓ Tracking {len(existing_files)} file(s): {', '.join(existing_files)}")
+        except Exception as e:
+            self.logger.error(f"Failed to create repository: {e}")
+            return 1
+        
+        # Save config
+        config_data = {
+            "dotfiles": {
+                "repo_url": repo_url or f"file://{dotfiles_path}",
+                "branch": branch,
+                "dir": dotfiles_dir
+            },
+            "modules": ["dotfiles", "zsh", "tmux", "nvim"]
+        }
+
+        with open(config_path, "w") as f:
+            yaml.dump(config_data, f, default_flow_style=False)
+        
+        self.logger.info(f"Created configuration at {config_path}")
+        
+        if repo_url:
+            print("\nNext steps:")
+            print("  1. Run 'bootstrap run --backup' to push your dotfiles")
+            print("  2. On other machines, run 'bootstrap init' and choose option 1")
+        else:
+            print("\nNext steps:")
+            print("  1. Create a repo on GitHub/GitLab")
+            print(f"  2. Add remote: git --git-dir={dotfiles_dir} remote add origin <url>")
+            print("  3. Push: git --git-dir={dotfiles_dir} push -u origin main")
+        
         return 0
 
     def run(self, repo: str = None, branch: str = None, backup: bool = False, update: bool = False) -> int:

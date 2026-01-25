@@ -324,6 +324,53 @@ class DotfilesManager:
         self._checkout_to_worktree(effective_branch, force=True)
         logger.info("Checkout complete!")
 
+    def create_new(self, initial_files: List[str] = None, remote_url: str = None):
+        """Create a new dotfiles repository from scratch.
+        
+        Args:
+            initial_files: List of files (relative to work_tree) to track initially
+            remote_url: Optional remote URL to configure as origin
+        """
+        if self.dotfiles_dir.exists():
+            raise RuntimeError(f"Directory already exists: {self.dotfiles_dir}")
+        
+        # Initialize bare repo
+        logger.info(f"Creating new bare repository at {self.dotfiles_dir}")
+        subprocess.run(
+            ["git", "init", "--bare", str(self.dotfiles_dir)],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        # Configure to not show untracked files (cleaner status for dotfiles)
+        self._git_bare("config", "--local", "status.showUntrackedFiles", "no")
+        
+        # Add remote if provided
+        if remote_url:
+            self._git_bare("remote", "add", "origin", remote_url)
+            # Configure fetch refspec
+            self._ensure_fetch_refspec()
+        
+        # Add initial files if any
+        if initial_files:
+            # Add each file
+            for file_path in initial_files:
+                full_path = self.work_tree / file_path
+                if full_path.exists():
+                    self._git("add", file_path)
+            
+            # Create initial commit
+            self._git("commit", "-m", "Initial dotfiles commit")
+            logger.info(f"Created initial commit with {len(initial_files)} file(s)")
+        else:
+            # Create empty initial commit so the branch exists
+            self._git("commit", "--allow-empty", "-m", "Initialize dotfiles repository")
+            logger.info("Created empty initial commit")
+        
+        # Set HEAD to the branch
+        self._git_bare("symbolic-ref", "HEAD", f"refs/heads/{self.branch}")
+
     def _get_changed_files(self, branch: str = None) -> List[str]:
         """Get list of files that differ between work tree and HEAD."""
         branch = branch or self.branch
