@@ -334,10 +334,10 @@ class DotfilesManager:
         if self.dotfiles_dir.exists():
             raise RuntimeError(f"Directory already exists: {self.dotfiles_dir}")
         
-        # Initialize bare repo
+        # Initialize bare repo with the correct initial branch name
         logger.info(f"Creating new bare repository at {self.dotfiles_dir}")
         subprocess.run(
-            ["git", "init", "--bare", str(self.dotfiles_dir)],
+            ["git", "init", "--bare", f"--initial-branch={self.branch}", str(self.dotfiles_dir)],
             check=True,
             capture_output=True,
             text=True
@@ -367,9 +367,6 @@ class DotfilesManager:
             # Create empty initial commit so the branch exists
             self._git("commit", "--allow-empty", "-m", "Initialize dotfiles repository")
             logger.info("Created empty initial commit")
-        
-        # Set HEAD to the branch
-        self._git_bare("symbolic-ref", "HEAD", f"refs/heads/{self.branch}")
 
     def _get_changed_files(self, branch: str = None) -> List[str]:
         """Get list of files that differ between work tree and HEAD."""

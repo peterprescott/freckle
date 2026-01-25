@@ -127,14 +127,35 @@ class BootstrapCLI:
         print("\n--- Create New Dotfiles Repository ---\n")
         
         # Get remote URL (optional for now, can push later)
-        print("Enter the URL for your NEW dotfiles repository.")
+        print("Enter the URL for your NEW (empty) dotfiles repository.")
         print("(Create an empty repo on GitHub/GitLab first, then paste the URL here)")
         print("Or leave blank to set up locally only (you can add remote later)\n")
         
-        repo_url = input("Repository URL (or blank): ").strip()
-        
-        if repo_url and not validate_git_url(repo_url):
-            print("  Warning: URL format looks unusual, but continuing anyway.")
+        repo_url = ""
+        while True:
+            repo_url = input("Repository URL (or blank): ").strip()
+            
+            if not repo_url:
+                break
+            
+            if not validate_git_url(repo_url):
+                print("  Warning: URL format looks unusual.")
+            
+            # Check if remote exists (it should be empty, so ls-remote might fail)
+            print("  Checking repository access...")
+            accessible, error = verify_git_url_accessible(repo_url)
+            if not accessible:
+                print(f"  ✗ Cannot access repository: {error}")
+                print("  Make sure you've created the repo on GitHub/GitLab first.")
+                retry = input("  Try a different URL? [Y/n]: ").strip().lower()
+                if retry in ["n", "no"]:
+                    print("  Continuing without remote. You can add it later.")
+                    repo_url = ""
+                    break
+                continue
+            else:
+                print("  ✓ Repository accessible")
+                break
         
         branch = input("Enter branch name (default: main): ").strip().lower() or "main"
         dotfiles_dir = input("Enter directory for bare repo (default: .dotfiles): ").strip() or ".dotfiles"
