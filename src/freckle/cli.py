@@ -459,6 +459,12 @@ class FreckleCLI:
             freckle add .freckle.yaml
             freckle add .vimrc .bashrc
             freckle add .config/starship.toml
+            freckle add ~/.config/nvim/init.lua
+        
+        Paths can be:
+        - Relative to home (e.g., .config/nvim/init.lua)
+        - Absolute paths (e.g., /home/user/.zshrc)
+        - Relative to current directory (e.g., ../somefile)
         
         After adding, run 'freckle run --backup' to commit and push.
         """
@@ -468,6 +474,7 @@ class FreckleCLI:
             print("  freckle add .freckle.yaml")
             print("  freckle add .vimrc .bashrc")
             print("  freckle add .config/starship.toml")
+            print("  freckle add ~/.config/nvim/init.lua")
             return 1
         
         config_path = self.env.home / ".freckle.yaml"
@@ -489,7 +496,31 @@ class FreckleCLI:
         
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, self.env.home, branch)
         
-        result = dotfiles.add_files(list(files))
+        # Convert user-provided paths to paths relative to home directory
+        home_relative_files = []
+        for f in files:
+            path = Path(f).expanduser()
+            
+            # If it's a relative path, resolve it from cwd first
+            if not path.is_absolute():
+                path = Path.cwd() / path
+            
+            # Resolve to get canonical path (handles .., symlinks, etc.)
+            path = path.resolve()
+            
+            # Check if it's under home directory
+            try:
+                relative = path.relative_to(self.env.home)
+                home_relative_files.append(str(relative))
+            except ValueError:
+                # Path is not under home directory
+                self.logger.error(f"File must be under home directory: {f}")
+                continue
+        
+        if not home_relative_files:
+            return 1
+        
+        result = dotfiles.add_files(home_relative_files)
         
         if result["added"]:
             print(f"✓ Staged {len(result['added'])} file(s) for tracking:")
