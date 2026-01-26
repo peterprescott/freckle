@@ -25,7 +25,7 @@ def profile_list(config, profiles):
         typer.echo("      modules: [zsh, nvim]")
         return
 
-    current_branch = get_current_branch()
+    current_branch = get_current_branch(config=config)
 
     typer.echo("Available profiles:\n")
     for name, profile in profiles.items():
@@ -47,7 +47,7 @@ def profile_list(config, profiles):
 
 def profile_show(config, profiles):
     """Show current profile details."""
-    current_branch = get_current_branch()
+    current_branch = get_current_branch(config=config)
 
     if not current_branch:
         typer.echo("No dotfiles repository found.")
@@ -164,7 +164,7 @@ def profile_diff(config, name):
         typer.echo(f"Profile not found: {name}", err=True)
         raise typer.Exit(1)
 
-    current_branch = get_current_branch()
+    current_branch = get_current_branch(config=config)
     target_branch = name  # Profile name = branch name
 
     if current_branch == target_branch:

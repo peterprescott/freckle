@@ -77,7 +77,8 @@ def profile_create(config, name, from_profile, description):
         source_modules = profiles[from_profile].get("modules", [])
     else:
         # Use current branch/profile
-        current = get_current_branch() or "main"
+        current = get_current_branch(config=config, dotfiles=dotfiles)
+        current = current or "main"
         source_branch = current
         if current in profiles:
             source_modules = profiles[current].get("modules", [])
@@ -86,7 +87,7 @@ def profile_create(config, name, from_profile, description):
 
     typer.echo(f"Creating profile '{name}' from '{source_branch}'...")
 
-    original_branch = get_current_branch()
+    original_branch = get_current_branch(config=config, dotfiles=dotfiles)
 
     try:
         # Step 1: Update config on current branch

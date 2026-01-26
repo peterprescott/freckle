@@ -37,7 +37,7 @@ def profile_delete(config, name, force):
         typer.echo(f"Profile not found: {name}", err=True)
         raise typer.Exit(1)
 
-    current_branch = get_current_branch()
+    current_branch = get_current_branch(config=config)
     target_branch = name  # Profile name = branch name
 
     if current_branch == target_branch:
