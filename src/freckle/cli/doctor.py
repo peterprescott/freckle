@@ -1,13 +1,17 @@
 """Doctor command for health check diagnostics."""
 
 import subprocess
-from pathlib import Path
 
 import typer
 
 from ..config import Config
 from ..tools_registry import get_tools_from_config
-from .helpers import get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import (
+    CONFIG_PATH,
+    get_config,
+    get_dotfiles_dir,
+    get_dotfiles_manager,
+)
 
 
 def register(app: typer.Typer) -> None:
@@ -86,17 +90,15 @@ def _check_config(verbose: bool) -> tuple[list[str], list[str]]:
     issues = []
     warnings = []
 
-    config_path = Path.home() / ".freckle.yaml"
-
-    if not config_path.exists():
+    if not CONFIG_PATH.exists():
         typer.echo("  ✗ No config file found")
-        issues.append("Missing ~/.freckle.yaml")
+        issues.append(f"Missing {CONFIG_PATH}")
         return issues, warnings
 
-    typer.echo(f"  ✓ Config file: {config_path}")
+    typer.echo(f"  ✓ Config file: {CONFIG_PATH}")
 
     try:
-        config = Config(config_path)
+        config = Config(CONFIG_PATH)
         typer.echo("  ✓ Valid YAML syntax")
     except Exception as e:
         typer.echo(f"  ✗ Invalid YAML: {e}")
@@ -271,7 +273,7 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
     suggestions = []
 
     for item in issues + warnings:
-        if "Missing ~/.freckle.yaml" in item:
+        if "Missing" in item and ".freckle.yaml" in item:
             suggestions.append("Run 'freckle init' to set up configuration")
         elif "Dotfiles repo not found" in item:
             suggestions.append("Run 'freckle sync' to clone your dotfiles")
