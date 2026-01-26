@@ -1,7 +1,5 @@
-"""Add, remove, and config file commands for freckle CLI."""
+"""Add and remove file commands for freckle CLI."""
 
-import os
-import shutil
 import subprocess
 from pathlib import Path
 from typing import List
@@ -17,7 +15,6 @@ def register(app: typer.Typer) -> None:
     """Register file commands with the app."""
     app.command()(add)
     app.command()(remove)
-    app.command()(config)
 
 
 def add(
@@ -241,47 +238,3 @@ def remove(
         typer.echo("\nTo commit this change, run: freckle backup")
     else:
         raise typer.Exit(1)
-
-
-def config():
-    """Open the freckle configuration file in your editor.
-
-    Uses $EDITOR or $VISUAL if set, otherwise falls back to:
-    - macOS: open -t (TextEdit)
-    - Linux: xdg-open
-    """
-    config_path = env.home / ".freckle.yaml"
-
-    if not config_path.exists():
-        typer.echo(f"Config file not found: {config_path}")
-        typer.echo("Run 'freckle init' to create one.")
-        raise typer.Exit(1)
-
-    # Try $EDITOR or $VISUAL first
-    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
-
-    if editor:
-        try:
-            subprocess.run([editor, str(config_path)], check=True)
-            return
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass  # Fall through to platform defaults
-
-    # Platform-specific fallbacks
-    is_mac = env.os_info.get("system") == "Darwin"
-
-    if is_mac:
-        # macOS: open -t opens in default text editor
-        subprocess.run(["open", "-t", str(config_path)], check=True)
-    else:
-        # Linux: try xdg-open, then common editors
-        if shutil.which("xdg-open"):
-            subprocess.run(["xdg-open", str(config_path)], check=True)
-        elif shutil.which("nano"):
-            subprocess.run(["nano", str(config_path)], check=True)
-        elif shutil.which("vi"):
-            subprocess.run(["vi", str(config_path)], check=True)
-        else:
-            typer.echo("Could not find an editor. Config file is at:")
-            typer.echo(f"  {config_path}")
-            raise typer.Exit(1)

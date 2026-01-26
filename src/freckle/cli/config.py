@@ -1,20 +1,76 @@
 """Config management commands for freckle CLI."""
 
+import os
+import shutil
 import subprocess
 
 import typer
 
-from .helpers import get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+
+# Create config sub-app
+config_app = typer.Typer(
+    name="config",
+    help="Manage freckle configuration.",
+    no_args_is_help=False,  # Allow 'freckle config' to run edit
+)
 
 
 def register(app: typer.Typer) -> None:
-    """Register config command with the app."""
-    # Note: 'config' without subcommand opens the file (in files.py)
-    # These are additional config management commands
-    app.command(name="config-check")(config_check)
-    app.command(name="config-propagate")(config_propagate)
+    """Register config command group with the app."""
+    app.add_typer(config_app, name="config")
 
 
+@config_app.callback(invoke_without_command=True)
+def config_callback(ctx: typer.Context):
+    """Open the freckle configuration file in your editor.
+
+    Without subcommands, opens config in $EDITOR.
+    Use 'freckle config check' or 'freckle config propagate' for more.
+    """
+    # Only run edit if no subcommand was invoked
+    if ctx.invoked_subcommand is None:
+        config_edit()
+
+
+def config_edit():
+    """Open the freckle configuration file in your editor."""
+    config_path = env.home / ".freckle.yaml"
+
+    if not config_path.exists():
+        typer.echo(f"Config file not found: {config_path}")
+        typer.echo("Run 'freckle init' to create one.")
+        raise typer.Exit(1)
+
+    # Try $EDITOR or $VISUAL first
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
+
+    if editor:
+        try:
+            subprocess.run([editor, str(config_path)], check=True)
+            return
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass  # Fall through to platform defaults
+
+    # Platform-specific fallbacks
+    is_mac = env.os_info.get("system") == "Darwin"
+
+    if is_mac:
+        subprocess.run(["open", "-t", str(config_path)], check=True)
+    else:
+        if shutil.which("xdg-open"):
+            subprocess.run(["xdg-open", str(config_path)], check=True)
+        elif shutil.which("nano"):
+            subprocess.run(["nano", str(config_path)], check=True)
+        elif shutil.which("vi"):
+            subprocess.run(["vi", str(config_path)], check=True)
+        else:
+            typer.echo("Could not find an editor. Config file is at:")
+            typer.echo(f"  {config_path}")
+            raise typer.Exit(1)
+
+
+@config_app.command(name="check")
 def config_check():
     """Check if .freckle.yaml is consistent across all profile branches.
 
@@ -92,13 +148,14 @@ def config_check():
 
     if inconsistent:
         typer.echo(
-            "\nRun 'freckle config-propagate' to sync config to all branches."
+            "\nRun 'freckle config propagate' to sync config to all branches."
         )
         raise typer.Exit(1)
     else:
         typer.echo("\n✓ Config is consistent across all branches.")
 
 
+@config_app.command(name="propagate")
 def config_propagate(
     force: bool = typer.Option(
         False, "--force", "-f", help="Skip confirmation"
