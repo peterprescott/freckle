@@ -285,21 +285,28 @@ def _profile_create(config, name, from_profile, description):
         else:
             source_modules = []
 
-    # Create new branch
     typer.echo(f"Creating profile '{name}' from '{source_branch}'...")
 
     try:
-        dotfiles._git.run("checkout", "-b", name, source_branch)
-        typer.echo(f"✓ Created branch '{name}'")
-
-        # Update config file with new profile
+        # Step 1: Update config on current branch FIRST
         _add_profile_to_config(name, description, source_modules)
         typer.echo("✓ Added profile to .freckle.yaml")
 
-        typer.echo(f"\n✓ Profile '{name}' created and ready to use")
+        # Step 2: Commit the config change on source branch
+        dotfiles._git.run("add", str(Path.home() / ".freckle.yaml"))
+        dotfiles._git.run(
+            "commit", "-m", f"Add profile: {name}"
+        )
+        typer.echo("✓ Committed config change")
+
+        # Step 3: Create new branch from this commit
+        dotfiles._git.run("checkout", "-b", name)
+        typer.echo(f"✓ Created and switched to branch '{name}'")
+
+        typer.echo(f"\n✓ Profile '{name}' created (config synced)")
 
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Failed to create branch: {e.stderr.strip()}", err=True)
+        typer.echo(f"Failed to create profile: {e.stderr.strip()}", err=True)
         raise typer.Exit(1)
 
 
