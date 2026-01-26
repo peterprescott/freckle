@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .branch import BranchResolver
+
 logger = logging.getLogger(__name__)
 
 
@@ -204,73 +206,12 @@ class DotfilesManager:
         - available: List of available branches
         - message: Human-readable explanation
         """
-        configured = self.branch
-        available = self._get_available_branches()
-
-        # Check if configured branch exists
-        if configured in available:
-            return {
-                "effective": configured,
-                "configured": configured,
-                "reason": "exact",
-                "available": available,
-                "message": None,
-            }
-
-        # Common main/master swap
-        swap_map = {"main": "master", "master": "main"}
-        if configured in swap_map and swap_map[configured] in available:
-            swapped = swap_map[configured]
-            return {
-                "effective": swapped,
-                "configured": configured,
-                "reason": "main_master_swap",
-                "available": available,
-                "message": (
-                    f"Branch '{configured}' not found; "
-                    f"using '{swapped}' instead."
-                ),
-            }
-
-        # Try HEAD
-        head_branch = self._get_head_branch()
-        if head_branch and head_branch in available:
-            return {
-                "effective": head_branch,
-                "configured": configured,
-                "reason": "fallback_head",
-                "available": available,
-                "message": (
-                    f"Branch '{configured}' not found; "
-                    f"using current HEAD '{head_branch}'."
-                ),
-            }
-
-        # Try common defaults
-        for fallback in ["main", "master"]:
-            if fallback in available:
-                return {
-                    "effective": fallback,
-                    "configured": configured,
-                    "reason": "fallback_default",
-                    "available": available,
-                    "message": (
-                        f"Branch '{configured}' not found; "
-                        f"falling back to '{fallback}'."
-                    ),
-                }
-
-        # Nothing found
-        return {
-            "effective": configured,
-            "configured": configured,
-            "reason": "not_found",
-            "available": available,
-            "message": (
-                f"Branch '{configured}' not found. "
-                f"Available: {', '.join(available) or '(none)'}"
-            ),
-        }
+        resolver = BranchResolver(
+            configured_branch=self.branch,
+            get_available=self._get_available_branches,
+            get_head=self._get_head_branch,
+        )
+        return resolver.resolve()
 
     def _setup_branch(self, branch: str):
         """Set up the local branch to track remote after cloning."""
