@@ -8,26 +8,38 @@ import typer
 from ..tools_registry import get_tools_from_config
 from .helpers import get_config
 
+# Create tools sub-app
+tools_app = typer.Typer(
+    name="tools",
+    help="Manage tool installations.",
+    no_args_is_help=False,  # Allow 'freckle tools' to list
+)
+
 
 def register(app: typer.Typer) -> None:
-    """Register tools commands with the app."""
-    app.command(name="tools")(tools)
-    app.command(name="tools-install")(tools_install)
+    """Register tools command group with the app."""
+    app.add_typer(tools_app, name="tools")
 
 
-def tools(
+@tools_app.callback(invoke_without_command=True)
+def tools_callback(
+    ctx: typer.Context,
     tool_name: Optional[str] = typer.Argument(
         None, help="Specific tool to check"
     ),
 ):
     """List configured tools and their installation status.
 
-    Shows tools defined in .freckle.yaml under the 'tools' section.
-
-    Examples:
-        freckle tools        # Show all tools
-        freckle tools nvim   # Check specific tool
+    Without subcommands, shows tool status.
+    Use 'freckle tools install <name>' to install a tool.
     """
+    # Only run list if no subcommand was invoked
+    if ctx.invoked_subcommand is None:
+        tools_list(tool_name)
+
+
+def tools_list(tool_name: Optional[str] = None):
+    """List configured tools and their installation status."""
     config = get_config()
     registry = get_tools_from_config(config)
 
@@ -96,9 +108,10 @@ def tools(
         typer.echo("")
         typer.echo("To install missing tools:")
         for name in not_installed:
-            typer.echo(f"  freckle tools-install {name}")
+            typer.echo(f"  freckle tools install {name}")
 
 
+@tools_app.command(name="install")
 def tools_install(
     tool_name: str = typer.Argument(..., help="Tool name to install"),
     force: bool = typer.Option(
@@ -115,7 +128,7 @@ def tools_install(
     4. Curated script (with confirmation)
 
     Example:
-        freckle tools-install starship
+        freckle tools install starship
     """
     config = get_config()
     registry = get_tools_from_config(config)

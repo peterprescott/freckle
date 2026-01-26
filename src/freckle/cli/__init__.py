@@ -4,7 +4,7 @@ import typer
 
 from ..utils import get_version, setup_logging
 from . import (
-    config_cmd,
+    config,
     doctor,
     files,
     git,
@@ -46,7 +46,7 @@ files.register(app)
 status.register(app)
 git.register(app)
 profile.register(app)
-config_cmd.register(app)
+config.register(app)
 restore.register(app)
 schedule.register(app)
 tools.register(app)

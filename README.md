@@ -98,8 +98,8 @@ freckle profile delete <name>     # Delete a profile
 Keep configuration in sync across profiles:
 
 ```bash
-freckle config-check              # Check config consistency
-freckle config-propagate          # Sync config to all branches
+freckle config check              # Check config consistency
+freckle config propagate          # Sync config to all branches
 ```
 
 ### Tool Management
@@ -109,8 +109,7 @@ package manager:
 
 ```bash
 freckle tools                     # Show tool installation status
-freckle tools-install             # Install all configured tools
-freckle tools-install <name>      # Install a specific tool
+freckle tools install <name>      # Install a specific tool
 ```
 
 ### Backup & Restore
