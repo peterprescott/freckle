@@ -6,7 +6,13 @@ import subprocess
 
 import typer
 
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import (
+    CONFIG_FILENAME,
+    CONFIG_PATH,
+    get_config,
+    get_dotfiles_dir,
+    get_dotfiles_manager,
+)
 
 # Create config sub-app
 config_app = typer.Typer(
@@ -35,10 +41,8 @@ def config_callback(ctx: typer.Context):
 
 def config_edit():
     """Open the freckle configuration file in your editor."""
-    config_path = env.home / ".freckle.yaml"
-
-    if not config_path.exists():
-        typer.echo(f"Config file not found: {config_path}")
+    if not CONFIG_PATH.exists():
+        typer.echo(f"Config file not found: {CONFIG_PATH}")
         typer.echo("Run 'freckle init' to create one.")
         raise typer.Exit(1)
 
@@ -47,32 +51,33 @@ def config_edit():
 
     if editor:
         try:
-            subprocess.run([editor, str(config_path)], check=True)
+            subprocess.run([editor, str(CONFIG_PATH)], check=True)
             return
         except (subprocess.CalledProcessError, FileNotFoundError):
             pass  # Fall through to platform defaults
 
     # Platform-specific fallbacks
-    is_mac = env.os_info.get("system") == "Darwin"
+    import platform
+    is_mac = platform.system() == "Darwin"
 
     if is_mac:
-        subprocess.run(["open", "-t", str(config_path)], check=True)
+        subprocess.run(["open", "-t", str(CONFIG_PATH)], check=True)
     else:
         if shutil.which("xdg-open"):
-            subprocess.run(["xdg-open", str(config_path)], check=True)
+            subprocess.run(["xdg-open", str(CONFIG_PATH)], check=True)
         elif shutil.which("nano"):
-            subprocess.run(["nano", str(config_path)], check=True)
+            subprocess.run(["nano", str(CONFIG_PATH)], check=True)
         elif shutil.which("vi"):
-            subprocess.run(["vi", str(config_path)], check=True)
+            subprocess.run(["vi", str(CONFIG_PATH)], check=True)
         else:
             typer.echo("Could not find an editor. Config file is at:")
-            typer.echo(f"  {config_path}")
+            typer.echo(f"  {CONFIG_PATH}")
             raise typer.Exit(1)
 
 
 @config_app.command(name="check")
 def config_check():
-    """Check if .freckle.yaml is consistent across all profile branches.
+    """Check if config is consistent across all profile branches.
 
     Compares the config file on the current branch to all other profile
     branches. Reports any differences.
@@ -104,15 +109,16 @@ def config_check():
 
     # Get current config content
     try:
-        result = dotfiles._git.run("show", f"{current_branch}:.freckle.yaml")
+        git_path = f"{current_branch}:{CONFIG_FILENAME}"
+        result = dotfiles._git.run("show", git_path)
         current_content = result.stdout
     except subprocess.CalledProcessError:
         typer.echo(
-            "No .freckle.yaml found on current branch.", err=True
+            f"No {CONFIG_FILENAME} found on current branch.", err=True
         )
         raise typer.Exit(1)
 
-    typer.echo("Checking .freckle.yaml consistency across branches...\n")
+    typer.echo(f"Checking {CONFIG_FILENAME} consistency...\n")
 
     consistent = []
     inconsistent = []
@@ -125,7 +131,7 @@ def config_check():
             continue
 
         try:
-            result = dotfiles._git.run("show", f"{branch}:.freckle.yaml")
+            result = dotfiles._git.run("show", f"{branch}:{CONFIG_FILENAME}")
             other_content = result.stdout
 
             if other_content == current_content:
@@ -133,7 +139,7 @@ def config_check():
             else:
                 inconsistent.append((name, branch))
         except subprocess.CalledProcessError:
-            # Branch might not have .freckle.yaml yet
+            # Branch might not have config file yet
             inconsistent.append((name, branch))
 
     # Report results
@@ -164,9 +170,9 @@ def config_propagate(
         False, "--dry-run", "-n", help="Show what would happen"
     ),
 ):
-    """Propagate .freckle.yaml to all profile branches.
+    """Propagate config to all profile branches.
 
-    Copies the current branch's .freckle.yaml to all other profile branches,
+    Copies the current branch's config to all other profile branches,
     creating a commit on each.
     """
     config = get_config()
@@ -196,11 +202,12 @@ def config_propagate(
 
     # Get current config content
     try:
-        result = dotfiles._git.run("show", f"{current_branch}:.freckle.yaml")
+        git_path = f"{current_branch}:{CONFIG_FILENAME}"
+        result = dotfiles._git.run("show", git_path)
         current_content = result.stdout
     except subprocess.CalledProcessError:
         typer.echo(
-            "No .freckle.yaml found on current branch.", err=True
+            f"No {CONFIG_FILENAME} found on current branch.", err=True
         )
         raise typer.Exit(1)
 
@@ -215,9 +222,8 @@ def config_propagate(
         typer.echo("No other branches to update.")
         return
 
-    typer.echo(
-        f"Will update .freckle.yaml on {len(branches_to_update)} branch(es):"
-    )
+    n = len(branches_to_update)
+    typer.echo(f"Will update {CONFIG_FILENAME} on {n} branch(es):")
     for name, branch in branches_to_update:
         typer.echo(f"  - {name} ({branch})")
 
@@ -269,14 +275,14 @@ def config_propagate(
                 dotfiles._git.run("checkout", branch)
 
                 # Write config file
-                config_path = dotfiles.work_tree / ".freckle.yaml"
-                config_path.write_text(current_content)
+                target_config = dotfiles.work_tree / CONFIG_FILENAME
+                target_config.write_text(current_content)
 
                 # Stage and commit
-                dotfiles._git.run("add", ".freckle.yaml")
+                dotfiles._git.run("add", CONFIG_FILENAME)
                 dotfiles._git.run(
                     "commit", "-m",
-                    f"Sync .freckle.yaml from {current_branch}"
+                    f"Sync {CONFIG_FILENAME} from {current_branch}"
                 )
 
                 updated.append((name, branch))

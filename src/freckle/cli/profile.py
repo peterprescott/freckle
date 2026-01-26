@@ -1,13 +1,19 @@
 """Profile management commands for freckle CLI."""
 
 import subprocess
-from pathlib import Path
 from typing import Optional
 
 import typer
 import yaml
 
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import (
+    CONFIG_FILENAME,
+    CONFIG_PATH,
+    env,
+    get_config,
+    get_dotfiles_dir,
+    get_dotfiles_manager,
+)
 
 
 def register(app: typer.Typer) -> None:
@@ -113,7 +119,7 @@ def _profile_list(config, profiles):
     """List all profiles."""
     if not profiles:
         typer.echo("No profiles configured.")
-        typer.echo("\nTo create a profile, add to .freckle.yaml:")
+        typer.echo(f"\nTo create a profile, add to {CONFIG_FILENAME}:")
         typer.echo("  profiles:")
         typer.echo("    main:")
         typer.echo('      description: "My main config"')
@@ -303,16 +309,15 @@ def _profile_create(config, name, from_profile, description):
 
     typer.echo(f"Creating profile '{name}' from '{source_branch}'...")
 
-    config_path = Path.home() / ".freckle.yaml"
     original_branch = _get_current_branch()
 
     try:
         # Step 1: Update config on current branch
         _add_profile_to_config(name, description, source_modules)
-        typer.echo("✓ Added profile to .freckle.yaml")
+        typer.echo(f"✓ Added profile to {CONFIG_FILENAME}")
 
         # Step 2: Commit the config change
-        dotfiles._git.run("add", str(config_path))
+        dotfiles._git.run("add", str(CONFIG_PATH))
         try:
             dotfiles._git.run("commit", "-m", f"Add profile: {name}")
             typer.echo("✓ Committed config change")
@@ -325,7 +330,7 @@ def _profile_create(config, name, from_profile, description):
         typer.echo(f"✓ Created branch '{name}'")
 
         # Step 4: Propagate config to ALL other profile branches
-        config_content = config_path.read_text()
+        config_content = CONFIG_PATH.read_text()
 
         # Get all other branches that need updating
         other_branches = []
@@ -341,8 +346,8 @@ def _profile_create(config, name, from_profile, description):
             for branch in other_branches:
                 try:
                     dotfiles._git.run("checkout", branch)
-                    config_path.write_text(config_content)
-                    dotfiles._git.run("add", str(config_path))
+                    CONFIG_PATH.write_text(config_content)
+                    dotfiles._git.run("add", str(CONFIG_PATH))
                     try:
                         dotfiles._git.run(
                             "commit", "-m", f"Add profile: {name}"
@@ -393,10 +398,8 @@ def _profile_create(config, name, from_profile, description):
 
 def _add_profile_to_config(name: str, description: str, modules: list):
     """Add a new profile to the config file."""
-    config_path = Path.home() / ".freckle.yaml"
-
     # Read current config
-    with open(config_path, "r") as f:
+    with open(CONFIG_PATH, "r") as f:
         data = yaml.safe_load(f) or {}
 
     # Ensure profiles section exists
@@ -411,7 +414,7 @@ def _add_profile_to_config(name: str, description: str, modules: list):
     data["profiles"][name] = new_profile
 
     # Write back
-    with open(config_path, "w") as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
@@ -451,7 +454,7 @@ def _profile_delete(config, name, force):
         typer.echo(f"✓ Deleted branch '{target_branch}'")
 
         typer.echo(
-            f"\nRemember to remove '{name}' from profiles in .freckle.yaml"
+            f"\nRemember to remove '{name}' from profiles in {CONFIG_FILENAME}"
         )
         typer.echo("Then run 'freckle config propagate' to sync config.")
 

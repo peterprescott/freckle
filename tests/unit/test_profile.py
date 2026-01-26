@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import yaml
 
+import freckle.cli.profile as profile_module
 from freckle.cli.profile import _add_profile_to_config
 
 
@@ -22,8 +23,7 @@ class TestAddProfileToConfig:
             })
         )
 
-        with patch("freckle.cli.profile.Path") as mock_path:
-            mock_path.home.return_value = tmp_path
+        with patch.object(profile_module, "CONFIG_PATH", config_path):
             _add_profile_to_config("test", "Test profile", ["zsh", "nvim"])
 
         data = yaml.safe_load(config_path.read_text())
@@ -43,8 +43,7 @@ class TestAddProfileToConfig:
             })
         )
 
-        with patch("freckle.cli.profile.Path") as mock_path:
-            mock_path.home.return_value = tmp_path
+        with patch.object(profile_module, "CONFIG_PATH", config_path):
             _add_profile_to_config("work", "", ["nvim"])
 
         data = yaml.safe_load(config_path.read_text())
@@ -65,8 +64,7 @@ class TestAddProfileToConfig:
             })
         )
 
-        with patch("freckle.cli.profile.Path") as mock_path:
-            mock_path.home.return_value = tmp_path
+        with patch.object(profile_module, "CONFIG_PATH", config_path):
             _add_profile_to_config("test", "", [])
 
         data = yaml.safe_load(config_path.read_text())
@@ -79,8 +77,7 @@ class TestAddProfileToConfig:
         config_path = tmp_path / ".freckle.yaml"
         config_path.write_text(yaml.dump({"profiles": {}}))
 
-        with patch("freckle.cli.profile.Path") as mock_path:
-            mock_path.home.return_value = tmp_path
+        with patch.object(profile_module, "CONFIG_PATH", config_path):
             _add_profile_to_config("test", "", ["zsh"])
 
         data = yaml.safe_load(config_path.read_text())

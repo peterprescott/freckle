@@ -12,11 +12,14 @@ from ..system import Environment
 env = Environment()
 logger = logging.getLogger(__name__)
 
+# Canonical config path
+CONFIG_FILENAME = ".freckle.yaml"
+CONFIG_PATH = env.home / CONFIG_FILENAME
+
 
 def get_config() -> Config:
     """Load config from ~/.freckle.yaml."""
-    config_path = env.home / ".freckle.yaml"
-    return Config(config_path, env=env)
+    return Config(CONFIG_PATH, env=env)
 
 
 def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
