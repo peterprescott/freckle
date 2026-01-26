@@ -253,3 +253,37 @@ class TestForceCheckout:
 
         with pytest.raises(RuntimeError, match="Reset failed"):
             force_checkout(mock_git, "main")
+
+
+class TestCommitAndPushExceptionHandling:
+    """Tests for commit_and_push exception handling."""
+
+    def test_commit_exception_returns_error(self):
+        """Exception during commit returns error."""
+        mock_git = MagicMock()
+        mock_git.run.side_effect = [
+            MagicMock(returncode=0),  # git add succeeds
+            Exception("Commit failed unexpectedly"),  # git commit fails
+        ]
+        get_changed = MagicMock(return_value=[".zshrc"])
+
+        result = commit_and_push(mock_git, "main", "Test commit", get_changed)
+
+        assert result["success"] is False
+        assert "Commit failed" in result["error"]
+
+    def test_push_exception_returns_error(self):
+        """Exception during push returns error."""
+        mock_git = MagicMock()
+        mock_git.run.side_effect = [
+            MagicMock(returncode=0),  # git add
+            MagicMock(returncode=0, stdout="", stderr=""),  # git commit
+        ]
+        mock_git.run_bare.side_effect = Exception("Network error")
+        get_changed = MagicMock(return_value=[".zshrc"])
+
+        result = commit_and_push(mock_git, "main", "Test commit", get_changed)
+
+        assert result["success"] is False
+        assert result["committed"] is True
+        assert "Push failed" in result["error"]

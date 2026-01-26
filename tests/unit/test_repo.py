@@ -51,6 +51,38 @@ class TestCloneBare:
                 repo.clone_bare("https://github.com/user/nonexistent.git")
 
 
+class TestInitBare:
+    """Tests for init_bare method."""
+
+    def test_init_bare_success(self, tmp_path):
+        """Successfully initializes bare repo."""
+        git_dir = tmp_path / ".dotfiles"
+        repo = BareGitRepo(git_dir, tmp_path)
+
+        with patch("freckle.dotfiles.repo.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            repo.init_bare(initial_branch="main")
+
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0][0]
+        assert "init" in args
+        assert "--bare" in args
+        assert "--initial-branch=main" in args
+
+
+class TestEnsureFetchRefspec:
+    """Tests for ensure_fetch_refspec method."""
+
+    def test_ensure_fetch_refspec_exception(self, tmp_path):
+        """Handles exceptions gracefully."""
+        repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
+
+        with patch.object(repo, "run_bare") as mock_run:
+            mock_run.side_effect = Exception("Config error")
+            # Should not raise
+            repo.ensure_fetch_refspec()
+
+
 class TestFetch:
     """Tests for fetch method."""
 
@@ -380,3 +412,40 @@ class TestGetAvailableBranches:
             result = repo.get_available_branches()
 
         assert result == []
+
+
+class TestSetupBranch:
+    """Tests for setup_branch method."""
+
+    def test_setup_branch_success(self, tmp_path):
+        """Sets up branch tracking successfully."""
+        repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
+
+        with patch.object(repo, "fetch"):
+            with patch.object(repo, "run_bare") as mock_bare:
+                mock_bare.return_value = MagicMock(returncode=0)
+                repo.setup_branch("main")
+
+        # Should have called run_bare multiple times
+        assert mock_bare.call_count >= 2
+
+    def test_setup_branch_remote_not_found(self, tmp_path):
+        """Handles missing remote branch."""
+        repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
+
+        with patch.object(repo, "fetch"):
+            with patch.object(repo, "run_bare") as mock_bare:
+                # show-ref returns non-zero (branch not found)
+                mock_bare.return_value = MagicMock(returncode=1)
+                # Should not raise
+                repo.setup_branch("nonexistent")
+
+    def test_setup_branch_exception_handled(self, tmp_path):
+        """Handles exceptions gracefully."""
+        repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
+
+        with patch.object(repo, "fetch"):
+            with patch.object(repo, "run_bare") as mock_bare:
+                mock_bare.side_effect = Exception("Git error")
+                # Should not raise
+                repo.setup_branch("main")
