@@ -15,6 +15,10 @@ class Config:
         "vars": {},
         "dotfiles": {"repo_url": None, "branch": "main", "dir": "~/.dotfiles"},
         "modules": ["dotfiles", "zsh", "tmux", "nvim"],
+        "secrets": {
+            "block": [],  # Additional filename patterns to block
+            "allow": [],  # Files to allow despite matching patterns
+        },
     }
 
     def __init__(
