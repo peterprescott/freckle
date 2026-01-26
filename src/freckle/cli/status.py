@@ -3,8 +3,7 @@
 import typer
 
 from ..dotfiles import DotfilesManager
-from ..managers import GitManager, NvimManager, TmuxManager, ZshManager
-from ..system import SystemPackageManager
+from ..tools_registry import get_tools_from_config
 from .helpers import env, get_config, get_dotfiles_dir
 
 
@@ -28,18 +27,13 @@ def status():
     typer.echo(f"Kernel : {env.os_info['release']}")
     typer.echo(f"User   : {env.user}")
 
-    pkg_mgr = SystemPackageManager(env)
-
     dotfiles = None
     if repo_url:
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
 
-    tool_managers = [
-        GitManager(env, pkg_mgr),
-        ZshManager(env, pkg_mgr),
-        TmuxManager(env, pkg_mgr),
-        NvimManager(env, pkg_mgr),
-    ]
+    # Get tools from declarative config
+    registry = get_tools_from_config(config)
+    tools = registry.list_tools()
 
     # Freckle config status
     config_path = env.home / ".freckle.yaml"
@@ -62,36 +56,39 @@ def status():
     else:
         typer.echo("  .freckle.yaml : ✗ not found (run 'freckle init')")
 
-    # Collect all config files associated with tool managers
+    # Collect all config files associated with tools
     tool_config_files = set()
 
-    typer.echo("\nCore Tools:")
-    for manager in tool_managers:
-        info = pkg_mgr.get_binary_info(manager.bin_name)
-        if info["found"]:
-            typer.echo(f"  {manager.name}:")
-            typer.echo(f"    Binary : {info['path']} ({info['version']})")
-        else:
-            typer.echo(f"  {manager.name}: ✗ not found in PATH")
-            continue
+    if tools:
+        typer.echo("\nConfigured Tools:")
+        for tool in tools:
+            if tool.is_installed():
+                version = tool.get_version() or "installed"
+                if len(version) > 40:
+                    version = version[:37] + "..."
+                typer.echo(f"  {tool.name}:")
+                typer.echo(f"    Status : ✓ {version}")
+            else:
+                typer.echo(f"  {tool.name}: ✗ not installed")
+                continue
 
-        if dotfiles:
-            for cfg in manager.config_files:
-                tool_config_files.add(cfg)
-                file_status = dotfiles.get_file_sync_status(cfg)
-                if file_status == "not-found":
-                    continue
+            if dotfiles and tool.config_files:
+                for cfg in tool.config_files:
+                    tool_config_files.add(cfg)
+                    file_status = dotfiles.get_file_sync_status(cfg)
+                    if file_status == "not-found":
+                        continue
 
-                status_str = {
-                    "up-to-date": "✓ up-to-date",
-                    "modified": "⚠ modified locally",
-                    "behind": "↓ update available (behind remote)",
-                    "untracked": "✗ not tracked",
-                    "missing": "✗ missing from home",
-                    "error": "⚠ error checking status",
-                }.get(file_status, f"status: {file_status}")
+                    status_str = {
+                        "up-to-date": "✓ up-to-date",
+                        "modified": "⚠ modified locally",
+                        "behind": "↓ update available (behind remote)",
+                        "untracked": "✗ not tracked",
+                        "missing": "✗ missing from home",
+                        "error": "⚠ error checking status",
+                    }.get(file_status, f"status: {file_status}")
 
-                typer.echo(f"    Config : {status_str} ({cfg})")
+                    typer.echo(f"    Config : {status_str} ({cfg})")
 
     # Show all other tracked files
     if dotfiles:
