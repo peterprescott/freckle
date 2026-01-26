@@ -194,10 +194,19 @@ def _profile_switch(config, name, force):
         typer.echo("Dotfiles repository not found.", err=True)
         raise typer.Exit(1)
 
-    # Check for local changes
+    # Check for local changes (only tracked files, not untracked)
     try:
         result = dotfiles._git.run("status", "--porcelain")
-        has_changes = bool(result.stdout.strip())
+        output = result.stdout.strip()
+        if output:
+            # Filter out untracked files (lines starting with ??)
+            tracked_changes = [
+                line for line in output.split("\n")
+                if line and not line.startswith("??")
+            ]
+            has_changes = bool(tracked_changes)
+        else:
+            has_changes = False
     except subprocess.CalledProcessError:
         has_changes = False
 
