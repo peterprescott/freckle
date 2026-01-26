@@ -11,6 +11,7 @@ from .helpers import (
     get_config,
     get_dotfiles_dir,
     get_dotfiles_manager,
+    is_git_available,
 )
 
 
@@ -40,6 +41,13 @@ def doctor(
     warnings = []
 
     typer.echo("Running freckle health check...\n")
+
+    # Check prerequisites
+    typer.echo("Prerequisites:")
+    prereq_issues = _check_prerequisites(verbose)
+    issues.extend(prereq_issues)
+
+    typer.echo("")
 
     # Check config
     typer.echo("Config:")
@@ -83,6 +91,19 @@ def doctor(
         raise typer.Exit(1 if issues else 0)
     else:
         typer.echo("✓ All checks passed!")
+
+
+def _check_prerequisites(verbose: bool) -> list[str]:
+    """Check required system prerequisites."""
+    issues = []
+
+    if is_git_available():
+        typer.echo("  ✓ git is installed")
+    else:
+        typer.echo("  ✗ git is not installed")
+        issues.append("git is not installed")
+
+    return issues
 
 
 def _check_config(verbose: bool) -> tuple[list[str], list[str]]:
@@ -273,7 +294,12 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
     suggestions = []
 
     for item in issues + warnings:
-        if "Missing" in item and ".freckle.yaml" in item:
+        if "git is not installed" in item:
+            suggestions.append(
+                "Install git: brew install git (macOS) "
+                "or apt install git (Linux)"
+            )
+        elif "Missing" in item and ".freckle.yaml" in item:
             suggestions.append("Run 'freckle init' to set up configuration")
         elif "Dotfiles repo not found" in item:
             suggestions.append("Run 'freckle sync' to clone your dotfiles")

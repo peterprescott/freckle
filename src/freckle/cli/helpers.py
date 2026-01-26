@@ -1,6 +1,8 @@
 """Shared helper functions for CLI commands."""
 
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -42,3 +44,19 @@ def get_dotfiles_dir(config: Config) -> Path:
     if not dotfiles_dir.is_absolute():
         dotfiles_dir = env.home / dotfiles_dir
     return dotfiles_dir
+
+
+def get_subprocess_error(e: subprocess.CalledProcessError) -> str:
+    """Extract error message from CalledProcessError.
+
+    Handles both string and bytes stderr, returning a clean string.
+    """
+    stderr = getattr(e, "stderr", "")
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    return stderr.strip()
+
+
+def is_git_available() -> bool:
+    """Check if git is installed and accessible."""
+    return shutil.which("git") is not None
