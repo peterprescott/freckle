@@ -167,16 +167,22 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
         typer.echo("  ⚠ Could not reach remote")
         warnings.append("Remote not accessible")
 
-    # Check for local changes
+    # Check for local changes (only tracked files, ignore untracked)
     try:
         result = dotfiles._git.run("status", "--porcelain")
-        changes = result.stdout.strip()
-        if changes:
-            num_changes = len(changes.split("\n"))
-            typer.echo(f"  ⚠ {num_changes} uncommitted change(s)")
+        output = result.stdout.strip()
+        all_changes = output.split("\n") if output else []
+        # Filter out untracked files (lines starting with ??)
+        tracked_changes = [
+            line for line in all_changes
+            if line and not line.startswith("??")
+        ]
+        if tracked_changes:
+            num_changes = len(tracked_changes)
+            typer.echo(f"  ⚠ {num_changes} modified file(s)")
             warnings.append(f"{num_changes} uncommitted changes")
             if verbose:
-                for line in changes.split("\n")[:5]:
+                for line in tracked_changes[:5]:
                     typer.echo(f"      {line}")
                 if num_changes > 5:
                     typer.echo(f"      ... and {num_changes - 5} more")
