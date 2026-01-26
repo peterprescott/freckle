@@ -27,14 +27,21 @@ class NvimManager(BaseToolManager):
 
     def _ensure_lazy_nvim(self):
         """Installs lazy.nvim if it's missing."""
-        lazy_path = self.env.home / ".local" / "share" / "nvim" / "lazy" / "lazy.nvim"
+        lazy_path = (
+            self.env.home / ".local" / "share" / "nvim" / "lazy" / "lazy.nvim"
+        )
         if not lazy_path.exists():
             self.logger.info("Installing lazy.nvim...")
-            subprocess.run([
-                "git", "clone", "--filter=blob:none",
-                "https://github.com/folke/lazy.nvim.git",
-                "--branch=stable",
-                str(lazy_path)
-            ], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--filter=blob:none",
+                    "https://github.com/folke/lazy.nvim.git",
+                    "--branch=stable",
+                    str(lazy_path),
+                ],
+                check=True,
+            )
         else:
             self.logger.debug("lazy.nvim already installed.")

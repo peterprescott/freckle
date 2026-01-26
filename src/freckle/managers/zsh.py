@@ -31,7 +31,9 @@ class ZshManager(BaseToolManager):
 
         zsh_path = shutil.which("zsh")
         if not zsh_path:
-            self.logger.error("Zsh binary not found in PATH after installation")
+            self.logger.error(
+                "Zsh binary not found in PATH after installation"
+            )
             return
 
         # Check if zsh is in /etc/shells (required for chsh)
@@ -103,7 +105,7 @@ class ZshManager(BaseToolManager):
                 ["chsh", "-s", zsh_path],
                 capture_output=True,
                 text=True,
-                timeout=5  # Don't hang if it prompts for password
+                timeout=5,  # Don't hang if it prompts for password
             )
 
             if result.returncode == 0:

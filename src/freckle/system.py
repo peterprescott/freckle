@@ -17,12 +17,16 @@ class OS(Enum):
 
 
 class Environment:
-    """Detects and provides information about the current system environment."""
+    """Detects and provides info about the current system environment."""
 
     def __init__(self):
         self.os = self._detect_os()
         self.home = Path.home()
-        self.user = os.environ.get("USER") or os.environ.get("LOGNAME") or self.home.name
+        self.user = (
+            os.environ.get("USER")
+            or os.environ.get("LOGNAME")
+            or self.home.name
+        )
         self.os_info = self._get_os_info()
 
     def _detect_os(self) -> OS:
@@ -39,7 +43,7 @@ class Environment:
             "release": platform.release(),
             "version": platform.version(),
             "machine": platform.machine(),
-            "pretty_name": platform.system()
+            "pretty_name": platform.system(),
         }
 
         if self.is_linux():
@@ -69,39 +73,102 @@ class Environment:
         return self.os == OS.MACOS
 
     def __repr__(self) -> str:
-        return f"Environment(os={self.os.value}, home={self.home}, user={self.user})"
+        return (
+            f"Environment(os={self.os.value}, "
+            f"home={self.home}, user={self.user})"
+        )
 
 
 class SystemPackageManager:
-    """Platform-aware manager for installing system packages (apt, dnf, brew, etc.)."""
+    """Platform-aware manager for installing system packages."""
 
     # Map distro IDs to package manager configurations
     DISTRO_PACKAGE_MANAGERS = {
         # Debian-based
-        "debian": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
-        "ubuntu": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
-        "linuxmint": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
-        "pop": {"cmd": "apt", "install": ["apt", "install", "-y"], "update": ["apt", "update"]},
+        "debian": {
+            "cmd": "apt",
+            "install": ["apt", "install", "-y"],
+            "update": ["apt", "update"],
+        },
+        "ubuntu": {
+            "cmd": "apt",
+            "install": ["apt", "install", "-y"],
+            "update": ["apt", "update"],
+        },
+        "linuxmint": {
+            "cmd": "apt",
+            "install": ["apt", "install", "-y"],
+            "update": ["apt", "update"],
+        },
+        "pop": {
+            "cmd": "apt",
+            "install": ["apt", "install", "-y"],
+            "update": ["apt", "update"],
+        },
         # Red Hat-based
-        "fedora": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
-        "rhel": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
-        "centos": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
-        "rocky": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
-        "alma": {"cmd": "dnf", "install": ["dnf", "install", "-y"], "update": None},
+        "fedora": {
+            "cmd": "dnf",
+            "install": ["dnf", "install", "-y"],
+            "update": None,
+        },
+        "rhel": {
+            "cmd": "dnf",
+            "install": ["dnf", "install", "-y"],
+            "update": None,
+        },
+        "centos": {
+            "cmd": "dnf",
+            "install": ["dnf", "install", "-y"],
+            "update": None,
+        },
+        "rocky": {
+            "cmd": "dnf",
+            "install": ["dnf", "install", "-y"],
+            "update": None,
+        },
+        "alma": {
+            "cmd": "dnf",
+            "install": ["dnf", "install", "-y"],
+            "update": None,
+        },
         # Arch-based
-        "arch": {"cmd": "pacman", "install": ["pacman", "-S", "--noconfirm"], "update": ["pacman", "-Sy"]},
-        "manjaro": {"cmd": "pacman", "install": ["pacman", "-S", "--noconfirm"], "update": ["pacman", "-Sy"]},
-        "endeavouros": {"cmd": "pacman", "install": ["pacman", "-S", "--noconfirm"], "update": ["pacman", "-Sy"]},
+        "arch": {
+            "cmd": "pacman",
+            "install": ["pacman", "-S", "--noconfirm"],
+            "update": ["pacman", "-Sy"],
+        },
+        "manjaro": {
+            "cmd": "pacman",
+            "install": ["pacman", "-S", "--noconfirm"],
+            "update": ["pacman", "-Sy"],
+        },
+        "endeavouros": {
+            "cmd": "pacman",
+            "install": ["pacman", "-S", "--noconfirm"],
+            "update": ["pacman", "-Sy"],
+        },
         # SUSE-based
-        "opensuse": {"cmd": "zypper", "install": ["zypper", "install", "-y"], "update": ["zypper", "refresh"]},
-        "suse": {"cmd": "zypper", "install": ["zypper", "install", "-y"], "update": ["zypper", "refresh"]},
+        "opensuse": {
+            "cmd": "zypper",
+            "install": ["zypper", "install", "-y"],
+            "update": ["zypper", "refresh"],
+        },
+        "suse": {
+            "cmd": "zypper",
+            "install": ["zypper", "install", "-y"],
+            "update": ["zypper", "refresh"],
+        },
         # Alpine
-        "alpine": {"cmd": "apk", "install": ["apk", "add"], "update": ["apk", "update"]},
+        "alpine": {
+            "cmd": "apk",
+            "install": ["apk", "add"],
+            "update": ["apk", "update"],
+        },
     }
 
     def __init__(self, env: Environment):
         self.env = env
-        self._is_root = os.geteuid() == 0 if hasattr(os, 'geteuid') else False
+        self._is_root = os.geteuid() == 0 if hasattr(os, "geteuid") else False
 
     def _get_privilege_cmd(self) -> list:
         """Get the command prefix for privileged operations.
@@ -119,8 +186,10 @@ class SystemPackageManager:
         if shutil.which("doas"):
             return ["doas"]
 
-        logger.warning("No privilege escalation tool found (sudo/doas). "
-                      "Package installation may fail if not running as root.")
+        logger.warning(
+            "No privilege escalation tool found (sudo/doas). "
+            "Package installation may fail if not running as root."
+        )
         return []
 
     def _get_linux_package_manager(self) -> Optional[dict]:
@@ -142,7 +211,11 @@ class SystemPackageManager:
         elif shutil.which("dnf"):
             return self.DISTRO_PACKAGE_MANAGERS["fedora"]
         elif shutil.which("yum"):
-            return {"cmd": "yum", "install": ["yum", "install", "-y"], "update": None}
+            return {
+                "cmd": "yum",
+                "install": ["yum", "install", "-y"],
+                "update": None,
+            }
         elif shutil.which("pacman"):
             return self.DISTRO_PACKAGE_MANAGERS["arch"]
         elif shutil.which("zypper"):
@@ -170,7 +243,9 @@ class SystemPackageManager:
         """Install a package on Linux using the detected package manager."""
         pkg_mgr = self._get_linux_package_manager()
         if not pkg_mgr:
-            raise RuntimeError("No supported package manager found for this system")
+            raise RuntimeError(
+                "No supported package manager found for this system"
+            )
 
         priv_cmd = self._get_privilege_cmd()
 
@@ -221,15 +296,13 @@ class SystemPackageManager:
             else:
                 cmd = [path, "--version"]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=2
+            )
             if result.returncode == 0:
                 # Most tools output 'toolname v1.2.3' on the first line
                 version = result.stdout.splitlines()[0].strip()
         except Exception:
             pass
 
-        return {
-            "found": True,
-            "path": path,
-            "version": version
-        }
+        return {"found": True, "path": path, "version": version}
