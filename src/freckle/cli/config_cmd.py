@@ -62,7 +62,7 @@ def config_check():
     inconsistent = []
 
     for name, profile in profiles.items():
-        branch = profile.get("branch", name)
+        branch = name  # Profile name = branch name
 
         if branch == current_branch:
             consistent.append((name, branch, "(current)"))
@@ -150,7 +150,7 @@ def config_propagate(
     # Find branches to update
     branches_to_update = []
     for name, profile in profiles.items():
-        branch = profile.get("branch", name)
+        branch = name  # Profile name = branch name
         if branch != current_branch:
             branches_to_update.append((name, branch))
 
