@@ -5,7 +5,6 @@ import typer
 from ..dotfiles import DotfilesManager
 from ..managers import GitManager, NvimManager, TmuxManager, ZshManager
 from ..system import SystemPackageManager
-from ..utils import setup_logging
 from .helpers import env, get_config, get_dotfiles_dir
 
 
@@ -16,7 +15,6 @@ def register(app: typer.Typer) -> None:
 
 def status():
     """Show current setup status and check for updates."""
-    setup_logging()
     config = get_config()
 
     repo_url = config.get("dotfiles.repo_url")

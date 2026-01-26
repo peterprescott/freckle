@@ -6,7 +6,6 @@ from typing import List, Optional
 
 import typer
 
-from ..utils import setup_logging
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
 
@@ -32,7 +31,6 @@ def log(
         freckle log -n 5         # Show last 5 commits
         freckle log --oneline    # Compact format
     """
-    setup_logging()
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)
@@ -90,7 +88,6 @@ def branch(
         freckle branch work         # Switch to 'work' branch
         freckle branch -c laptop    # Create and switch to 'laptop' branch
     """
-    setup_logging()
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)
@@ -148,7 +145,6 @@ def diff(
         freckle diff .zshrc       # Show changes to specific file
         freckle diff --staged     # Show staged changes
     """
-    setup_logging()
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)

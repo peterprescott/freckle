@@ -13,6 +13,20 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+
+@app.callback()
+def main_callback(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose logging output.",
+    ),
+):
+    """Freckle - dotfiles manager with tool installation."""
+    setup_logging(verbose=verbose)
+
+
 # Register all commands
 init.register(app)
 sync.register(app)
@@ -31,5 +45,4 @@ def version():
 
 def main():
     """Main entry point for the freckle CLI."""
-    setup_logging()
     app()

@@ -6,7 +6,6 @@ import typer
 
 from ..managers import GitManager, NvimManager, TmuxManager, ZshManager
 from ..system import SystemPackageManager
-from ..utils import setup_logging
 from .helpers import env, get_config
 
 # Map of tool names to manager classes
@@ -45,7 +44,6 @@ def tools(
         freckle tools nvim       # Check nvim specifically
         freckle tools nvim -i    # Install/setup nvim
     """
-    setup_logging()
     config = get_config()
 
     # Get configured tools from config, or default to all
