@@ -93,10 +93,11 @@ class TestProfileCreateIntegration:
         home = tmp_path / "home"
         home.mkdir()
 
-        # Create bare repo
+        # Create bare repo with initial branch name "main"
         dotfiles_dir = home / ".dotfiles"
         subprocess.run(
-            ["git", "init", "--bare", str(dotfiles_dir)],
+            ["git", "init", "--bare", "--initial-branch=main",
+             str(dotfiles_dir)],
             check=True,
             capture_output=True,
         )
