@@ -212,7 +212,11 @@ def do_backup(
 
     # Check for secrets in changed files
     if changed_files and not skip_secret_check:
-        scanner = SecretScanner()
+        secrets_config = config.get("secrets", {})
+        scanner = SecretScanner(
+            extra_block=secrets_config.get("block", []),
+            extra_allow=secrets_config.get("allow", []),
+        )
         secrets_found = scanner.scan_files(changed_files, env.home)
 
         if secrets_found:

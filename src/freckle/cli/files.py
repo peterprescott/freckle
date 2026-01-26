@@ -86,7 +86,11 @@ def add(
 
     # Check for secrets unless --force is used
     if not force:
-        scanner = SecretScanner()
+        secrets_config = config.get("secrets", {})
+        scanner = SecretScanner(
+            extra_block=secrets_config.get("block", []),
+            extra_allow=secrets_config.get("allow", []),
+        )
         secrets_found = scanner.scan_files(home_relative_files, env.home)
 
         if secrets_found:
