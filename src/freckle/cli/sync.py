@@ -415,5 +415,21 @@ def update(
 
     typer.echo(f"Fetching {behind_count} new commit(s) from remote...")
 
+    # Backup local files before overwriting
+    if report["has_local_changes"]:
+        from freckle.backup import BackupManager
+
+        backup_manager = BackupManager()
+        point = backup_manager.create_restore_point(
+            files=report["changed_files"],
+            reason="pre-update",
+            home=env.home,
+        )
+        if point:
+            typer.echo(
+                f"  (backed up {len(point.files)} files - "
+                "use 'freckle restore --list' to recover)"
+            )
+
     dotfiles.force_checkout()
     typer.echo("✓ Updated to latest remote version.")
