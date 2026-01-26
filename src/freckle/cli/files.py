@@ -20,7 +20,9 @@ def register(app: typer.Typer) -> None:
 
 
 def add(
-    files: List[str] = typer.Argument(..., help="Files to add to dotfiles tracking"),
+    files: List[str] = typer.Argument(
+        ..., help="Files to add to dotfiles tracking"
+    ),
 ):
     """Add files to be tracked in your dotfiles repository.
 
@@ -42,13 +44,18 @@ def add(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "Dotfiles not configured. Run 'freckle init' first.", err=True
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        typer.echo(
+            "Dotfiles repository not found. Run 'freckle sync' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     # Convert user-provided paths to paths relative to home directory
@@ -95,7 +102,9 @@ def add(
 
 def remove(
     files: List[str] = typer.Argument(..., help="Files to stop tracking"),
-    delete: bool = typer.Option(False, "--delete", help="Also delete the file from home directory"),
+    delete: bool = typer.Option(
+        False, "--delete", help="Also delete the file from home directory"
+    ),
 ):
     """Stop tracking files in your dotfiles repository.
 
@@ -118,13 +127,18 @@ def remove(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "Dotfiles not configured. Run 'freckle init' first.", err=True
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        typer.echo(
+            "Dotfiles repository not found. Run 'freckle sync' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     # Convert user-provided paths to paths relative to home directory
@@ -172,7 +186,9 @@ def remove(
 
     if removed:
         if delete:
-            typer.echo(f"✓ Stopped tracking and deleted {len(removed)} file(s):")
+            typer.echo(
+                f"✓ Stopped tracking and deleted {len(removed)} file(s):"
+            )
         else:
             typer.echo(f"✓ Stopped tracking {len(removed)} file(s):")
         for f in removed:

@@ -9,18 +9,19 @@ import yaml
 if TYPE_CHECKING:
     from .system import Environment
 
+
 class Config:
     DEFAULT_CONFIG = {
         "vars": {},
-        "dotfiles": {
-            "repo_url": None,
-            "branch": "main",
-            "dir": "~/.dotfiles"
-        },
-        "modules": ["dotfiles", "zsh", "tmux", "nvim"]
+        "dotfiles": {"repo_url": None, "branch": "main", "dir": "~/.dotfiles"},
+        "modules": ["dotfiles", "zsh", "tmux", "nvim"],
     }
 
-    def __init__(self, config_path: Optional[Path] = None, env: Optional[Environment] = None):
+    def __init__(
+        self,
+        config_path: Optional[Path] = None,
+        env: Optional[Environment] = None,
+    ):
         # Use deepcopy to avoid mutating the class-level DEFAULT_CONFIG
         self.data = copy.deepcopy(self.DEFAULT_CONFIG)
         self.env = env
@@ -41,11 +42,9 @@ class Config:
                 base[k] = v
 
     def _apply_replacements(self, data: Any):
-        """Recursively replaces {local_user} and custom vars in the config data."""
+        """Replace {local_user} and custom vars in the config data."""
         # Build the dictionary of available replacements
-        replacements = {
-            "local_user": self.env.user if self.env else "user"
-        }
+        replacements = {"local_user": self.env.user if self.env else "user"}
         # Merge in custom vars from the config itself
         if "vars" in self.data and isinstance(self.data["vars"], dict):
             replacements.update(self.data["vars"])

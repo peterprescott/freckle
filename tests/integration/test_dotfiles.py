@@ -19,15 +19,31 @@ def _create_bare_repo_with_files(tmp_path: Path, files: dict) -> Path:
     """
     # Create a bare repo
     bare_repo = tmp_path / "test_repo.git"
-    subprocess.run(["git", "init", "--bare", str(bare_repo)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "--bare", str(bare_repo)],
+        check=True,
+        capture_output=True,
+    )
 
     # Create a temp working directory to add files
     work_dir = tmp_path / "temp_work"
     work_dir.mkdir()
 
-    subprocess.run(["git", "init"], cwd=work_dir, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=work_dir, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=work_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init"], cwd=work_dir, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=work_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=work_dir,
+        check=True,
+        capture_output=True,
+    )
 
     # Create files
     for filename, content in files.items():
@@ -35,10 +51,27 @@ def _create_bare_repo_with_files(tmp_path: Path, files: dict) -> Path:
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content)
 
-    subprocess.run(["git", "add", "."], cwd=work_dir, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=work_dir, check=True, capture_output=True)
-    subprocess.run(["git", "remote", "add", "origin", str(bare_repo)], cwd=work_dir, check=True, capture_output=True)
-    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=work_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "."], cwd=work_dir, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=work_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(bare_repo)],
+        cwd=work_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "push", "origin", "HEAD:main"],
+        cwd=work_dir,
+        check=True,
+        capture_output=True,
+    )
 
     return bare_repo
 
@@ -46,10 +79,9 @@ def _create_bare_repo_with_files(tmp_path: Path, files: dict) -> Path:
 def test_dotfiles_backup_on_conflict(tmp_path):
     """Test that existing files are backed up during initial setup."""
     # Create a bare repo with .zshrc
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "# From repo",
-        ".tmux.conf": "# tmux config"
-    })
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path, {".zshrc": "# From repo", ".tmux.conf": "# tmux config"}
+    )
 
     # Create work tree with existing conflicting file
     work_tree = tmp_path / "home"
@@ -61,7 +93,9 @@ def test_dotfiles_backup_on_conflict(tmp_path):
     dotfiles_dir = tmp_path / "dotfiles_bare"
 
     # Run setup
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     manager.setup()
 
     # Verify backup was created
@@ -83,37 +117,45 @@ def test_dotfiles_backup_on_conflict(tmp_path):
 
 def test_get_tracked_files(tmp_path):
     """Test _get_tracked_files returns correct file list."""
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "zsh config",
-        ".config/nvim/init.lua": "nvim config",
-        ".tmux.conf": "tmux config"
-    })
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path,
+        {
+            ".zshrc": "zsh config",
+            ".config/nvim/init.lua": "nvim config",
+            ".tmux.conf": "tmux config",
+        },
+    )
 
     work_tree = tmp_path / "home"
     work_tree.mkdir()
     dotfiles_dir = tmp_path / "dotfiles"
 
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     # Clone the repo first
     manager._clone_bare()
     manager._fetch()
 
     tracked = manager._get_tracked_files()
-    assert sorted(tracked) == sorted([".zshrc", ".config/nvim/init.lua", ".tmux.conf"])
+    assert sorted(tracked) == sorted(
+        [".zshrc", ".config/nvim/init.lua", ".tmux.conf"]
+    )
 
 
 def test_file_sync_status(tmp_path):
-    """Test get_file_sync_status returns correct status for various scenarios."""
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "original content",
-        ".tmux.conf": "tmux config"
-    })
+    """Test get_file_sync_status returns correct status."""
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path, {".zshrc": "original content", ".tmux.conf": "tmux config"}
+    )
 
     work_tree = tmp_path / "home"
     work_tree.mkdir()
     dotfiles_dir = tmp_path / "dotfiles"
 
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     manager.setup()
 
     # 1. up-to-date: file matches HEAD
@@ -137,15 +179,17 @@ def test_file_sync_status(tmp_path):
 
 def test_get_detailed_status(tmp_path):
     """Test get_detailed_status returns correct information."""
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "zsh config"
-    })
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path, {".zshrc": "zsh config"}
+    )
 
     work_tree = tmp_path / "home"
     work_tree.mkdir()
     dotfiles_dir = tmp_path / "dotfiles"
 
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     manager.setup()
 
     # Initially should be up to date
@@ -170,7 +214,9 @@ def test_not_initialized_status(tmp_path):
     work_tree.mkdir()
     dotfiles_dir = tmp_path / "dotfiles"  # Doesn't exist
 
-    manager = DotfilesManager("https://example.com/repo.git", dotfiles_dir, work_tree)
+    manager = DotfilesManager(
+        "https://example.com/repo.git", dotfiles_dir, work_tree
+    )
 
     status = manager.get_detailed_status()
     assert status["initialized"] is False
@@ -180,16 +226,15 @@ def test_not_initialized_status(tmp_path):
 
 
 def test_add_files_from_different_cwd(tmp_path):
-    """Test that add_files works regardless of the process's current working directory.
+    """Test add_files works regardless of current working directory.
 
-    This tests the fix for the bug where running `freckle add` from ~/github
-    would fail because git was looking for files relative to cwd instead of
-    the work_tree.
+    This tests the fix for the bug where `freckle add` from ~/github
+    would fail because git looked for files relative to cwd.
     """
     # Create a bare repo
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "initial zshrc"
-    })
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path, {".zshrc": "initial zshrc"}
+    )
 
     # Set up work tree (simulating ~)
     work_tree = tmp_path / "home"
@@ -207,7 +252,9 @@ def test_add_files_from_different_cwd(tmp_path):
     init_lua.write_text("-- nvim config")
 
     # Set up the dotfiles manager
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     manager.setup()
 
     # Save original cwd and change to the subdirectory
@@ -230,9 +277,9 @@ def test_git_commands_run_from_work_tree(tmp_path):
 
     This ensures path resolution works correctly for bare repo operations.
     """
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "zsh config"
-    })
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path, {".zshrc": "zsh config"}
+    )
 
     work_tree = tmp_path / "home"
     work_tree.mkdir()
@@ -244,7 +291,9 @@ def test_git_commands_run_from_work_tree(tmp_path):
     nested_file = nested_dir / "config.toml"
     nested_file.write_text("nested = true")
 
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     manager.setup()
 
     # Change to a completely different directory
@@ -276,7 +325,9 @@ def test_add_files_nonexistent(tmp_path):
     work_tree.mkdir()
     dotfiles_dir = work_tree / ".dotfiles"
 
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
     manager.setup()
 
     result = manager.add_files(["nonexistent_file", "also_missing"])
@@ -291,10 +342,9 @@ def test_operations_from_tmp(tmp_path):
 
     This simulates a user who runs freckle from an arbitrary system directory.
     """
-    bare_repo = _create_bare_repo_with_files(tmp_path, {
-        ".zshrc": "zsh config",
-        ".tmux.conf": "tmux config"
-    })
+    bare_repo = _create_bare_repo_with_files(
+        tmp_path, {".zshrc": "zsh config", ".tmux.conf": "tmux config"}
+    )
 
     work_tree = tmp_path / "home"
     work_tree.mkdir()
@@ -303,7 +353,9 @@ def test_operations_from_tmp(tmp_path):
     # Create a new file to track
     (work_tree / ".gitconfig").write_text("[user]\nname = Test")
 
-    manager = DotfilesManager(str(bare_repo), dotfiles_dir, work_tree, branch="main")
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, work_tree, branch="main"
+    )
 
     # Run from /tmp (or tmp_path which is similar)
     original_cwd = os.getcwd()

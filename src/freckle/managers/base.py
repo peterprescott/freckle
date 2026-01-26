@@ -43,5 +43,5 @@ class BaseToolManager(ABC):
         self._post_install()
 
     def _post_install(self):
-        """Hook for tool-specific configuration after ensuring it's installed."""
+        """Hook for tool-specific config after ensuring it's installed."""
         pass

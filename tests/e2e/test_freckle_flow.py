@@ -20,26 +20,56 @@ def _setup_mock_remote(tmp_path: Path, files: dict) -> Path:
         Path to the bare repository
     """
     remote_repo = tmp_path / "remote_dots.git"
-    subprocess.run(["git", "init", "--bare", str(remote_repo)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "--bare", str(remote_repo)],
+        check=True,
+        capture_output=True,
+    )
 
     temp_worktree = tmp_path / "temp_worktree"
     temp_worktree.mkdir()
-    subprocess.run(["git", "init"], cwd=temp_worktree, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=temp_worktree, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test User"], cwd=temp_worktree, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init"], cwd=temp_worktree, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=temp_worktree,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=temp_worktree,
+        check=True,
+        capture_output=True,
+    )
 
     for filename, content in files.items():
         file_path = temp_worktree / filename
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content)
 
-    subprocess.run(["git", "add", "."], cwd=temp_worktree, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=temp_worktree, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "."], cwd=temp_worktree, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=temp_worktree,
+        check=True,
+        capture_output=True,
+    )
     subprocess.run(
         ["git", "remote", "add", "origin", str(remote_repo)],
-        cwd=temp_worktree, check=True, capture_output=True
+        cwd=temp_worktree,
+        check=True,
+        capture_output=True,
     )
-    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=temp_worktree, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "push", "origin", "HEAD:main"],
+        cwd=temp_worktree,
+        check=True,
+        capture_output=True,
+    )
 
     return remote_repo
 
@@ -81,14 +111,30 @@ def test_full_freckle_flow(tmp_path):
     (temp_worktree / ".zshrc").write_text("# mock zshrc")
     (temp_worktree / ".tmux.conf").write_text("# mock tmux")
     subprocess.run(["git", "add", "."], cwd=temp_worktree, check=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=temp_worktree, check=True)
-    subprocess.run(["git", "config", "user.name", "Test User"], cwd=temp_worktree, check=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=temp_worktree, check=True)
-    subprocess.run(["git", "remote", "add", "origin", str(remote_repo)], cwd=temp_worktree, check=True)
-    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=temp_worktree, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=temp_worktree,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=temp_worktree,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"], cwd=temp_worktree, check=True
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote_repo)],
+        cwd=temp_worktree,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "push", "origin", "HEAD:main"], cwd=temp_worktree, check=True
+    )
 
     # 2. Run freckle init
-    # We'll use the CLI directly. 'freckle' should be in the path if installed via uv.
+    # Use CLI directly - 'freckle' should be in path if installed.
     # Alternatively, we can use 'uv run freckle'
     # Input: y (clone existing), repo URL, branch, dotfiles dir
     init_input = f"y\n{remote_repo}\nmain\n{home}/.dotfiles\n"
@@ -97,17 +143,13 @@ def test_full_freckle_flow(tmp_path):
         input=init_input,
         text=True,
         env=env,
-        check=True
+        check=True,
     )
 
     assert (home / ".freckle.yaml").exists()
 
     # 3. Run freckle sync (dotfiles only)
-    subprocess.run(
-        ["uv", "run", "freckle", "sync"],
-        env=env,
-        check=True
-    )
+    subprocess.run(["uv", "run", "freckle", "sync"], env=env, check=True)
 
     # 4. Verify dotfiles results
     assert (home / ".zshrc").exists()
@@ -119,9 +161,7 @@ def test_full_freckle_flow(tmp_path):
 
     # 5. Run freckle tools --install (tool setup is now separate)
     subprocess.run(
-        ["uv", "run", "freckle", "tools", "--install"],
-        env=env,
-        check=True
+        ["uv", "run", "freckle", "tools", "--install"], env=env, check=True
     )
 
     # Verify nvim setup (lazy.nvim installation)
@@ -144,11 +184,14 @@ def test_full_flow_from_subdirectory(tmp_path):
     subdir.mkdir(parents=True)
 
     env = _create_env(home)
-    remote_repo = _setup_mock_remote(tmp_path, {
-        ".zshrc": "# zshrc from remote",
-        ".tmux.conf": "# tmux from remote",
-        ".config/nvim/init.lua": "-- nvim config"
-    })
+    remote_repo = _setup_mock_remote(
+        tmp_path,
+        {
+            ".zshrc": "# zshrc from remote",
+            ".tmux.conf": "# tmux from remote",
+            ".config/nvim/init.lua": "-- nvim config",
+        },
+    )
 
     original_cwd = os.getcwd()
     try:
@@ -163,7 +206,7 @@ def test_full_flow_from_subdirectory(tmp_path):
             text=True,
             env=env,
             capture_output=True,
-            timeout=30
+            timeout=30,
         )
         assert result.returncode == 0, f"init failed: {result.stderr}"
         assert (home / ".freckle.yaml").exists()
@@ -174,7 +217,7 @@ def test_full_flow_from_subdirectory(tmp_path):
             env=env,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
         )
         assert result.returncode == 0, f"run failed: {result.stderr}"
 
@@ -193,7 +236,7 @@ def test_full_flow_from_subdirectory(tmp_path):
             env=env,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
         assert result.returncode == 0, f"status failed: {result.stderr}"
         assert "freckle Status" in result.stdout
@@ -215,9 +258,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
     home.mkdir()
 
     env = _create_env(home)
-    remote_repo = _setup_mock_remote(tmp_path, {
-        ".zshrc": "# initial zshrc"
-    })
+    remote_repo = _setup_mock_remote(tmp_path, {".zshrc": "# initial zshrc"})
 
     # Set up freckle first (from home, to establish baseline)
     original_cwd = os.getcwd()
@@ -232,14 +273,14 @@ def test_add_and_backup_from_different_directories(tmp_path):
             env=env,
             capture_output=True,
             check=True,
-            timeout=30
+            timeout=30,
         )
         subprocess.run(
             ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             check=True,
-            timeout=60
+            timeout=60,
         )
 
         # Create files to add
@@ -259,7 +300,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
             env=env,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
         assert result.returncode == 0, f"add failed: {result.stderr}"
         assert "Staged" in result.stdout
@@ -268,11 +309,17 @@ def test_add_and_backup_from_different_directories(tmp_path):
         os.chdir(tmp_path)
 
         result = subprocess.run(
-            ["python", "-m", "freckle", "add", str(home / ".config/starship/starship.toml")],
+            [
+                "python",
+                "-m",
+                "freckle",
+                "add",
+                str(home / ".config/starship/starship.toml"),
+            ],
             env=env,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
         assert result.returncode == 0, f"add absolute failed: {result.stderr}"
         assert "Staged" in result.stdout
@@ -285,7 +332,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
             env=env,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
         )
         assert result.returncode == 0, f"backup failed: {result.stderr}"
         # Should mention backup success or no changes (if already committed)
@@ -315,7 +362,7 @@ def test_init_new_repo_from_subdirectory(tmp_path):
 
     env = _create_env(home)
 
-    # Create config manually (the interactive init has too many conditional prompts)
+    # Create config manually (interactive init has too many prompts)
     config_content = """dotfiles:
   repo_url: file:///dev/null
   branch: main
@@ -328,14 +375,17 @@ modules:
     original_cwd = os.getcwd()
     # Save original git env vars to restore later
     orig_git_env = {
-        k: os.environ.get(k) for k in [
-            "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
-            "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"
+        k: os.environ.get(k)
+        for k in [
+            "GIT_AUTHOR_NAME",
+            "GIT_AUTHOR_EMAIL",
+            "GIT_COMMITTER_NAME",
+            "GIT_COMMITTER_EMAIL",
         ]
     }
     try:
         os.chdir(subdir)
-        # Set git identity for the commit (CI runners don't have global git config)
+        # Set git identity (CI runners don't have global git config)
         os.environ["GIT_AUTHOR_NAME"] = "Test User"
         os.environ["GIT_AUTHOR_EMAIL"] = "test@test.com"
         os.environ["GIT_COMMITTER_NAME"] = "Test User"
@@ -350,7 +400,9 @@ modules:
 
         # Verify dotfiles repo is in home, not in cwd
         assert (home / ".dotfiles").exists(), ".dotfiles should be in home"
-        assert not (subdir / ".dotfiles").exists(), ".dotfiles should NOT be in cwd"
+        assert not (subdir / ".dotfiles").exists(), (
+            ".dotfiles should NOT be in cwd"
+        )
 
         # Verify we can run status from the subdirectory
         result = subprocess.run(
@@ -358,7 +410,7 @@ modules:
             env=env,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
         assert result.returncode == 0, f"status failed: {result.stderr}"
 
@@ -380,9 +432,7 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
     home.mkdir()
 
     env = _create_env(home)
-    remote_repo = _setup_mock_remote(tmp_path, {
-        ".zshrc": "# zshrc"
-    })
+    remote_repo = _setup_mock_remote(tmp_path, {".zshrc": "# zshrc"})
 
     # Set up freckle
     original_cwd = os.getcwd()
@@ -397,14 +447,14 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
             env=env,
             capture_output=True,
             check=True,
-            timeout=30
+            timeout=30,
         )
         subprocess.run(
             ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             check=True,
-            timeout=60
+            timeout=60,
         )
 
         # Modify a file to create local changes
@@ -420,12 +470,17 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
-            assert result.returncode == 0, f"status failed from {location}: {result.stderr}"
+            assert result.returncode == 0, (
+                f"status failed from {location}: {result.stderr}"
+            )
             assert "freckle Status" in result.stdout
             # Should show the modified file regardless of cwd
-            assert "modified" in result.stdout.lower() or ".zshrc" in result.stdout
+            assert (
+                "modified" in result.stdout.lower()
+                or ".zshrc" in result.stdout
+            )
 
     finally:
         os.chdir(original_cwd)

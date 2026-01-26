@@ -18,7 +18,9 @@ def register(app: typer.Typer) -> None:
 
 
 def init(
-    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing configuration")
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite existing configuration"
+    ),
 ):
     """Initialize configuration and set up dotfiles repository.
 
@@ -30,13 +32,23 @@ def init(
     config_path = env.home / ".freckle.yaml"
 
     if config_path.exists() and not force:
-        typer.echo(f"Config file already exists at {config_path}. Use --force to overwrite.", err=True)
+        typer.echo(
+            f"Config already exists at {config_path}. "
+            "Use --force to overwrite.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     typer.echo("--- freckle Initialization ---\n")
 
     # Ask if they have an existing repo
-    choice = typer.prompt("Do you have an existing dotfiles repository? [y/N]", default="n").strip().lower()
+    choice = (
+        typer.prompt(
+            "Do you have an existing dotfiles repository? [y/N]", default="n"
+        )
+        .strip()
+        .lower()
+    )
 
     if choice in ["y", "yes"]:
         _init_clone_existing(config_path)
@@ -67,7 +79,11 @@ def _init_clone_existing(config_path: Path) -> None:
         accessible, error = verify_git_url_accessible(repo_url)
         if not accessible:
             typer.echo(f"  Warning: Could not access repository: {error}")
-            confirm = typer.prompt("  Continue anyway? [y/N]", default="n").strip().lower()
+            confirm = (
+                typer.prompt("  Continue anyway? [y/N]", default="n")
+                .strip()
+                .lower()
+            )
             if confirm not in ["y", "yes"]:
                 continue
         else:
@@ -75,23 +91,32 @@ def _init_clone_existing(config_path: Path) -> None:
 
         break
 
-    branch = typer.prompt("Enter your preferred branch", default="main").strip().lower()
-    dotfiles_dir = typer.prompt("Enter directory for bare repo", default=".dotfiles").strip()
+    branch = (
+        typer.prompt("Enter your preferred branch", default="main")
+        .strip()
+        .lower()
+    )
+    dotfiles_dir = typer.prompt(
+        "Enter directory for bare repo", default=".dotfiles"
+    ).strip()
 
     config_data = {
         "dotfiles": {
             "repo_url": repo_url,
             "branch": branch,
-            "dir": dotfiles_dir
+            "dir": dotfiles_dir,
         },
-        "modules": ["dotfiles", "zsh", "tmux", "nvim"]
+        "modules": ["dotfiles", "zsh", "tmux", "nvim"],
     }
 
     with open(config_path, "w") as f:
         yaml.dump(config_data, f, default_flow_style=False)
 
     logger.info(f"Created configuration at {config_path}")
-    typer.echo("\n✓ Configuration saved! Run 'freckle sync' to clone and set up your dotfiles.")
+    typer.echo(
+        "\n✓ Configuration saved! "
+        "Run 'freckle sync' to clone and set up your dotfiles."
+    )
 
 
 def _init_create_new(config_path: Path) -> None:
@@ -105,27 +130,49 @@ def _init_create_new(config_path: Path) -> None:
 
     if has_gh:
         typer.echo("GitHub CLI detected. Create a new repo on GitHub?")
-        create_gh = typer.prompt("Create repo with 'gh repo create'? [Y/n]", default="y").strip().lower()
+        create_gh = (
+            typer.prompt(
+                "Create repo with 'gh repo create'? [Y/n]", default="y"
+            )
+            .strip()
+            .lower()
+        )
 
         if create_gh not in ["n", "no"]:
-            repo_name = typer.prompt("Repository name", default="dotfiles").strip()
-            private = typer.prompt("Make it private? [Y/n]", default="y").strip().lower()
-            visibility = "--private" if private not in ["n", "no"] else "--public"
+            repo_name = typer.prompt(
+                "Repository name", default="dotfiles"
+            ).strip()
+            private = (
+                typer.prompt("Make it private? [Y/n]", default="y")
+                .strip()
+                .lower()
+            )
+            visibility = (
+                "--private" if private not in ["n", "no"] else "--public"
+            )
 
             typer.echo(f"\n  Creating {repo_name} on GitHub...")
             try:
                 result = subprocess.run(
-                    ["gh", "repo", "create", repo_name, visibility, "--confirm"],
+                    [
+                        "gh",
+                        "repo",
+                        "create",
+                        repo_name,
+                        visibility,
+                        "--confirm",
+                    ],
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=30,
                 )
                 if result.returncode == 0:
                     repo_url = result.stdout.strip()
                     if not repo_url:
                         user_result = subprocess.run(
                             ["gh", "api", "user", "-q", ".login"],
-                            capture_output=True, text=True
+                            capture_output=True,
+                            text=True,
                         )
                         if user_result.returncode == 0:
                             username = user_result.stdout.strip()
@@ -141,14 +188,18 @@ def _init_create_new(config_path: Path) -> None:
     # If we don't have a URL yet, ask for one
     if not repo_url:
         if not has_gh:
-            typer.echo("To sync across machines, you'll need a remote repository.")
+            typer.echo(
+                "To sync across machines, you'll need a remote repository."
+            )
             typer.echo("Create one on GitHub/GitLab, then enter the URL here.")
             typer.echo("Or leave blank to set up locally only.\n")
         else:
             typer.echo("\nEnter repository URL, or blank to skip:\n")
 
         while True:
-            url_input = typer.prompt("Repository URL (or blank)", default="").strip()
+            url_input = typer.prompt(
+                "Repository URL (or blank)", default=""
+            ).strip()
 
             if not url_input:
                 break
@@ -160,7 +211,11 @@ def _init_create_new(config_path: Path) -> None:
             accessible, error = verify_git_url_accessible(url_input)
             if not accessible:
                 typer.echo(f"  ✗ Cannot access repository: {error}")
-                retry = typer.prompt("  Try a different URL? [Y/n]", default="y").strip().lower()
+                retry = (
+                    typer.prompt("  Try a different URL? [Y/n]", default="y")
+                    .strip()
+                    .lower()
+                )
                 if retry in ["n", "no"]:
                     break
                 continue
@@ -170,16 +225,27 @@ def _init_create_new(config_path: Path) -> None:
                 break
 
     branch = typer.prompt("Enter branch name", default="main").strip().lower()
-    dotfiles_dir = typer.prompt("Enter directory for bare repo", default=".dotfiles").strip()
+    dotfiles_dir = typer.prompt(
+        "Enter directory for bare repo", default=".dotfiles"
+    ).strip()
 
     # Ask which files to track initially
-    typer.echo("\nWhich dotfiles do you want to track? (Enter comma-separated list)")
-    typer.echo("Examples: .zshrc, .bashrc, .gitconfig, .tmux.conf, .config/nvim")
-    typer.echo("Or press Enter for common defaults: .freckle.yaml, .zshrc, .gitconfig, .tmux.conf\n")
+    typer.echo(
+        "\nWhich dotfiles do you want to track? (Enter comma-separated list)"
+    )
+    typer.echo(
+        "Examples: .zshrc, .bashrc, .gitconfig, .tmux.conf, .config/nvim"
+    )
+    typer.echo(
+        "Or press Enter for common defaults: "
+        ".freckle.yaml, .zshrc, .gitconfig, .tmux.conf\n"
+    )
 
     files_input = typer.prompt("Files to track", default="").strip()
     if files_input:
-        initial_files = [f.strip() for f in files_input.split(",") if f.strip()]
+        initial_files = [
+            f.strip() for f in files_input.split(",") if f.strip()
+        ]
         if ".freckle.yaml" not in initial_files:
             initial_files.insert(0, ".freckle.yaml")
     else:
@@ -191,12 +257,19 @@ def _init_create_new(config_path: Path) -> None:
         dotfiles_path = env.home / dotfiles_path
     if dotfiles_path.exists():
         typer.echo(f"\n⚠ Directory already exists: {dotfiles_path}")
-        choice = typer.prompt("Remove it and start fresh? [y/N]", default="n").strip().lower()
+        choice = (
+            typer.prompt("Remove it and start fresh? [y/N]", default="n")
+            .strip()
+            .lower()
+        )
         if choice in ["y", "yes"]:
             shutil.rmtree(dotfiles_path)
             typer.echo(f"  Removed {dotfiles_path}")
         else:
-            typer.echo("  Aborting. Remove the directory manually or choose a different location.")
+            typer.echo(
+                "  Aborting. Remove the directory manually "
+                "or choose a different location."
+            )
             raise typer.Exit(1)
 
     # Save config FIRST so it can be included in the initial commit
@@ -204,9 +277,9 @@ def _init_create_new(config_path: Path) -> None:
         "dotfiles": {
             "repo_url": repo_url or f"file://{dotfiles_path}",
             "branch": branch,
-            "dir": dotfiles_dir
+            "dir": dotfiles_dir,
         },
-        "modules": ["dotfiles", "zsh", "tmux", "nvim"]
+        "modules": ["dotfiles", "zsh", "tmux", "nvim"],
     }
 
     with open(config_path, "w") as f:
@@ -224,18 +297,25 @@ def _init_create_new(config_path: Path) -> None:
             typer.echo(f"  Note: {f} doesn't exist yet, skipping")
 
     if not all_files_to_track:
-        typer.echo("\nNo existing files to track. You can add files later with:")
+        typer.echo(
+            "\nNo existing files to track. You can add files later with:"
+        )
         typer.echo("  freckle add <file>")
 
     # Create the repo
     dotfiles = DotfilesManager(repo_url or "", dotfiles_path, env.home, branch)
 
     try:
-        dotfiles.create_new(initial_files=all_files_to_track, remote_url=repo_url or None)
+        dotfiles.create_new(
+            initial_files=all_files_to_track, remote_url=repo_url or None
+        )
         typer.echo(f"\n✓ Created new dotfiles repository at {dotfiles_dir}")
 
         if all_files_to_track:
-            typer.echo(f"✓ Tracking {len(all_files_to_track)} file(s): {', '.join(all_files_to_track)}")
+            files_list = ", ".join(all_files_to_track)
+            typer.echo(
+                f"✓ Tracking {len(all_files_to_track)} file(s): {files_list}"
+            )
     except Exception as e:
         logger.error(f"Failed to create repository: {e}")
         config_path.unlink(missing_ok=True)
@@ -244,9 +324,16 @@ def _init_create_new(config_path: Path) -> None:
     if repo_url:
         typer.echo("\nNext steps:")
         typer.echo("  1. Run 'freckle backup' to push your dotfiles")
-        typer.echo("  2. On other machines, run 'freckle init' and choose option 1")
+        typer.echo(
+            "  2. On other machines, run 'freckle init' and choose option 1"
+        )
     else:
         typer.echo("\nNext steps:")
         typer.echo("  1. Create a repo on GitHub/GitLab")
-        typer.echo(f"  2. Add remote: git --git-dir={dotfiles_dir} remote add origin <url>")
-        typer.echo(f"  3. Push: git --git-dir={dotfiles_dir} push -u origin main")
+        typer.echo(
+            f"  2. Add remote: git --git-dir={dotfiles_dir} "
+            "remote add origin <url>"
+        )
+        typer.echo(
+            f"  3. Push: git --git-dir={dotfiles_dir} push -u origin main"
+        )

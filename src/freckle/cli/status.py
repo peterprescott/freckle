@@ -1,6 +1,5 @@
 """Status command for freckle CLI."""
 
-
 import typer
 
 from ..dotfiles import DotfilesManager
@@ -25,7 +24,9 @@ def status():
     branch = config.get("dotfiles.branch")
 
     typer.echo("\n--- freckle Status ---")
-    typer.echo(f"OS     : {env.os_info['pretty_name']} ({env.os_info['machine']})")
+    typer.echo(
+        f"OS     : {env.os_info['pretty_name']} ({env.os_info['machine']})"
+    )
     typer.echo(f"Kernel : {env.os_info['release']}")
     typer.echo(f"User   : {env.user}")
 
@@ -55,7 +56,7 @@ def status():
                 "untracked": "✗ not tracked in dotfiles",
                 "missing": "✓ local only",
                 "not-found": "✓ local only",
-                "error": "⚠ error checking status"
+                "error": "⚠ error checking status",
             }.get(file_status, f"status: {file_status}")
             typer.echo(f"  .freckle.yaml : {status_str}")
         else:
@@ -89,7 +90,7 @@ def status():
                     "behind": "↓ update available (behind remote)",
                     "untracked": "✗ not tracked",
                     "missing": "✗ missing from home",
-                    "error": "⚠ error checking status"
+                    "error": "⚠ error checking status",
                 }.get(file_status, f"status: {file_status}")
 
                 typer.echo(f"    Config : {status_str} ({cfg})")
@@ -98,7 +99,8 @@ def status():
     if dotfiles:
         all_tracked = dotfiles.get_tracked_files()
         other_tracked = [
-            f for f in all_tracked
+            f
+            for f in all_tracked
             if f != ".freckle.yaml" and f not in tool_config_files
         ]
 
@@ -111,7 +113,7 @@ def status():
                     "modified": "⚠ modified",
                     "behind": "↓ behind",
                     "missing": "✗ missing",
-                    "error": "?"
+                    "error": "?",
                 }.get(file_status, "?")
                 typer.echo(f"  {status_str} {f}")
 
@@ -125,35 +127,53 @@ def status():
             if not report["initialized"]:
                 typer.echo("  Status: Not initialized")
             else:
-                branch_info = report.get('branch_info', {})
-                effective_branch = report.get('branch', branch)
+                branch_info = report.get("branch_info", {})
+                effective_branch = report.get("branch", branch)
 
-                reason = branch_info.get('reason', 'exact')
-                if reason == 'exact':
+                reason = branch_info.get("reason", "exact")
+                if reason == "exact":
                     typer.echo(f"  Branch: {effective_branch}")
-                elif reason == 'main_master_swap':
+                elif reason == "main_master_swap":
                     typer.echo(f"  Branch: {effective_branch}")
-                    typer.echo(f"    Note: '{branch_info.get('configured')}' not found, using '{effective_branch}'")
-                elif reason == 'not_found':
-                    typer.echo(f"  Branch: {effective_branch} (configured, but not found!)")
-                    available = branch_info.get('available', [])
+                    configured = branch_info.get("configured")
+                    typer.echo(
+                        f"    Note: '{configured}' not found, "
+                        f"using '{effective_branch}'"
+                    )
+                elif reason == "not_found":
+                    typer.echo(
+                        f"  Branch: {effective_branch} "
+                        "(configured, but not found!)"
+                    )
+                    available = branch_info.get("available", [])
                     if available:
-                        typer.echo(f"    Available branches: {', '.join(available)}")
+                        typer.echo(
+                            f"    Available branches: {', '.join(available)}"
+                        )
                     else:
-                        typer.echo("    No branches found - is this repo initialized?")
+                        typer.echo(
+                            "    No branches found - is this repo initialized?"
+                        )
                 else:
                     typer.echo(f"  Branch: {effective_branch}")
-                    if branch_info.get('message'):
+                    if branch_info.get("message"):
                         typer.echo(f"    Note: {branch_info['message']}")
 
                 typer.echo(f"  Local Commit : {report['local_commit']}")
 
                 if report.get("remote_branch_missing"):
-                    typer.echo(f"  Remote Commit: ✗ No origin/{effective_branch} branch!")
-                    typer.echo(f"    The local '{effective_branch}' branch has no remote counterpart.")
+                    typer.echo(
+                        f"  Remote Commit: ✗ No origin/"
+                        f"{effective_branch} branch!"
+                    )
+                    typer.echo(
+                        f"    The local '{effective_branch}' branch "
+                        "has no remote counterpart."
+                    )
                     typer.echo("    To push it: freckle backup")
                 else:
-                    typer.echo(f"  Remote Commit: {report.get('remote_commit', 'N/A')}")
+                    remote = report.get("remote_commit", "N/A")
+                    typer.echo(f"  Remote Commit: {remote}")
 
                 if report.get("fetch_failed"):
                     typer.echo("  Remote Status: ⚠ Could not fetch (offline?)")
@@ -166,11 +186,19 @@ def status():
                 if report.get("remote_branch_missing"):
                     pass
                 elif report.get("is_ahead"):
-                    typer.echo(f"  Ahead: Yes ({report.get('ahead_count', 0)} commits not pushed)")
+                    ahead = report.get("ahead_count", 0)
+                    typer.echo(
+                        f"  Ahead: Yes ({ahead} commits not pushed)"
+                    )
 
                 if report.get("is_behind"):
-                    typer.echo(f"  Behind: Yes ({report.get('behind_count', 0)} commits to pull)")
-                elif not report.get("fetch_failed") and not report.get("remote_branch_missing"):
+                    behind = report.get("behind_count", 0)
+                    typer.echo(
+                        f"  Behind: Yes ({behind} commits to pull)"
+                    )
+                elif not report.get("fetch_failed") and not report.get(
+                    "remote_branch_missing"
+                ):
                     typer.echo("  Behind: No (up to date)")
 
         except Exception as e:

@@ -11,7 +11,9 @@ import typer
 from ..utils import setup_logging
 from .helpers import env
 
-LAUNCHD_PLIST_PATH = Path.home() / "Library/LaunchAgents/com.freckle.backup.plist"
+LAUNCHD_PLIST_PATH = (
+    Path.home() / "Library/LaunchAgents/com.freckle.backup.plist"
+)
 CRON_MARKER = "# freckle-backup"
 
 
@@ -99,16 +101,21 @@ def _install_launchd(hour: int, minute: int, daily: bool = True) -> bool:
 
     # Unload existing if present
     if LAUNCHD_PLIST_PATH.exists():
-        subprocess.run(["launchctl", "unload", str(LAUNCHD_PLIST_PATH)],
-                      capture_output=True)
+        subprocess.run(
+            ["launchctl", "unload", str(LAUNCHD_PLIST_PATH)],
+            capture_output=True,
+        )
 
     # Write plist
     plist_content = _create_launchd_plist(hour, minute, daily)
     LAUNCHD_PLIST_PATH.write_text(plist_content)
 
     # Load it
-    result = subprocess.run(["launchctl", "load", str(LAUNCHD_PLIST_PATH)],
-                           capture_output=True, text=True)
+    result = subprocess.run(
+        ["launchctl", "load", str(LAUNCHD_PLIST_PATH)],
+        capture_output=True,
+        text=True,
+    )
 
     return result.returncode == 0
 
@@ -118,8 +125,9 @@ def _uninstall_launchd() -> bool:
     if not LAUNCHD_PLIST_PATH.exists():
         return True
 
-    subprocess.run(["launchctl", "unload", str(LAUNCHD_PLIST_PATH)],
-                  capture_output=True)
+    subprocess.run(
+        ["launchctl", "unload", str(LAUNCHD_PLIST_PATH)], capture_output=True
+    )
     LAUNCHD_PLIST_PATH.unlink(missing_ok=True)
     return True
 
@@ -130,13 +138,17 @@ def _get_launchd_status() -> Optional[dict]:
         return None
 
     # Check if loaded
-    result = subprocess.run(["launchctl", "list", "com.freckle.backup"],
-                           capture_output=True, text=True)
+    result = subprocess.run(
+        ["launchctl", "list", "com.freckle.backup"],
+        capture_output=True,
+        text=True,
+    )
 
     is_loaded = result.returncode == 0
 
     # Parse plist for schedule info
     import plistlib
+
     try:
         with open(LAUNCHD_PLIST_PATH, "rb") as f:
             plist = plistlib.load(f)
@@ -169,7 +181,10 @@ def _install_cron(hour: int, minute: int, daily: bool = True) -> bool:
     else:
         cron_schedule = f"{minute} {hour} * * 0"  # Sunday
 
-    cron_line = f"{cron_schedule} {freckle_path} backup --quiet --scheduled {CRON_MARKER}"
+    cron_line = (
+        f"{cron_schedule} {freckle_path} backup "
+        f"--quiet --scheduled {CRON_MARKER}"
+    )
 
     # Get existing crontab
     result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
@@ -182,8 +197,9 @@ def _install_cron(hour: int, minute: int, daily: bool = True) -> bool:
     new_crontab = "\n".join(lines) + "\n"
 
     # Install new crontab
-    result = subprocess.run(["crontab", "-"], input=new_crontab,
-                           capture_output=True, text=True)
+    result = subprocess.run(
+        ["crontab", "-"], input=new_crontab, capture_output=True, text=True
+    )
 
     return result.returncode == 0
 
@@ -194,11 +210,15 @@ def _uninstall_cron() -> bool:
     if result.returncode != 0:
         return True
 
-    lines = [line for line in result.stdout.splitlines() if CRON_MARKER not in line]
+    lines = [
+        line for line in result.stdout.splitlines() if CRON_MARKER not in line
+    ]
     new_crontab = "\n".join(lines) + "\n" if lines else ""
 
     if new_crontab.strip():
-        subprocess.run(["crontab", "-"], input=new_crontab, capture_output=True, text=True)
+        subprocess.run(
+            ["crontab", "-"], input=new_crontab, capture_output=True, text=True
+        )
     else:
         subprocess.run(["crontab", "-r"], capture_output=True)
 
@@ -232,11 +252,12 @@ def _get_cron_status() -> Optional[dict]:
 
 def schedule(
     frequency: Optional[str] = typer.Argument(
-        None,
-        help="Frequency: 'daily', 'weekly', or 'off' to disable"
+        None, help="Frequency: 'daily', 'weekly', or 'off' to disable"
     ),
     hour: int = typer.Option(9, "--hour", "-H", help="Hour to run (0-23)"),
-    minute: int = typer.Option(0, "--minute", "-M", help="Minute to run (0-59)"),
+    minute: int = typer.Option(
+        0, "--minute", "-M", help="Minute to run (0-59)"
+    ),
 ):
     """Set up automatic scheduled backups.
 
@@ -265,14 +286,19 @@ def schedule(
             typer.echo("\n--- Scheduled Backup Status ---")
             typer.echo("  Enabled : Yes")
             typer.echo(f"  Schedule: {status['schedule']}")
-            if is_mac and 'loaded' in status:
-                typer.echo(f"  Loaded  : {'Yes' if status['loaded'] else 'No'}")
-            if 'path' in status:
+            if is_mac and "loaded" in status:
+                typer.echo(
+                    f"  Loaded  : {'Yes' if status['loaded'] else 'No'}"
+                )
+            if "path" in status:
                 typer.echo(f"  Path    : {status['path']}")
             typer.echo("\nLog file: /tmp/freckle-backup.log")
         else:
             typer.echo("\nNo scheduled backup configured.")
-            typer.echo("Run 'freckle schedule daily' or 'freckle schedule weekly' to enable.")
+            typer.echo(
+                "Run 'freckle schedule daily' or "
+                "'freckle schedule weekly' to enable."
+            )
         return
 
     if frequency.lower() == "off":
@@ -290,7 +316,11 @@ def schedule(
         return
 
     if frequency.lower() not in ["daily", "weekly"]:
-        typer.echo(f"Invalid frequency: {frequency}. Use 'daily', 'weekly', or 'off'.", err=True)
+        typer.echo(
+            f"Invalid frequency: {frequency}. "
+            "Use 'daily', 'weekly', or 'off'.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     daily = frequency.lower() == "daily"
@@ -302,7 +332,9 @@ def schedule(
 
     if success:
         schedule_desc = "daily" if daily else "weekly (Sunday)"
-        typer.echo(f"✓ Scheduled {schedule_desc} backup at {hour:02d}:{minute:02d}")
+        typer.echo(
+            f"✓ Scheduled {schedule_desc} backup at {hour:02d}:{minute:02d}"
+        )
         typer.echo("  Log file: /tmp/freckle-backup.log")
         if is_mac:
             typer.echo(f"  Config  : {LAUNCHD_PLIST_PATH}")

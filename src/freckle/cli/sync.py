@@ -16,8 +16,12 @@ def register(app: typer.Typer) -> None:
 
 
 def sync(
-    repo: Optional[str] = typer.Option(None, "--repo", "-r", help="Override dotfiles repository URL"),
-    branch: Optional[str] = typer.Option(None, "--branch", "-b", help="Override git branch"),
+    repo: Optional[str] = typer.Option(
+        None, "--repo", "-r", help="Override dotfiles repository URL"
+    ),
+    branch: Optional[str] = typer.Option(
+        None, "--branch", "-b", help="Override git branch"
+    ),
 ):
     """Check dotfiles sync status.
 
@@ -43,7 +47,10 @@ def sync(
 
     repo_url = config.get("dotfiles.repo_url")
     if not repo_url:
-        typer.echo("No dotfiles repository URL found. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "No dotfiles repository URL found. Run 'freckle init' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
@@ -82,29 +89,47 @@ def sync(
                     typer.echo(f"    - {f}")
 
                 if is_ahead:
-                    typer.echo(f"\n  (Local is {report.get('ahead_count', 0)} commit(s) ahead of remote)")
+                    ahead = report.get("ahead_count", 0)
+                    typer.echo(
+                        f"\n  (Local is {ahead} commit(s) ahead of remote)"
+                    )
 
                 typer.echo("\nTo backup these changes, run: freckle backup")
             elif not local_changes and is_behind:
-                behind_count = report.get('behind_count', 0)
-                typer.echo(f"↓ Remote repository ({branch_name}) has {behind_count} new commit(s).")
+                behind_count = report.get("behind_count", 0)
+                typer.echo(
+                    f"↓ Remote ({branch_name}) has "
+                    f"{behind_count} new commit(s)."
+                )
                 typer.echo("\nTo update your local files, run: freckle update")
             elif local_changes and is_behind:
-                typer.echo("‼ CONFLICT: You have local changes AND remote has new commits.")
+                typer.echo(
+                    "‼ CONFLICT: You have local changes "
+                    "AND remote has new commits."
+                )
                 typer.echo(f"  Local Commit : {report['local_commit']}")
                 typer.echo(f"  Remote Commit: {report['remote_commit']}")
-                typer.echo(f"  Behind by: {report.get('behind_count', 0)} commit(s)")
+                typer.echo(
+                    f"  Behind by: {report.get('behind_count', 0)} commit(s)"
+                )
 
                 typer.echo("\nLocal changes:")
                 for f in report["changed_files"]:
                     typer.echo(f"    - {f}")
 
                 typer.echo("\nOptions to resolve conflict:")
-                typer.echo("  - To keep local changes and backup: freckle backup")
-                typer.echo("  - To discard local changes and update: freckle update --force")
+                typer.echo(
+                    "  - To keep local changes and backup: freckle backup"
+                )
+                typer.echo(
+                    "  - To discard local and update: "
+                    "freckle update --force"
+                )
             elif is_ahead and not local_changes:
-                ahead_count = report.get('ahead_count', 0)
-                typer.echo(f"↑ Local is {ahead_count} commit(s) ahead of remote.")
+                ahead_count = report.get("ahead_count", 0)
+                typer.echo(
+                    f"↑ Local is {ahead_count} commit(s) ahead of remote."
+                )
                 typer.echo("\nTo push, run: freckle backup")
             elif report.get("remote_branch_missing") and not local_changes:
                 typer.echo("↑ Local branch has no remote counterpart.")
@@ -114,11 +139,14 @@ def sync(
 
     except Exception as e:
         from .helpers import logger
+
         logger.error(f"Freckle failed: {e}")
         raise typer.Exit(1)
 
 
-def _build_commit_message(prefix: str, changed_files: List[str], platform: str) -> str:
+def _build_commit_message(
+    prefix: str, changed_files: List[str], platform: str
+) -> str:
     """Build a descriptive commit message including changed files."""
     lines = [f"{prefix} from {platform}"]
 
@@ -143,14 +171,20 @@ def do_backup(
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
         if not quiet:
-            typer.echo("No dotfiles repository configured. Run 'freckle init' first.", err=True)
+            typer.echo(
+                "No dotfiles repository configured. Run 'freckle init' first.",
+                err=True,
+            )
         return False
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
         if not quiet:
-            typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+            typer.echo(
+                "Dotfiles repository not found. Run 'freckle sync' first.",
+                err=True,
+            )
         return False
 
     report = dotfiles.get_detailed_status()
@@ -168,14 +202,18 @@ def do_backup(
             typer.echo(f"  - {f}")
 
     if report.get("is_ahead", False) and not quiet:
-        typer.echo(f"Pushing {report.get('ahead_count', 0)} unpushed commit(s)...")
+        typer.echo(
+            f"Pushing {report.get('ahead_count', 0)} unpushed commit(s)..."
+        )
 
     # Build commit message
     if message:
         commit_msg = message
     else:
         prefix = "Scheduled backup" if scheduled else "Backup"
-        commit_msg = _build_commit_message(prefix, changed_files, env.os_info['pretty_name'])
+        commit_msg = _build_commit_message(
+            prefix, changed_files, env.os_info["pretty_name"]
+        )
 
     if report["has_local_changes"]:
         if no_push:
@@ -201,19 +239,32 @@ def do_backup(
         return True
     elif result.get("committed") and not result.get("pushed"):
         if not quiet:
-            typer.echo(f"⚠ Committed locally but push failed: {result['error']}")
+            typer.echo(
+                f"⚠ Committed locally but push failed: {result['error']}"
+            )
         return True  # Partial success
     else:
         if not quiet:
-            typer.echo(f"✗ Backup failed: {result.get('error', 'Unknown error')}", err=True)
+            typer.echo(
+                f"✗ Backup failed: {result.get('error', 'Unknown error')}",
+                err=True,
+            )
         return False
 
 
 def backup(
-    message: Optional[str] = typer.Option(None, "-m", "--message", help="Custom commit message"),
-    no_push: bool = typer.Option(False, "--no-push", help="Commit locally but don't push"),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress output (for scripts/cron)"),
-    scheduled: bool = typer.Option(False, "--scheduled", hidden=True, help="Mark as scheduled backup"),
+    message: Optional[str] = typer.Option(
+        None, "-m", "--message", help="Custom commit message"
+    ),
+    no_push: bool = typer.Option(
+        False, "--no-push", help="Commit locally but don't push"
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help="Suppress output (for scripts/cron)"
+    ),
+    scheduled: bool = typer.Option(
+        False, "--scheduled", hidden=True, help="Mark as scheduled backup"
+    ),
 ):
     """Commit and push local changes to remote.
 
@@ -222,13 +273,17 @@ def backup(
     changed files for easy reference.
     """
     setup_logging()
-    success = do_backup(message=message, no_push=no_push, quiet=quiet, scheduled=scheduled)
+    success = do_backup(
+        message=message, no_push=no_push, quiet=quiet, scheduled=scheduled
+    )
     if not success:
         raise typer.Exit(1)
 
 
 def update(
-    force: bool = typer.Option(False, "--force", "-f", help="Discard local changes and update"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Discard local changes and update"
+    ),
 ):
     """Pull and apply remote changes.
 
@@ -240,13 +295,19 @@ def update(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("No dotfiles repository configured. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "No dotfiles repository configured. Run 'freckle init' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        typer.echo(
+            "Dotfiles repository not found. Run 'freckle sync' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     report = dotfiles.get_detailed_status()
@@ -262,7 +323,7 @@ def update(
         typer.echo("✓ Already up-to-date with remote.")
         return
 
-    behind_count = report.get('behind_count', 0)
+    behind_count = report.get("behind_count", 0)
     typer.echo(f"Fetching {behind_count} new commit(s) from remote...")
 
     dotfiles.force_checkout()

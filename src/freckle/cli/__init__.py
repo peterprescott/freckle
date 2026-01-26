@@ -8,7 +8,7 @@ from . import files, git, init, schedule, status, sync, tools
 # Create the main app
 app = typer.Typer(
     name="freckle",
-    help="Keep track of all your dot(file)s. A dotfiles manager with tool installation.",
+    help="Keep track of all your dot(file)s.",
     add_completion=True,
     no_args_is_help=True,
 )

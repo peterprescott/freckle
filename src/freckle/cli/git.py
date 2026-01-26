@@ -18,8 +18,12 @@ def register(app: typer.Typer) -> None:
 
 
 def log(
-    count: int = typer.Option(10, "-n", "--count", help="Number of commits to show"),
-    oneline: bool = typer.Option(False, "--oneline", help="Compact one-line format"),
+    count: int = typer.Option(
+        10, "-n", "--count", help="Number of commits to show"
+    ),
+    oneline: bool = typer.Option(
+        False, "--oneline", help="Compact one-line format"
+    ),
 ):
     """Show commit history of your dotfiles repository.
 
@@ -33,20 +37,29 @@ def log(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "Dotfiles not configured. Run 'freckle init' first.", err=True
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        typer.echo(
+            "Dotfiles repository not found. Run 'freckle sync' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     try:
         if oneline:
             result = dotfiles._git("log", f"-{count}", "--oneline")
         else:
-            result = dotfiles._git("log", f"-{count}", "--format=%C(yellow)%h%C(reset) - %C(green)%ar%C(reset) - %s")
+            result = dotfiles._git(
+                "log",
+                f"-{count}",
+                "--format=%C(yellow)%h%C(reset) - %C(green)%ar%C(reset) - %s",
+            )
 
         if result.stdout.strip():
             typer.echo(f"\nRecent commits (last {count}):\n")
@@ -59,9 +72,15 @@ def log(
 
 
 def branch(
-    name: Optional[str] = typer.Argument(None, help="Branch name to switch to"),
-    create: bool = typer.Option(False, "-c", "--create", help="Create a new branch"),
-    list_all: bool = typer.Option(False, "-a", "--all", help="List all branches including remotes"),
+    name: Optional[str] = typer.Argument(
+        None, help="Branch name to switch to"
+    ),
+    create: bool = typer.Option(
+        False, "-c", "--create", help="Create a new branch"
+    ),
+    list_all: bool = typer.Option(
+        False, "-a", "--all", help="List all branches including remotes"
+    ),
 ):
     """Show or switch branches in your dotfiles repository.
 
@@ -76,13 +95,18 @@ def branch(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "Dotfiles not configured. Run 'freckle init' first.", err=True
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        typer.echo(
+            "Dotfiles repository not found. Run 'freckle sync' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     try:
@@ -112,7 +136,9 @@ def branch(
 
 
 def diff(
-    files: Optional[List[str]] = typer.Argument(None, help="Specific files to diff"),
+    files: Optional[List[str]] = typer.Argument(
+        None, help="Specific files to diff"
+    ),
     staged: bool = typer.Option(False, "--staged", help="Show staged changes"),
 ):
     """Show uncommitted changes in your dotfiles.
@@ -127,13 +153,18 @@ def diff(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
+        typer.echo(
+            "Dotfiles not configured. Run 'freckle init' first.", err=True
+        )
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        typer.echo(
+            "Dotfiles repository not found. Run 'freckle sync' first.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     try:

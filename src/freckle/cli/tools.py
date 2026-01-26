@@ -24,19 +24,26 @@ def register(app: typer.Typer) -> None:
 
 
 def tools(
-    install: bool = typer.Option(False, "--install", "-i", help="Install missing tools and run setup hooks"),
-    tool_name: Optional[str] = typer.Argument(None, help="Specific tool to check/install"),
+    install: bool = typer.Option(
+        False,
+        "--install",
+        "-i",
+        help="Install missing tools and run setup hooks",
+    ),
+    tool_name: Optional[str] = typer.Argument(
+        None, help="Specific tool to check/install"
+    ),
 ):
     """Check or install configured tools.
 
-    Shows the installation status of all configured tools (git, zsh, tmux, nvim).
-    Use --install to install any missing tools and run setup hooks for all tools.
+    Shows the installation status of configured tools.
+    Use --install to install missing tools and run setup hooks.
 
     Examples:
-        freckle tools              # Show status of all tools
-        freckle tools --install    # Install missing tools and run all setup hooks
-        freckle tools nvim         # Check nvim specifically
-        freckle tools nvim -i      # Install/setup nvim
+        freckle tools            # Show status of all tools
+        freckle tools --install  # Install missing + run hooks
+        freckle tools nvim       # Check nvim specifically
+        freckle tools nvim -i    # Install/setup nvim
     """
     setup_logging()
     config = get_config()
@@ -85,7 +92,10 @@ def tools(
 
     if not install:
         if missing_tools:
-            typer.echo(f"{len(missing_tools)} tool(s) missing. Run 'freckle tools --install' to install.")
+            typer.echo(
+                f"{len(missing_tools)} tool(s) missing. "
+                "Run 'freckle tools --install' to install."
+            )
         else:
             typer.echo("All tools are installed.")
         return

@@ -21,7 +21,9 @@ def test_install_apt_linux(mocker):
     # Should call sudo apt update and sudo apt install -y htop
     assert mock_run.call_count == 2
     mock_run.assert_any_call(["sudo", "apt", "update"], check=True)
-    mock_run.assert_any_call(["sudo", "apt", "install", "-y", "htop"], check=True)
+    mock_run.assert_any_call(
+        ["sudo", "apt", "install", "-y", "htop"], check=True
+    )
 
 
 def test_install_apt_as_root(mocker):
@@ -60,7 +62,9 @@ def test_install_dnf_fedora(mocker):
 
     # Fedora uses dnf and doesn't need an update command before install
     assert mock_run.call_count == 1
-    mock_run.assert_called_once_with(["sudo", "dnf", "install", "-y", "htop"], check=True)
+    mock_run.assert_called_once_with(
+        ["sudo", "dnf", "install", "-y", "htop"], check=True
+    )
 
 
 def test_install_brew_macos(mocker):
@@ -70,7 +74,9 @@ def test_install_brew_macos(mocker):
     mock_env.is_macos.return_value = True
     mock_env.os_info = {"distro": "macos", "pretty_name": "macOS 14.0"}
 
-    mocker.patch("freckle.system.shutil.which", return_value="/usr/local/bin/brew")
+    mocker.patch(
+        "freckle.system.shutil.which", return_value="/usr/local/bin/brew"
+    )
     mock_run = mocker.patch("subprocess.run")
 
     pkg_mgr = SystemPackageManager(mock_env)

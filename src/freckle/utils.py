@@ -12,10 +12,8 @@ def setup_logging():
     """Configure logging for freckle."""
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
 
@@ -55,13 +53,13 @@ def validate_git_url(url: str) -> bool:
         return True
 
     # HTTPS URL
-    if re.match(r'^https?://[^\s/]+/[^\s]+', url):
+    if re.match(r"^https?://[^\s/]+/[^\s]+", url):
         return True
 
     # SSH URL (git@host:path or ssh://...)
-    if re.match(r'^git@[^\s:]+:[^\s]+', url):
+    if re.match(r"^git@[^\s:]+:[^\s]+", url):
         return True
-    if re.match(r'^ssh://[^\s]+', url):
+    if re.match(r"^ssh://[^\s]+", url):
         return True
 
     return False
@@ -74,18 +72,21 @@ def verify_git_url_accessible(url: str) -> Tuple[bool, str]:
         url: The git repository URL to verify.
 
     Returns:
-        Tuple of (success, error_message). If successful, error_message is empty.
+        Tuple of (success, error_message). If success, error is empty.
     """
     try:
         result = subprocess.run(
             ["git", "ls-remote", "--exit-code", url],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
         if result.returncode == 0:
             return True, ""
-        return False, result.stderr.strip() or "Repository not found or not accessible"
+        return (
+            False,
+            result.stderr.strip() or "Repository not found or not accessible",
+        )
     except subprocess.TimeoutExpired:
         return False, "Connection timed out"
     except FileNotFoundError:
