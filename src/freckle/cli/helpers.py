@@ -28,7 +28,7 @@ def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
     dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
     if not dotfiles_dir.is_absolute():
         dotfiles_dir = env.home / dotfiles_dir
-    branch = config.get("dotfiles.branch")
+    branch = config.get_branch()
 
     return DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
 
