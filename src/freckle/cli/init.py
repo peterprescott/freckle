@@ -9,7 +9,7 @@ import yaml
 
 from ..dotfiles import DotfilesManager
 from ..utils import validate_git_url, verify_git_url_accessible
-from .helpers import env, logger
+from .helpers import CONFIG_PATH, env, logger
 
 
 def register(app: typer.Typer) -> None:
@@ -28,11 +28,9 @@ def init(
     1. Clone an existing dotfiles repository
     2. Create a new dotfiles repository from scratch
     """
-    config_path = env.home / ".freckle.yaml"
-
-    if config_path.exists() and not force:
+    if CONFIG_PATH.exists() and not force:
         typer.echo(
-            f"Config already exists at {config_path}. "
+            f"Config already exists at {CONFIG_PATH}. "
             "Use --force to overwrite.",
             err=True,
         )
@@ -50,12 +48,12 @@ def init(
     )
 
     if choice in ["y", "yes"]:
-        _init_clone_existing(config_path)
+        _init_clone_existing()
     else:
-        _init_create_new(config_path)
+        _init_create_new()
 
 
-def _init_clone_existing(config_path: Path) -> None:
+def _init_clone_existing() -> None:
     """Initialize by cloning an existing dotfiles repo."""
     typer.echo("\n--- Clone Existing Repository ---\n")
 
@@ -108,17 +106,17 @@ def _init_clone_existing(config_path: Path) -> None:
         "modules": ["dotfiles", "zsh", "tmux", "nvim"],
     }
 
-    with open(config_path, "w") as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml.dump(config_data, f, default_flow_style=False)
 
-    logger.info(f"Created configuration at {config_path}")
+    logger.info(f"Created configuration at {CONFIG_PATH}")
     typer.echo(
         "\n✓ Configuration saved! "
         "Run 'freckle sync' to clone and set up your dotfiles."
     )
 
 
-def _init_create_new(config_path: Path) -> None:
+def _init_create_new() -> None:
     """Initialize by creating a new dotfiles repo."""
     typer.echo("\n--- Create New Dotfiles Repository ---\n")
 
@@ -281,10 +279,10 @@ def _init_create_new(config_path: Path) -> None:
         "modules": ["dotfiles", "zsh", "tmux", "nvim"],
     }
 
-    with open(config_path, "w") as f:
+    with open(CONFIG_PATH, "w") as f:
         yaml.dump(config_data, f, default_flow_style=False)
 
-    logger.info(f"Created configuration at {config_path}")
+    logger.info(f"Created configuration at {CONFIG_PATH}")
 
     # Check which files exist
     all_files_to_track = []
@@ -317,7 +315,7 @@ def _init_create_new(config_path: Path) -> None:
             )
     except Exception as e:
         logger.error(f"Failed to create repository: {e}")
-        config_path.unlink(missing_ok=True)
+        CONFIG_PATH.unlink(missing_ok=True)
         raise typer.Exit(1)
 
     if repo_url:

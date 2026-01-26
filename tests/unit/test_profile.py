@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 import yaml
 
-import freckle.cli.profile as profile_module
-from freckle.cli.profile import _add_profile_to_config
+import freckle.cli.profile.create as create_module
+from freckle.cli.profile.create import add_profile_to_config
 
 
 class TestAddProfileToConfig:
-    """Tests for _add_profile_to_config function."""
+    """Tests for add_profile_to_config function."""
 
     def test_adds_profile_to_empty_profiles(self, tmp_path):
         """Adds profile when profiles section is empty."""
@@ -23,8 +23,8 @@ class TestAddProfileToConfig:
             })
         )
 
-        with patch.object(profile_module, "CONFIG_PATH", config_path):
-            _add_profile_to_config("test", "Test profile", ["zsh", "nvim"])
+        with patch.object(create_module, "CONFIG_PATH", config_path):
+            add_profile_to_config("test", "Test profile", ["zsh", "nvim"])
 
         data = yaml.safe_load(config_path.read_text())
         assert "test" in data["profiles"]
@@ -43,8 +43,8 @@ class TestAddProfileToConfig:
             })
         )
 
-        with patch.object(profile_module, "CONFIG_PATH", config_path):
-            _add_profile_to_config("work", "", ["nvim"])
+        with patch.object(create_module, "CONFIG_PATH", config_path):
+            add_profile_to_config("work", "", ["nvim"])
 
         data = yaml.safe_load(config_path.read_text())
         assert "main" in data["profiles"]
@@ -64,8 +64,8 @@ class TestAddProfileToConfig:
             })
         )
 
-        with patch.object(profile_module, "CONFIG_PATH", config_path):
-            _add_profile_to_config("test", "", [])
+        with patch.object(create_module, "CONFIG_PATH", config_path):
+            add_profile_to_config("test", "", [])
 
         data = yaml.safe_load(config_path.read_text())
         assert data["dotfiles"]["repo_url"] == "https://example.com/dots"
@@ -77,8 +77,8 @@ class TestAddProfileToConfig:
         config_path = tmp_path / ".freckle.yaml"
         config_path.write_text(yaml.dump({"profiles": {}}))
 
-        with patch.object(profile_module, "CONFIG_PATH", config_path):
-            _add_profile_to_config("test", "", ["zsh"])
+        with patch.object(create_module, "CONFIG_PATH", config_path):
+            add_profile_to_config("test", "", ["zsh"])
 
         data = yaml.safe_load(config_path.read_text())
         assert "description" not in data["profiles"]["test"]
