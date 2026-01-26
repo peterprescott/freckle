@@ -78,8 +78,12 @@ uv run ty check src/
 tests/
 ├── unit/         # Fast, isolated unit tests
 ├── integration/  # Tests with file system / subprocess
-└── e2e/          # Full end-to-end workflow tests
+└── e2e/          # Full end-to-end CLI tests
 ```
+
+**Coverage approach:**
+- Core library (`src/freckle/`): Measured via pytest-cov
+- CLI modules (`src/freckle/cli/`): Tested via E2E tests (excluded from coverage stats)
 
 ### Running Tests
 
@@ -90,19 +94,41 @@ uv run pytest
 # Unit tests only (fast)
 uv run pytest tests/unit
 
-# With coverage
+# With coverage report
 uv run pytest tests/unit tests/integration --cov=freckle --cov-report=term-missing
+
+# E2E tests only
+uv run pytest tests/e2e
 
 # Specific test file
 uv run pytest tests/unit/test_config.py -v
 ```
 
+### Test Categories
+
+**Unit tests** (`tests/unit/`):
+- Test individual functions and classes in isolation
+- Mock external dependencies (git, file system, package managers)
+- Fast execution, run frequently during development
+
+**Integration tests** (`tests/integration/`):
+- Test interactions between components
+- May use real file system with `tmp_path`
+- Still mock external tools like git
+
+**E2E tests** (`tests/e2e/`):
+- Test complete CLI workflows
+- Run actual `freckle` commands via subprocess
+- Use temporary home directories to isolate from real system
+- Cover all CLI commands
+
 ### Writing Tests
 
 - Use `tmp_path` fixture for file system operations
-- Mock external dependencies (git, package managers)
+- Mock external dependencies (git, package managers) in unit tests
 - Test both success and error paths
 - Keep tests focused and independent
+- For CLI commands, add E2E tests in `tests/e2e/test_cli_commands.py`
 
 ## Pull Request Process
 
