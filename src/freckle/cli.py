@@ -412,47 +412,66 @@ def sync(
         raise typer.Exit(1)
 
 
-@app.command()
-def backup(
-    message: Optional[str] = typer.Option(None, "-m", "--message", help="Custom commit message"),
-    no_push: bool = typer.Option(False, "--no-push", help="Commit locally but don't push"),
-):
-    """Commit and push local changes to remote.
+def _build_commit_message(prefix: str, changed_files: List[str], platform: str) -> str:
+    """Build a descriptive commit message including changed files."""
+    lines = [f"{prefix} from {platform}"]
     
-    Commits any uncommitted changes in your dotfiles and pushes them
-    to the remote repository.
-    """
-    setup_logging()
+    if changed_files:
+        lines.append("")
+        lines.append("Changed files:")
+        for f in changed_files:
+            lines.append(f"  - {f}")
+    
+    return "\n".join(lines)
+
+
+def _do_backup(
+    message: Optional[str] = None,
+    no_push: bool = False,
+    quiet: bool = False,
+    scheduled: bool = False,
+) -> bool:
+    """Internal backup logic. Returns True on success."""
     config = _get_config()
     
     dotfiles = _get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("No dotfiles repository configured. Run 'freckle init' first.", err=True)
-        raise typer.Exit(1)
+        if not quiet:
+            typer.echo("No dotfiles repository configured. Run 'freckle init' first.", err=True)
+        return False
     
     dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
     if not dotfiles_dir.is_absolute():
         dotfiles_dir = env.home / dotfiles_dir
     
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
-        raise typer.Exit(1)
+        if not quiet:
+            typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
+        return False
     
     report = dotfiles.get_detailed_status()
     
     if not report["has_local_changes"] and not report.get("is_ahead", False):
-        typer.echo("✓ Nothing to backup - already up-to-date.")
-        return
+        if not quiet:
+            typer.echo("✓ Nothing to backup - already up-to-date.")
+        return True
     
-    if report["has_local_changes"]:
+    changed_files = report.get("changed_files", [])
+    
+    if report["has_local_changes"] and not quiet:
         typer.echo("Backing up changed file(s):")
-        for f in report["changed_files"]:
+        for f in changed_files:
             typer.echo(f"  - {f}")
     
-    if report.get("is_ahead", False):
+    if report.get("is_ahead", False) and not quiet:
         typer.echo(f"Pushing {report.get('ahead_count', 0)} unpushed commit(s)...")
     
-    commit_msg = message or f"Backup from {env.os_info['pretty_name']}"
+    # Build commit message
+    if message:
+        commit_msg = message
+    else:
+        prefix = "Scheduled backup" if scheduled else "Backup"
+        commit_msg = _build_commit_message(prefix, changed_files, env.os_info['pretty_name'])
     
     if report["has_local_changes"]:
         if no_push:
@@ -470,14 +489,38 @@ def backup(
         result = dotfiles.push() if not no_push else {"success": True}
     
     if result["success"]:
-        if no_push:
-            typer.echo("✓ Changes committed locally.")
-        else:
-            typer.echo("✓ Backed up successfully.")
+        if not quiet:
+            if no_push:
+                typer.echo("✓ Changes committed locally.")
+            else:
+                typer.echo("✓ Backed up successfully.")
+        return True
     elif result.get("committed") and not result.get("pushed"):
-        typer.echo(f"⚠ Committed locally but push failed: {result['error']}")
+        if not quiet:
+            typer.echo(f"⚠ Committed locally but push failed: {result['error']}")
+        return True  # Partial success
     else:
-        typer.echo(f"✗ Backup failed: {result.get('error', 'Unknown error')}", err=True)
+        if not quiet:
+            typer.echo(f"✗ Backup failed: {result.get('error', 'Unknown error')}", err=True)
+        return False
+
+
+@app.command()
+def backup(
+    message: Optional[str] = typer.Option(None, "-m", "--message", help="Custom commit message"),
+    no_push: bool = typer.Option(False, "--no-push", help="Commit locally but don't push"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress output (for scripts/cron)"),
+    scheduled: bool = typer.Option(False, "--scheduled", hidden=True, help="Mark as scheduled backup"),
+):
+    """Commit and push local changes to remote.
+    
+    Commits any uncommitted changes in your dotfiles and pushes them
+    to the remote repository. The commit message includes a list of
+    changed files for easy reference.
+    """
+    setup_logging()
+    success = _do_backup(message=message, no_push=no_push, quiet=quiet, scheduled=scheduled)
+    if not success:
         raise typer.Exit(1)
 
 
@@ -1024,6 +1067,306 @@ def diff(
                 typer.echo("No uncommitted changes.")
     except subprocess.CalledProcessError as e:
         typer.echo(f"Error: {e.stderr}", err=True)
+        raise typer.Exit(1)
+
+
+# --- Schedule Command ---
+
+LAUNCHD_PLIST_PATH = Path.home() / "Library/LaunchAgents/com.freckle.backup.plist"
+CRON_MARKER = "# freckle-backup"
+
+
+def _get_freckle_path() -> str:
+    """Get the path to the freckle executable."""
+    import shutil
+    freckle_path = shutil.which("freckle")
+    if freckle_path:
+        return freckle_path
+    # Fallback to python -m freckle
+    import sys
+    return f"{sys.executable} -m freckle"
+
+
+def _create_launchd_plist(hour: int, minute: int, daily: bool = True) -> str:
+    """Create a launchd plist for scheduled backups."""
+    freckle_path = _get_freckle_path()
+    
+    # Handle python -m freckle case
+    if " -m " in freckle_path:
+        parts = freckle_path.split()
+        program_args = f"""<array>
+        <string>{parts[0]}</string>
+        <string>-m</string>
+        <string>freckle</string>
+        <string>backup</string>
+        <string>--quiet</string>
+        <string>--scheduled</string>
+    </array>"""
+    else:
+        program_args = f"""<array>
+        <string>{freckle_path}</string>
+        <string>backup</string>
+        <string>--quiet</string>
+        <string>--scheduled</string>
+    </array>"""
+    
+    if daily:
+        interval = f"""<key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>{hour}</integer>
+        <key>Minute</key>
+        <integer>{minute}</integer>
+    </dict>"""
+    else:
+        # Weekly (Sunday)
+        interval = f"""<key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>{hour}</integer>
+        <key>Minute</key>
+        <integer>{minute}</integer>
+    </dict>"""
+    
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.freckle.backup</string>
+    <key>ProgramArguments</key>
+    {program_args}
+    {interval}
+    <key>StandardOutPath</key>
+    <string>/tmp/freckle-backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/freckle-backup.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+"""
+
+
+def _install_launchd(hour: int, minute: int, daily: bool = True) -> bool:
+    """Install launchd plist for macOS."""
+    # Create LaunchAgents directory if needed
+    LAUNCHD_PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Unload existing if present
+    if LAUNCHD_PLIST_PATH.exists():
+        subprocess.run(["launchctl", "unload", str(LAUNCHD_PLIST_PATH)], 
+                      capture_output=True)
+    
+    # Write plist
+    plist_content = _create_launchd_plist(hour, minute, daily)
+    LAUNCHD_PLIST_PATH.write_text(plist_content)
+    
+    # Load it
+    result = subprocess.run(["launchctl", "load", str(LAUNCHD_PLIST_PATH)],
+                           capture_output=True, text=True)
+    
+    return result.returncode == 0
+
+
+def _uninstall_launchd() -> bool:
+    """Remove launchd plist."""
+    if not LAUNCHD_PLIST_PATH.exists():
+        return True
+    
+    subprocess.run(["launchctl", "unload", str(LAUNCHD_PLIST_PATH)], 
+                  capture_output=True)
+    LAUNCHD_PLIST_PATH.unlink(missing_ok=True)
+    return True
+
+
+def _get_launchd_status() -> Optional[dict]:
+    """Check if launchd job is installed."""
+    if not LAUNCHD_PLIST_PATH.exists():
+        return None
+    
+    # Check if loaded
+    result = subprocess.run(["launchctl", "list", "com.freckle.backup"],
+                           capture_output=True, text=True)
+    
+    is_loaded = result.returncode == 0
+    
+    # Parse plist for schedule info
+    import plistlib
+    try:
+        with open(LAUNCHD_PLIST_PATH, "rb") as f:
+            plist = plistlib.load(f)
+        interval = plist.get("StartCalendarInterval", {})
+        hour = interval.get("Hour", 9)
+        minute = interval.get("Minute", 0)
+        weekday = interval.get("Weekday")
+        
+        if weekday is not None:
+            schedule = f"Weekly (Sunday) at {hour:02d}:{minute:02d}"
+        else:
+            schedule = f"Daily at {hour:02d}:{minute:02d}"
+        
+        return {
+            "installed": True,
+            "loaded": is_loaded,
+            "schedule": schedule,
+            "path": str(LAUNCHD_PLIST_PATH),
+        }
+    except Exception:
+        return {"installed": True, "loaded": is_loaded, "schedule": "Unknown"}
+
+
+def _install_cron(hour: int, minute: int, daily: bool = True) -> bool:
+    """Install cron job for Linux."""
+    freckle_path = _get_freckle_path()
+    
+    if daily:
+        schedule = f"{minute} {hour} * * *"
+    else:
+        schedule = f"{minute} {hour} * * 0"  # Sunday
+    
+    cron_line = f"{schedule} {freckle_path} backup --quiet --scheduled {CRON_MARKER}"
+    
+    # Get existing crontab
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    existing = result.stdout if result.returncode == 0 else ""
+    
+    # Remove any existing freckle lines
+    lines = [l for l in existing.splitlines() if CRON_MARKER not in l]
+    lines.append(cron_line)
+    
+    new_crontab = "\n".join(lines) + "\n"
+    
+    # Install new crontab
+    result = subprocess.run(["crontab", "-"], input=new_crontab, 
+                           capture_output=True, text=True)
+    
+    return result.returncode == 0
+
+
+def _uninstall_cron() -> bool:
+    """Remove cron job."""
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return True
+    
+    lines = [l for l in result.stdout.splitlines() if CRON_MARKER not in l]
+    new_crontab = "\n".join(lines) + "\n" if lines else ""
+    
+    if new_crontab.strip():
+        subprocess.run(["crontab", "-"], input=new_crontab, capture_output=True, text=True)
+    else:
+        subprocess.run(["crontab", "-r"], capture_output=True)
+    
+    return True
+
+
+def _get_cron_status() -> Optional[dict]:
+    """Check if cron job is installed."""
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return None
+    
+    for line in result.stdout.splitlines():
+        if CRON_MARKER in line:
+            # Parse schedule from cron line
+            parts = line.split()
+            if len(parts) >= 5:
+                minute, hour, dom, month, dow = parts[:5]
+                if dow == "0":
+                    schedule = f"Weekly (Sunday) at {hour}:{minute.zfill(2)}"
+                else:
+                    schedule = f"Daily at {hour}:{minute.zfill(2)}"
+                return {
+                    "installed": True,
+                    "schedule": schedule,
+                    "cron_line": line,
+                }
+    
+    return None
+
+
+@app.command()
+def schedule(
+    frequency: Optional[str] = typer.Argument(
+        None, 
+        help="Frequency: 'daily', 'weekly', or 'off' to disable"
+    ),
+    hour: int = typer.Option(9, "--hour", "-H", help="Hour to run (0-23)"),
+    minute: int = typer.Option(0, "--minute", "-M", help="Minute to run (0-59)"),
+):
+    """Set up automatic scheduled backups.
+    
+    Examples:
+        freckle schedule daily          # Backup daily at 9:00 AM
+        freckle schedule weekly         # Backup weekly (Sunday) at 9:00 AM
+        freckle schedule daily -H 14    # Backup daily at 2:00 PM
+        freckle schedule off            # Disable scheduled backups
+        freckle schedule                # Show current schedule status
+    
+    On macOS, uses launchd (~/Library/LaunchAgents/).
+    On Linux, uses cron.
+    """
+    setup_logging()
+    
+    is_mac = env.os_info.get("system") == "Darwin"
+    
+    if frequency is None:
+        # Show status
+        if is_mac:
+            status = _get_launchd_status()
+        else:
+            status = _get_cron_status()
+        
+        if status:
+            typer.echo("\n--- Scheduled Backup Status ---")
+            typer.echo(f"  Enabled : Yes")
+            typer.echo(f"  Schedule: {status['schedule']}")
+            if is_mac and 'loaded' in status:
+                typer.echo(f"  Loaded  : {'Yes' if status['loaded'] else 'No'}")
+            if 'path' in status:
+                typer.echo(f"  Path    : {status['path']}")
+            typer.echo(f"\nLog file: /tmp/freckle-backup.log")
+        else:
+            typer.echo("\nNo scheduled backup configured.")
+            typer.echo("Run 'freckle schedule daily' or 'freckle schedule weekly' to enable.")
+        return
+    
+    if frequency.lower() == "off":
+        # Disable
+        if is_mac:
+            success = _uninstall_launchd()
+        else:
+            success = _uninstall_cron()
+        
+        if success:
+            typer.echo("✓ Scheduled backups disabled.")
+        else:
+            typer.echo("✗ Failed to disable scheduled backups.", err=True)
+            raise typer.Exit(1)
+        return
+    
+    if frequency.lower() not in ["daily", "weekly"]:
+        typer.echo(f"Invalid frequency: {frequency}. Use 'daily', 'weekly', or 'off'.", err=True)
+        raise typer.Exit(1)
+    
+    daily = frequency.lower() == "daily"
+    
+    if is_mac:
+        success = _install_launchd(hour, minute, daily)
+    else:
+        success = _install_cron(hour, minute, daily)
+    
+    if success:
+        schedule_desc = "daily" if daily else "weekly (Sunday)"
+        typer.echo(f"✓ Scheduled {schedule_desc} backup at {hour:02d}:{minute:02d}")
+        typer.echo(f"  Log file: /tmp/freckle-backup.log")
+        if is_mac:
+            typer.echo(f"  Config  : {LAUNCHD_PLIST_PATH}")
+    else:
+        typer.echo("✗ Failed to set up scheduled backup.", err=True)
         raise typer.Exit(1)
 
 
