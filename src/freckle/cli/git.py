@@ -7,7 +7,7 @@ from typing import List, Optional
 import typer
 
 from ..utils import setup_logging
-from .helpers import env, get_config, get_dotfiles_manager, get_dotfiles_dir
+from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
 
 def register(app: typer.Typer) -> None:
@@ -22,7 +22,7 @@ def log(
     oneline: bool = typer.Option(False, "--oneline", help="Compact one-line format"),
 ):
     """Show commit history of your dotfiles repository.
-    
+
     Examples:
         freckle log              # Show last 10 commits
         freckle log -n 5         # Show last 5 commits
@@ -30,24 +30,24 @@ def log(
     """
     setup_logging()
     config = get_config()
-    
+
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
         typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
         raise typer.Exit(1)
-    
+
     dotfiles_dir = get_dotfiles_dir(config)
-    
+
     if not dotfiles_dir.exists():
         typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
         raise typer.Exit(1)
-    
+
     try:
         if oneline:
             result = dotfiles._git("log", f"-{count}", "--oneline")
         else:
             result = dotfiles._git("log", f"-{count}", "--format=%C(yellow)%h%C(reset) - %C(green)%ar%C(reset) - %s")
-        
+
         if result.stdout.strip():
             typer.echo(f"\nRecent commits (last {count}):\n")
             typer.echo(result.stdout)
@@ -64,7 +64,7 @@ def branch(
     list_all: bool = typer.Option(False, "-a", "--all", help="List all branches including remotes"),
 ):
     """Show or switch branches in your dotfiles repository.
-    
+
     Examples:
         freckle branch              # List local branches
         freckle branch -a           # List all branches (including remote)
@@ -73,18 +73,18 @@ def branch(
     """
     setup_logging()
     config = get_config()
-    
+
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
         typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
         raise typer.Exit(1)
-    
+
     dotfiles_dir = get_dotfiles_dir(config)
-    
+
     if not dotfiles_dir.exists():
         typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
         raise typer.Exit(1)
-    
+
     try:
         if name:
             # Switch to or create branch
@@ -100,7 +100,7 @@ def branch(
                 result = dotfiles._git("branch", "-a")
             else:
                 result = dotfiles._git("branch")
-            
+
             if result.stdout.strip():
                 typer.echo("\nBranches:\n")
                 typer.echo(result.stdout)
@@ -116,7 +116,7 @@ def diff(
     staged: bool = typer.Option(False, "--staged", help="Show staged changes"),
 ):
     """Show uncommitted changes in your dotfiles.
-    
+
     Examples:
         freckle diff              # Show all uncommitted changes
         freckle diff .zshrc       # Show changes to specific file
@@ -124,23 +124,23 @@ def diff(
     """
     setup_logging()
     config = get_config()
-    
+
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
         typer.echo("Dotfiles not configured. Run 'freckle init' first.", err=True)
         raise typer.Exit(1)
-    
+
     dotfiles_dir = get_dotfiles_dir(config)
-    
+
     if not dotfiles_dir.exists():
         typer.echo("Dotfiles repository not found. Run 'freckle sync' first.", err=True)
         raise typer.Exit(1)
-    
+
     try:
         args = ["diff", "--color=always"]
         if staged:
             args.append("--staged")
-        
+
         if files:
             # Convert paths to home-relative
             for f in files:
@@ -153,9 +153,9 @@ def diff(
                     args.append(str(relative))
                 except ValueError:
                     args.append(f)
-        
+
         result = dotfiles._git(*args)
-        
+
         if result.stdout.strip():
             typer.echo("\nChanges not yet backed up:\n")
             typer.echo(result.stdout)

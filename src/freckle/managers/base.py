@@ -1,8 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import List
-from ..system import Environment
-from ..system import SystemPackageManager
+
+from ..system import Environment, SystemPackageManager
+
 
 class BaseToolManager(ABC):
     def __init__(self, env: Environment, pkg_mgr: SystemPackageManager):
@@ -34,11 +35,11 @@ class BaseToolManager(ABC):
 
     def setup(self):
         self.logger.info(f"Verifying {self.name} installation...")
-        
+
         if not self.pkg_mgr.is_installed(self.bin_name):
             self.logger.info(f"{self.name} not found. Installing...")
             self.pkg_mgr.install(self.package_name)
-        
+
         self._post_install()
 
     def _post_install(self):

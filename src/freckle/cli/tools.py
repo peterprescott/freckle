@@ -28,10 +28,10 @@ def tools(
     tool_name: Optional[str] = typer.Argument(None, help="Specific tool to check/install"),
 ):
     """Check or install configured tools.
-    
+
     Shows the installation status of all configured tools (git, zsh, tmux, nvim).
     Use --install to install any missing tools and run setup hooks for all tools.
-    
+
     Examples:
         freckle tools              # Show status of all tools
         freckle tools --install    # Install missing tools and run all setup hooks
@@ -40,10 +40,10 @@ def tools(
     """
     setup_logging()
     config = get_config()
-    
+
     # Get configured tools from config, or default to all
     configured_tools = config.get("tools", list(TOOL_MANAGERS.keys()))
-    
+
     # Filter to specific tool if requested
     if tool_name:
         if tool_name not in TOOL_MANAGERS:
@@ -51,25 +51,25 @@ def tools(
             typer.echo(f"Available tools: {', '.join(TOOL_MANAGERS.keys())}")
             raise typer.Exit(1)
         configured_tools = [tool_name]
-    
+
     pkg_mgr = SystemPackageManager(env)
-    
-    typer.echo(f"\n--- Tool Status ---")
+
+    typer.echo("\n--- Tool Status ---")
     typer.echo(f"Platform: {env.os_info['pretty_name']}")
     typer.echo("")
-    
+
     missing_tools = []
     installed_managers = []
-    
+
     for tool in configured_tools:
         if tool not in TOOL_MANAGERS:
             continue
-            
+
         manager_class = TOOL_MANAGERS[tool]
         manager = manager_class(env, pkg_mgr)
-        
+
         info = pkg_mgr.get_binary_info(manager.bin_name)
-        
+
         if info["found"]:
             version = info["version"]
             # Trim long version strings
@@ -80,20 +80,20 @@ def tools(
         else:
             typer.echo(f"  ✗ {manager.name}: not installed")
             missing_tools.append((tool, manager))
-    
+
     typer.echo("")
-    
+
     if not install:
         if missing_tools:
             typer.echo(f"{len(missing_tools)} tool(s) missing. Run 'freckle tools --install' to install.")
         else:
             typer.echo("All tools are installed.")
         return
-    
+
     # Install missing tools
     if missing_tools:
         typer.echo(f"Installing {len(missing_tools)} tool(s)...\n")
-        
+
         for tool, manager in missing_tools:
             typer.echo(f"  Installing {manager.name}...")
             try:
@@ -101,18 +101,18 @@ def tools(
                 typer.echo(f"  ✓ {manager.name} installed")
             except Exception as e:
                 typer.echo(f"  ✗ {manager.name} failed: {e}", err=True)
-        
+
         typer.echo("")
-    
+
     # Run setup hooks for already-installed tools (e.g., lazy.nvim for nvim)
     if installed_managers:
         typer.echo("Running setup hooks...\n")
-        
+
         for manager in installed_managers:
             try:
                 manager._post_install()
                 typer.echo(f"  ✓ {manager.name} configured")
             except Exception as e:
                 typer.echo(f"  ✗ {manager.name} setup failed: {e}", err=True)
-    
+
     typer.echo("\nDone.")
