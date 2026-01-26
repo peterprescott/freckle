@@ -1,62 +1,261 @@
+"""Tests for Config class including v1 to v2 migration."""
+
+import tempfile
+from pathlib import Path
+
+import yaml
+
 from freckle.config import Config
 
 
-def test_config_defaults():
-    config = Config()
-    assert config.get("dotfiles.branch") == "main"
-    assert config.get("dotfiles.repo_url") is None
+class TestConfigDefaults:
+    """Tests for default configuration."""
+
+    def test_config_defaults(self):
+        """Default config has v2 structure."""
+        config = Config()
+        assert config.get("version") == 2
+        assert config.get("dotfiles.repo_url") is None
+        assert config.get("profiles") == {}
+
+    def test_config_has_secrets_defaults(self):
+        """Default config includes secrets section."""
+        config = Config()
+        assert config.get("secrets.block") == []
+        assert config.get("secrets.allow") == []
 
 
-def test_config_templating(mocker):
-    # Mock environment with a specific user
-    mock_env = mocker.Mock()
-    mock_env.user = "testuser"
+class TestConfigMigration:
+    """Tests for v1 to v2 config migration."""
 
-    # Config with a template
-    user_config = {
-        "dotfiles": {"repo_url": "https://github.com/{local_user}/dots.git"}
-    }
+    def test_v1_config_is_migrated(self):
+        """V1 config is automatically migrated to v2."""
+        v1_config = {
+            "dotfiles": {
+                "branch": "main",
+                "dir": ".dotfiles",
+                "repo_url": "https://github.com/user/dotfiles",
+            },
+            "modules": ["dotfiles", "zsh", "nvim"],
+        }
 
-    # We can't easily pass user_config to __init__ without a file,
-    # so let's mock the yaml loading or use a temporary file.
-    # Actually, Config._deep_update is public-ish enough to use for testing.
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
+            yaml.dump(v1_config, f)
+            config_path = Path(f.name)
 
-    config = Config(env=mock_env)
-    config._deep_update(config.data, user_config)
-    config._apply_replacements(config.data)
+        config = Config(config_path=config_path)
 
-    assert (
-        config.get("dotfiles.repo_url")
-        == "https://github.com/testuser/dots.git"
-    )
+        # Should be v2 now
+        assert config.get("version") == 2
+        assert config.migrated is True
+
+        # Should have profile
+        profiles = config.get_profiles()
+        assert "main" in profiles
+        assert profiles["main"]["modules"] == ["zsh", "nvim"]
+        assert "dotfiles" not in profiles["main"]["modules"]
+
+    def test_v1_modules_filtered(self):
+        """Migrated config removes 'dotfiles' from modules."""
+        v1_config = {
+            "dotfiles": {"branch": "dev", "repo_url": "https://..."},
+            "modules": ["dotfiles", "zsh", "tmux", "nvim"],
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
+            yaml.dump(v1_config, f)
+            config_path = Path(f.name)
+
+        config = Config(config_path=config_path)
+
+        modules = config.get_profile_modules("dev")
+        assert modules == ["zsh", "tmux", "nvim"]
+        assert "dotfiles" not in modules
+
+    def test_v2_config_not_migrated(self):
+        """V2 config is not migrated."""
+        v2_config = {
+            "version": 2,
+            "dotfiles": {
+                "dir": ".dotfiles",
+                "repo_url": "https://github.com/user/dotfiles",
+            },
+            "profiles": {
+                "main": {
+                    "description": "Main profile",
+                    "modules": ["zsh", "nvim"],
+                }
+            },
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
+            yaml.dump(v2_config, f)
+            config_path = Path(f.name)
+
+        config = Config(config_path=config_path)
+
+        assert config.migrated is False
+        assert config.get("version") == 2
 
 
-def test_custom_vars(mocker):
-    mock_env = mocker.Mock()
-    mock_env.user = "localuser"
+class TestConfigProfiles:
+    """Tests for profile-related config methods."""
 
-    user_config = {
-        "vars": {"git_host": "gitlab.com", "git_user": "gituser"},
-        "dotfiles": {"repo_url": "https://{git_host}/{git_user}/repo.git"},
-    }
+    def test_get_profiles(self):
+        """Gets all profile definitions."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {"modules": ["zsh"]},
+            "work": {"modules": ["nvim"]},
+        }
 
-    config = Config(env=mock_env)
-    config._deep_update(config.data, user_config)
-    config._apply_replacements(config.data)
+        profiles = config.get_profiles()
+        assert "main" in profiles
+        assert "work" in profiles
 
-    assert (
-        config.get("dotfiles.repo_url")
-        == "https://gitlab.com/gituser/repo.git"
-    )
+    def test_get_profile(self):
+        """Gets a specific profile."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {"description": "Main", "modules": ["zsh"]},
+        }
+
+        profile = config.get_profile("main")
+        assert profile["description"] == "Main"
+        assert profile["modules"] == ["zsh"]
+
+    def test_get_profile_nonexistent(self):
+        """Returns None for nonexistent profile."""
+        config = Config()
+        assert config.get_profile("nonexistent") is None
+
+    def test_get_profile_branch_explicit(self):
+        """Gets explicit branch from profile."""
+        config = Config()
+        config.data["profiles"] = {
+            "work": {"branch": "work-laptop", "modules": []},
+        }
+
+        assert config.get_profile_branch("work") == "work-laptop"
+
+    def test_get_profile_branch_defaults_to_name(self):
+        """Profile branch defaults to profile name."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {"modules": ["zsh"]},
+        }
+
+        assert config.get_profile_branch("main") == "main"
+
+    def test_get_profile_modules(self):
+        """Gets modules for a profile."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {"modules": ["zsh", "nvim"]},
+        }
+
+        assert config.get_profile_modules("main") == ["zsh", "nvim"]
+
+    def test_list_profile_names(self):
+        """Lists all profile names."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {},
+            "work": {},
+            "server": {},
+        }
+
+        names = config.list_profile_names()
+        assert "main" in names
+        assert "work" in names
+        assert "server" in names
 
 
-def test_deep_merge():
-    config = Config()
-    update = {"dotfiles": {"branch": "develop"}, "modules": ["dotfiles"]}
-    config._deep_update(config.data, update)
+class TestConfigBackwardCompatibility:
+    """Tests for backward compatibility methods."""
 
-    assert config.get("dotfiles.branch") == "develop"
-    assert (
-        config.get("dotfiles.dir") == "~/.dotfiles"
-    )  # Should preserve other defaults
-    assert config.get("modules") == ["dotfiles"]  # Lists should be replaced
+    def test_get_branch_from_profile(self):
+        """get_branch() returns first profile's branch."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {"branch": "main"},
+            "work": {"branch": "work"},
+        }
+
+        # Should return first profile's branch
+        assert config.get_branch() == "main"
+
+    def test_get_modules_from_profile(self):
+        """get_modules() returns first profile's modules."""
+        config = Config()
+        config.data["profiles"] = {
+            "main": {"modules": ["zsh", "nvim"]},
+        }
+
+        assert config.get_modules() == ["zsh", "nvim"]
+
+
+class TestConfigTemplating:
+    """Tests for config templating."""
+
+    def test_config_templating(self, mocker):
+        """Templates are replaced with values."""
+        mock_env = mocker.Mock()
+        mock_env.user = "testuser"
+
+        user_config = {
+            "dotfiles": {
+                "repo_url": "https://github.com/{local_user}/dots.git"
+            }
+        }
+
+        config = Config(env=mock_env)
+        config._deep_update(config.data, user_config)
+        config._apply_replacements(config.data)
+
+        assert (
+            config.get("dotfiles.repo_url")
+            == "https://github.com/testuser/dots.git"
+        )
+
+    def test_custom_vars(self, mocker):
+        """Custom vars are available in templates."""
+        mock_env = mocker.Mock()
+        mock_env.user = "localuser"
+
+        user_config = {
+            "vars": {"git_host": "gitlab.com", "git_user": "gituser"},
+            "dotfiles": {"repo_url": "https://{git_host}/{git_user}/repo.git"},
+        }
+
+        config = Config(env=mock_env)
+        config._deep_update(config.data, user_config)
+        config._apply_replacements(config.data)
+
+        assert (
+            config.get("dotfiles.repo_url")
+            == "https://gitlab.com/gituser/repo.git"
+        )
+
+
+class TestConfigDeepMerge:
+    """Tests for deep merge functionality."""
+
+    def test_deep_merge(self):
+        """Deep merge preserves nested defaults."""
+        config = Config()
+        update = {
+            "dotfiles": {"repo_url": "https://..."},
+            "profiles": {"main": {"modules": ["zsh"]}},
+        }
+        config._deep_update(config.data, update)
+
+        assert config.get("dotfiles.repo_url") == "https://..."
+        assert config.get("dotfiles.dir") == "~/.dotfiles"  # Preserved
+        assert config.get("profiles.main.modules") == ["zsh"]
