@@ -56,7 +56,7 @@ def test_full_freckle_flow(tmp_path):
     E2E test that simulates a full user workflow:
     1. Create a mock remote dotfiles repo
     2. Run freckle init
-    3. Run freckle run
+    3. Run freckle sync
     4. Verify files are correctly placed and configured
     """
     home = tmp_path / "fake_home"
@@ -100,9 +100,9 @@ def test_full_freckle_flow(tmp_path):
     
     assert (home / ".freckle.yaml").exists()
 
-    # 3. Run freckle run
+    # 3. Run freckle sync
     subprocess.run(
-        ["uv", "run", "freckle", "run"],
+        ["uv", "run", "freckle", "sync"],
         env=env,
         check=True
     )
@@ -159,9 +159,9 @@ def test_full_flow_from_subdirectory(tmp_path):
         assert result.returncode == 0, f"init failed: {result.stderr}"
         assert (home / ".freckle.yaml").exists()
         
-        # Run freckle run from ~/projects/myapp
+        # Run freckle sync from ~/projects/myapp
         result = subprocess.run(
-            ["python", "-m", "freckle", "run"],
+            ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             text=True,
@@ -200,7 +200,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
     Tests:
     1. freckle add from a subdirectory with relative paths
     2. freckle add from /tmp with absolute paths
-    3. freckle run --backup from a subdirectory
+    3. freckle backup from a subdirectory
     """
     home = tmp_path / "fake_home"
     home.mkdir()
@@ -226,7 +226,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
             timeout=30
         )
         subprocess.run(
-            ["python", "-m", "freckle", "run"],
+            ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             check=True,
@@ -272,7 +272,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
         os.chdir(subdir)
         
         result = subprocess.run(
-            ["python", "-m", "freckle", "run", "--backup"],
+            ["python", "-m", "freckle", "backup"],
             env=env,
             capture_output=True,
             text=True,
@@ -391,7 +391,7 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
             timeout=30
         )
         subprocess.run(
-            ["python", "-m", "freckle", "run"],
+            ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             check=True,

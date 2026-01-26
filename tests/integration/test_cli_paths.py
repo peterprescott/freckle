@@ -49,8 +49,8 @@ modules:
     (home / ".freckle.yaml").write_text(config_content)
 
 
-def test_freckle_run_from_subdir(tmp_path):
-    """Test that 'freckle run' works when executed from a subdirectory of home."""
+def test_freckle_sync_from_subdir(tmp_path):
+    """Test that 'freckle sync' works when executed from a subdirectory of home."""
     bare_repo = _create_bare_repo_with_files(tmp_path, {
         ".zshrc": "# zsh config from repo"
     })
@@ -70,14 +70,14 @@ def test_freckle_run_from_subdir(tmp_path):
         os.chdir(subdir)
         
         result = subprocess.run(
-            ["python", "-m", "freckle", "run"],
+            ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30
         )
         
-        assert result.returncode == 0, f"freckle run failed: {result.stderr}"
+        assert result.returncode == 0, f"freckle sync failed: {result.stderr}"
         assert (home / ".zshrc").exists()
         assert (home / ".zshrc").read_text() == "# zsh config from repo"
     finally:
@@ -289,14 +289,14 @@ def test_relative_dotfiles_dir_config(tmp_path):
         
         # This should create ~/.dotfiles, not ~/projects/.dotfiles
         result = subprocess.run(
-            ["python", "-m", "freckle", "run"],
+            ["python", "-m", "freckle", "sync"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30
         )
         
-        assert result.returncode == 0, f"freckle run failed: {result.stderr}"
+        assert result.returncode == 0, f"freckle sync failed: {result.stderr}"
         
         # Dotfiles should be at ~/.dotfiles, not ~/projects/.dotfiles
         assert (home / ".dotfiles").exists(), ".dotfiles should be in home"
