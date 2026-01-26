@@ -134,10 +134,10 @@ def test_get_tracked_files(tmp_path):
         str(bare_repo), dotfiles_dir, work_tree, branch="main"
     )
     # Clone the repo first
-    manager._clone_bare()
-    manager._fetch()
+    manager._git.clone_bare(str(bare_repo))
+    manager._git.fetch()
 
-    tracked = manager._get_tracked_files()
+    tracked = manager._git.get_tracked_files("main")
     assert sorted(tracked) == sorted(
         [".zshrc", ".config/nvim/init.lua", ".tmux.conf"]
     )

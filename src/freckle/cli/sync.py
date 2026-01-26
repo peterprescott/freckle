@@ -247,8 +247,8 @@ def do_backup(
         if no_push:
             # Commit only - use git directly
             try:
-                dotfiles._git("add", "-A")
-                dotfiles._git("commit", "-m", commit_msg)
+                dotfiles._git.run("add", "-A")
+                dotfiles._git.run("commit", "-m", commit_msg)
                 result = {"success": True, "committed": True, "pushed": False}
             except Exception as e:
                 result = {"success": False, "error": str(e)}
