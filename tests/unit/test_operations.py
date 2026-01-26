@@ -203,7 +203,7 @@ class TestPush:
         result = push(mock_git, "main")
 
         assert result["success"] is True
-        assert result["error"] is None
+        assert result.get("error") is None
 
     def test_push_failure(self):
         """Push failure returns error."""
