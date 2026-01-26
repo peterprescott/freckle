@@ -3,14 +3,13 @@
 from .cli import main
 from .config import Config
 from .dotfiles import DotfilesManager
-from .system import Environment, SystemPackageManager
+from .system import Environment
 from .utils import get_version
 
 __all__ = [
     "Config",
     "DotfilesManager",
     "Environment",
-    "SystemPackageManager",
     "get_version",
     "main",
 ]
