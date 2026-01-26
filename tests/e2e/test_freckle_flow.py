@@ -100,14 +100,14 @@ def test_full_freckle_flow(tmp_path):
     
     assert (home / ".freckle.yaml").exists()
 
-    # 3. Run freckle sync
+    # 3. Run freckle sync (dotfiles only)
     subprocess.run(
         ["uv", "run", "freckle", "sync"],
         env=env,
         check=True
     )
 
-    # 4. Verify results
+    # 4. Verify dotfiles results
     assert (home / ".zshrc").exists()
     assert (home / ".zshrc").read_text() == "# mock zshrc"
     assert (home / ".tmux.conf").exists()
@@ -115,8 +115,15 @@ def test_full_freckle_flow(tmp_path):
     assert (home / ".dotfiles").exists()
     assert (home / ".dotfiles").is_dir()
 
+    # 5. Run freckle tools --install (tool setup is now separate)
+    subprocess.run(
+        ["uv", "run", "freckle", "tools", "--install"],
+        env=env,
+        check=True
+    )
+
     # Verify nvim setup (lazy.nvim installation)
-    # The NvimManager should still clone lazy.nvim
+    # The NvimManager should clone lazy.nvim during tools --install
     assert (home / ".local/share/nvim/lazy/lazy.nvim").exists()
 
 
