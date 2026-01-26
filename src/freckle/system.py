@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class OS(Enum):
 
 class Environment:
     """Detects and provides information about the current system environment."""
-    
+
     def __init__(self):
         self.os = self._detect_os()
         self.home = Path.home()
@@ -73,7 +74,7 @@ class Environment:
 
 class SystemPackageManager:
     """Platform-aware manager for installing system packages (apt, dnf, brew, etc.)."""
-    
+
     # Map distro IDs to package manager configurations
     DISTRO_PACKAGE_MANAGERS = {
         # Debian-based
@@ -104,37 +105,37 @@ class SystemPackageManager:
 
     def _get_privilege_cmd(self) -> list:
         """Get the command prefix for privileged operations.
-        
+
         Returns empty list if already root, ['sudo'] if sudo is available,
         or raises an error if privileges are needed but unavailable.
         """
         if self._is_root:
             return []
-        
+
         if shutil.which("sudo"):
             return ["sudo"]
-        
+
         # Check for doas (common on BSD, some Linux)
         if shutil.which("doas"):
             return ["doas"]
-        
+
         logger.warning("No privilege escalation tool found (sudo/doas). "
                       "Package installation may fail if not running as root.")
         return []
 
-    def _get_linux_package_manager(self) -> dict:
+    def _get_linux_package_manager(self) -> Optional[dict]:
         """Detect the appropriate package manager for this Linux distro."""
         distro = self.env.os_info.get("distro", "").lower()
-        
+
         # Try exact match first
         if distro in self.DISTRO_PACKAGE_MANAGERS:
             return self.DISTRO_PACKAGE_MANAGERS[distro]
-        
+
         # Try partial match (e.g., "opensuse-leap" matches "opensuse")
         for key, config in self.DISTRO_PACKAGE_MANAGERS.items():
             if key in distro or distro in key:
                 return config
-        
+
         # Fallback: detect by available package manager binary
         if shutil.which("apt"):
             return self.DISTRO_PACKAGE_MANAGERS["debian"]
@@ -148,7 +149,7 @@ class SystemPackageManager:
             return self.DISTRO_PACKAGE_MANAGERS["opensuse"]
         elif shutil.which("apk"):
             return self.DISTRO_PACKAGE_MANAGERS["alpine"]
-        
+
         logger.error(f"Could not detect package manager for distro: {distro}")
         return None
 
@@ -169,16 +170,16 @@ class SystemPackageManager:
         """Install a package on Linux using the detected package manager."""
         pkg_mgr = self._get_linux_package_manager()
         if not pkg_mgr:
-            raise RuntimeError(f"No supported package manager found for this system")
-        
+            raise RuntimeError("No supported package manager found for this system")
+
         priv_cmd = self._get_privilege_cmd()
-        
+
         # Run update if required by this package manager
         if pkg_mgr.get("update"):
-            logger.info(f"Updating package lists...")
+            logger.info("Updating package lists...")
             update_cmd = priv_cmd + pkg_mgr["update"]
             subprocess.run(update_cmd, check=True)
-        
+
         # Install the package
         logger.info(f"Installing {package_name} via {pkg_mgr['cmd']}...")
         install_cmd = priv_cmd + pkg_mgr["install"] + [package_name]
@@ -188,7 +189,7 @@ class SystemPackageManager:
         """Install Homebrew if not present."""
         if shutil.which("brew"):
             return
-        
+
         logger.info("Installing Homebrew...")
         # Must use shell=True because the command uses shell expansion $()
         install_script = (
@@ -212,14 +213,14 @@ class SystemPackageManager:
         path = shutil.which(command_name)
         if not path:
             return {"found": False}
-        
+
         version = "unknown"
         try:
             if command_name == "tmux":
                 cmd = [path, "-V"]
             else:
                 cmd = [path, "--version"]
-            
+
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
             if result.returncode == 0:
                 # Most tools output 'toolname v1.2.3' on the first line

@@ -7,7 +7,6 @@ from typing import Optional
 from ..config import Config
 from ..dotfiles import DotfilesManager
 from ..system import Environment
-from ..system import SystemPackageManager
 
 # Global environment instance
 env = Environment()
@@ -25,12 +24,12 @@ def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
     repo_url = config.get("dotfiles.repo_url")
     if not repo_url:
         return None
-    
+
     dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
     if not dotfiles_dir.is_absolute():
         dotfiles_dir = env.home / dotfiles_dir
     branch = config.get("dotfiles.branch")
-    
+
     return DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
 
 

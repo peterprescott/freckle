@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import copy
-import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+import yaml
 
 if TYPE_CHECKING:
     from .system import Environment
@@ -27,7 +29,7 @@ class Config:
                 user_config = yaml.safe_load(f)
                 if user_config:
                     self._deep_update(self.data, user_config)
-        
+
         if self.env:
             self._apply_replacements(self.data)
 
@@ -45,7 +47,7 @@ class Config:
             "local_user": self.env.user if self.env else "user"
         }
         # Merge in custom vars from the config itself
-        if "vars" in self.data:
+        if "vars" in self.data and isinstance(self.data["vars"], dict):
             replacements.update(self.data["vars"])
 
         self._walk_and_format(data, replacements)
@@ -58,7 +60,7 @@ class Config:
                 elif isinstance(v, str):
                     try:
                         data[k] = v.format(**replacements)
-                    except KeyError as e:
+                    except KeyError:
                         # If a tag is missing, we just leave it alone
                         pass
         elif isinstance(data, list):

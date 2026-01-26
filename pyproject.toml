@@ -46,4 +46,16 @@ build-backend = "uv_build"
 dev = [
     "pytest>=8.4.2",
     "pytest-mock>=3.15.1",
+    "ruff>=0.9.0",
+    "ty>=0.0.1a10",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.ty.environment]
+python-version = "3.9"

@@ -3,8 +3,7 @@
 from .cli import main
 from .config import Config
 from .dotfiles import DotfilesManager
-from .system import Environment
-from .system import SystemPackageManager
+from .system import Environment, SystemPackageManager
 from .utils import get_version
 
 __all__ = [

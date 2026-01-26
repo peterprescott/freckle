@@ -1,24 +1,24 @@
 """Dotfiles management using the bare repository pattern with git subprocess."""
 
-import shutil
 import logging
+import shutil
 import subprocess
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class DotfilesManager:
     """Manages dotfiles using a bare git repository with a separate work tree.
-    
+
     This implements the "bare repo" pattern for dotfiles:
     - The git repository is stored in a bare format (e.g., ~/.dotfiles)
     - The work tree is the user's home directory
     - This allows tracking dotfiles without polluting $HOME with .git
     """
-    
+
     def __init__(self, repo_url: str, dotfiles_dir: Path, work_tree: Path, branch: str = "main"):
         self.repo_url = repo_url
         self.dotfiles_dir = Path(dotfiles_dir)
@@ -27,16 +27,16 @@ class DotfilesManager:
 
     def _git(self, *args, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess:
         """Run a git command with --git-dir and --work-tree set.
-        
+
         Args:
             *args: Git command arguments (e.g., "status", "--porcelain")
             check: If True, raise on non-zero exit code
             timeout: Command timeout in seconds
-            
+
         Returns:
             CompletedProcess with stdout/stderr captured as text
         """
-        cmd = ["git", "--git-dir", str(self.dotfiles_dir), 
+        cmd = ["git", "--git-dir", str(self.dotfiles_dir),
                "--work-tree", str(self.work_tree)] + list(args)
         return subprocess.run(
             cmd,
@@ -49,7 +49,7 @@ class DotfilesManager:
 
     def _git_bare(self, *args, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess:
         """Run a git command with just --git-dir (no work tree).
-        
+
         Used for operations that don't need a work tree context.
         """
         cmd = ["git", "--git-dir", str(self.dotfiles_dir)] + list(args)
@@ -74,7 +74,7 @@ class DotfilesManager:
 
     def _ensure_fetch_refspec(self):
         """Ensure fetch refspec is configured for remote tracking.
-        
+
         Bare repos created manually often lack the fetch refspec,
         which prevents remote-tracking branches from being created.
         """
@@ -82,7 +82,7 @@ class DotfilesManager:
             # Check current refspecs
             result = self._git_bare("config", "--get-all", "remote.origin.fetch", check=False)
             expected = "+refs/heads/*:refs/remotes/origin/*"
-            
+
             if expected not in result.stdout:
                 logger.info("Configuring fetch refspec for remote tracking")
                 self._git_bare("config", "--add", "remote.origin.fetch", expected)
@@ -92,7 +92,7 @@ class DotfilesManager:
     def _fetch(self) -> bool:
         """Fetch from remote origin. Returns True on success."""
         self._ensure_fetch_refspec()
-        
+
         try:
             self._git_bare("fetch", "origin", timeout=60)
             return True
@@ -109,14 +109,14 @@ class DotfilesManager:
     def _get_available_branches(self) -> List[str]:
         """Get list of all available branch names (local and remote)."""
         branches = set()
-        
+
         try:
             # Get local branches
             result = self._git_bare("for-each-ref", "--format=%(refname:short)", "refs/heads/", check=False)
             for line in result.stdout.strip().split('\n'):
                 if line.strip():
                     branches.add(line.strip())
-            
+
             # Get remote branches
             result = self._git_bare("for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/", check=False)
             for line in result.stdout.strip().split('\n'):
@@ -128,7 +128,7 @@ class DotfilesManager:
                     branches.add(branch)
         except Exception as e:
             logger.debug(f"Could not get branches: {e}")
-        
+
         return sorted(branches)
 
     def _branch_exists(self, branch: str) -> bool:
@@ -138,7 +138,7 @@ class DotfilesManager:
             result = self._git_bare("show-ref", "--verify", f"refs/heads/{branch}", check=False)
             if result.returncode == 0:
                 return True
-            
+
             # Check remote
             result = self._git_bare("show-ref", "--verify", f"refs/remotes/origin/{branch}", check=False)
             return result.returncode == 0
@@ -157,7 +157,7 @@ class DotfilesManager:
 
     def _resolve_branch(self) -> Dict[str, Any]:
         """Resolve which branch to use, with detailed context.
-        
+
         Returns a dict with:
         - effective: The branch to actually use
         - configured: The originally configured branch
@@ -167,7 +167,7 @@ class DotfilesManager:
         """
         configured = self.branch
         available = self._get_available_branches()
-        
+
         # Check if configured branch exists
         if configured in available:
             return {
@@ -177,7 +177,7 @@ class DotfilesManager:
                 "available": available,
                 "message": None,
             }
-        
+
         # Common main/master swap
         swap_map = {"main": "master", "master": "main"}
         if configured in swap_map and swap_map[configured] in available:
@@ -189,7 +189,7 @@ class DotfilesManager:
                 "available": available,
                 "message": f"Branch '{configured}' not found; using '{swapped}' instead.",
             }
-        
+
         # Try HEAD
         head_branch = self._get_head_branch()
         if head_branch and head_branch in available:
@@ -200,7 +200,7 @@ class DotfilesManager:
                 "available": available,
                 "message": f"Branch '{configured}' not found; using current HEAD '{head_branch}'.",
             }
-        
+
         # Try common defaults
         for fallback in ["main", "master"]:
             if fallback in available:
@@ -211,7 +211,7 @@ class DotfilesManager:
                     "available": available,
                     "message": f"Branch '{configured}' not found; falling back to '{fallback}'.",
                 }
-        
+
         # Nothing found
         return {
             "effective": configured,
@@ -226,25 +226,25 @@ class DotfilesManager:
         try:
             # Fetch to get remote refs
             self._fetch()
-            
+
             # Check if remote branch exists
             result = self._git_bare("show-ref", "--verify", f"refs/remotes/origin/{branch}", check=False)
             if result.returncode != 0:
                 logger.warning(f"Remote branch origin/{branch} not found")
                 return
-            
+
             # Create local branch tracking remote
             self._git_bare("branch", "-f", branch, f"origin/{branch}", check=False)
-            
+
             # Set HEAD to the branch
             self._git_bare("symbolic-ref", "HEAD", f"refs/heads/{branch}")
         except Exception as e:
             logger.warning(f"Could not set up branch: {e}")
 
-    def _get_tracked_files(self, branch: str = None) -> List[str]:
+    def _get_tracked_files(self, branch: Optional[str] = None) -> List[str]:
         """Get list of all files tracked in the target branch."""
         branch = branch or self.branch
-        
+
         try:
             # Try remote branch first, then local
             for ref in [f"origin/{branch}", branch]:
@@ -258,13 +258,13 @@ class DotfilesManager:
 
     def get_tracked_files(self) -> List[str]:
         """Get list of all files tracked in the dotfiles repository.
-        
+
         Returns:
             List of file paths relative to home directory.
         """
         if not self.dotfiles_dir.exists():
             return []
-        
+
         branch_info = self._resolve_branch()
         return self._get_tracked_files(branch=branch_info["effective"])
 
@@ -281,11 +281,11 @@ class DotfilesManager:
         """Move files to a timestamped backup directory."""
         if not file_paths:
             return None
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_dir = self.work_tree / f".dotfiles_backup_{timestamp}"
         backup_dir.mkdir(parents=True, exist_ok=True)
-        
+
         logger.info(f"Backing up {len(file_paths)} existing files to {backup_dir}")
         for file_path in file_paths:
             src = self.work_tree / file_path
@@ -293,7 +293,7 @@ class DotfilesManager:
             if src.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(src), str(dst))
-        
+
         return backup_dir
 
     def _checkout_to_worktree(self, branch: str, force: bool = False):
@@ -303,7 +303,7 @@ class DotfilesManager:
             if force:
                 args.append("-f")
             args.append(branch)
-            
+
             self._git(*args)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Checkout failed: {e.stderr.strip()}")
@@ -313,40 +313,40 @@ class DotfilesManager:
         if self.dotfiles_dir.exists():
             logger.info("Dotfiles repository already exists")
             return
-        
+
         # Clone bare repo
         self._clone_bare()
-        
+
         # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
-        
+
         # Set up branch tracking
         self._setup_branch(effective_branch)
-        
+
         # Find files that would conflict
         tracked = self._get_tracked_files(branch=effective_branch)
         existing = self._find_existing_files(tracked)
-        
+
         # Backup any existing files
         backup_dir = self._backup_files(existing)
         if backup_dir:
             logger.info(f"Backed up existing files to {backup_dir}")
-        
+
         # Checkout
         self._checkout_to_worktree(effective_branch, force=True)
         logger.info("Checkout complete!")
 
-    def create_new(self, initial_files: List[str] = None, remote_url: str = None):
+    def create_new(self, initial_files: Optional[List[str]] = None, remote_url: Optional[str] = None):
         """Create a new dotfiles repository from scratch.
-        
+
         Args:
             initial_files: List of files (relative to work_tree) to track initially
             remote_url: Optional remote URL to configure as origin
         """
         if self.dotfiles_dir.exists():
             raise RuntimeError(f"Directory already exists: {self.dotfiles_dir}")
-        
+
         # Initialize bare repo with the correct initial branch name
         logger.info(f"Creating new bare repository at {self.dotfiles_dir}")
         subprocess.run(
@@ -355,16 +355,16 @@ class DotfilesManager:
             capture_output=True,
             text=True
         )
-        
+
         # Configure to not show untracked files (cleaner status for dotfiles)
         self._git_bare("config", "--local", "status.showUntrackedFiles", "no")
-        
+
         # Add remote if provided
         if remote_url:
             self._git_bare("remote", "add", "origin", remote_url)
             # Configure fetch refspec
             self._ensure_fetch_refspec()
-        
+
         # Add initial files if any
         if initial_files:
             # Add each file
@@ -372,7 +372,7 @@ class DotfilesManager:
                 full_path = self.work_tree / file_path
                 if full_path.exists():
                     self._git("add", file_path)
-            
+
             # Create initial commit
             self._git("commit", "-m", "Initial dotfiles commit")
             logger.info(f"Created initial commit with {len(initial_files)} file(s)")
@@ -380,7 +380,7 @@ class DotfilesManager:
             # Create empty initial commit so the branch exists
             self._git("commit", "--allow-empty", "-m", "Initialize dotfiles repository")
             logger.info("Created empty initial commit")
-        
+
         # Push to remote if configured
         if remote_url:
             try:
@@ -392,16 +392,16 @@ class DotfilesManager:
             except Exception as e:
                 logger.warning(f"Could not push to remote: {e}")
 
-    def _get_changed_files(self, branch: str = None) -> List[str]:
+    def _get_changed_files(self, branch: Optional[str] = None) -> List[str]:
         """Get list of files that differ between work tree and HEAD."""
         branch = branch or self.branch
-        
+
         try:
             result = self._git("diff", "--name-only", "HEAD", check=False)
             if result.returncode != 0:
                 logger.warning(f"git diff failed: {result.stderr.strip()}")
                 return []
-            
+
             return [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
         except Exception as e:
             logger.warning(f"Could not get changed files: {e}")
@@ -420,7 +420,7 @@ class DotfilesManager:
     def _get_ahead_behind(self, local_ref: str, remote_ref: str) -> tuple:
         """Get ahead/behind counts between two refs."""
         try:
-            result = self._git_bare("rev-list", "--count", "--left-right", 
+            result = self._git_bare("rev-list", "--count", "--left-right",
                                     f"{local_ref}...{remote_ref}", check=False)
             if result.returncode == 0:
                 parts = result.stdout.strip().split()
@@ -434,22 +434,22 @@ class DotfilesManager:
         """Get detailed sync status of the dotfiles repository."""
         if not self.dotfiles_dir.exists():
             return {"initialized": False}
-        
+
         fetch_failed = False
         if not offline:
             fetch_failed = not self._fetch()
-        
+
         # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
-        
+
         # Get changed files
         changed_files = self._get_changed_files(branch=effective_branch)
-        
+
         # Get commit info
         local_commit = self._get_commit_info(f"refs/heads/{effective_branch}")
         remote_commit = self._get_commit_info(f"refs/remotes/origin/{effective_branch}")
-        
+
         if local_commit is None:
             return {
                 "initialized": True,
@@ -463,7 +463,7 @@ class DotfilesManager:
                 "remote_commit": remote_commit,
                 "fetch_failed": fetch_failed,
             }
-        
+
         if remote_commit is None:
             return {
                 "initialized": True,
@@ -478,13 +478,13 @@ class DotfilesManager:
                 "remote_commit": None,
                 "fetch_failed": fetch_failed,
             }
-        
+
         # Get ahead/behind
         ahead, behind = self._get_ahead_behind(
             f"refs/heads/{effective_branch}",
             f"refs/remotes/origin/{effective_branch}"
         )
-        
+
         return {
             "initialized": True,
             "branch": effective_branch,
@@ -502,7 +502,7 @@ class DotfilesManager:
 
     def get_file_sync_status(self, relative_path: str) -> str:
         """Get sync status of a specific file.
-        
+
         Returns one of:
         - 'not-initialized': Repo doesn't exist
         - 'not-found': File doesn't exist locally and isn't tracked
@@ -515,54 +515,54 @@ class DotfilesManager:
         """
         if not self.dotfiles_dir.exists():
             return "not-initialized"
-        
+
         local_file = self.work_tree / relative_path
-        
+
         # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
-        
+
         # Check if tracked
         tracked_files = self._get_tracked_files(branch=effective_branch)
         is_tracked = relative_path in tracked_files
-        
+
         if not local_file.exists():
             return "missing" if is_tracked else "not-found"
-        
+
         if not is_tracked:
             return "untracked"
-        
+
         try:
             # Check if file differs from HEAD
             result = self._git("diff", "--quiet", "HEAD", "--", relative_path, check=False)
             if result.returncode != 0:
                 return "modified"
-            
+
             # Check if remote branch exists
             remote_ref = f"origin/{effective_branch}"
             ref_check = self._git_bare("show-ref", "--verify", f"refs/remotes/{remote_ref}", check=False)
             if ref_check.returncode != 0:
                 # No remote branch - can't be behind, just say up-to-date with local
                 return "up-to-date"
-            
+
             # Check if differs from remote
             result = self._git("diff", "--quiet", remote_ref, "--", relative_path, check=False)
             if result.returncode != 0:
                 # Check if HEAD differs from remote for this file
-                result2 = self._git("diff", "--quiet", f"HEAD", remote_ref, "--", relative_path, check=False)
+                result2 = self._git("diff", "--quiet", "HEAD", remote_ref, "--", relative_path, check=False)
                 if result2.returncode != 0:
                     return "behind"
-            
+
             return "up-to-date"
         except Exception:
             return "error"
 
     def add_files(self, files: List[str]) -> Dict[str, Any]:
         """Add files to be tracked in the dotfiles repository.
-        
+
         Args:
             files: List of file paths relative to home directory
-            
+
         Returns:
             Dictionary with result info:
             - success: Whether the operation completed
@@ -570,35 +570,37 @@ class DotfilesManager:
             - skipped: List of files that don't exist
             - error: Error message if operation failed
         """
-        result = {"success": False, "added": [], "skipped": [], "error": None}
-        
+        added: List[str] = []
+        skipped: List[str] = []
+        error: Optional[str] = None
+
         if not self.dotfiles_dir.exists():
-            result["error"] = "Dotfiles repository not initialized"
-            return result
-        
+            error = "Dotfiles repository not initialized"
+            return {"success": False, "added": added, "skipped": skipped, "error": error}
+
         for f in files:
             file_path = self.work_tree / f
             if not file_path.exists():
-                result["skipped"].append(f)
+                skipped.append(f)
                 continue
-            
+
             try:
                 add_result = self._git("add", f, check=False)
                 if add_result.returncode != 0:
                     logger.warning(f"Failed to add {f}: {add_result.stderr}")
-                    result["skipped"].append(f)
+                    skipped.append(f)
                 else:
-                    result["added"].append(f)
+                    added.append(f)
             except Exception as e:
                 logger.warning(f"Error adding {f}: {e}")
-                result["skipped"].append(f)
-        
-        result["success"] = len(result["added"]) > 0 or len(result["skipped"]) == len(files)
-        return result
+                skipped.append(f)
+
+        success = len(added) > 0 or len(skipped) == len(files)
+        return {"success": success, "added": added, "skipped": skipped, "error": error}
 
     def commit_and_push(self, message: str) -> Dict[str, Any]:
         """Commit local changes to tracked files and push to remote.
-        
+
         Returns:
             Dictionary with result info:
             - success: Whether the operation completed successfully
@@ -607,29 +609,29 @@ class DotfilesManager:
             - error: Error message if any step failed
         """
         result = {"success": False, "committed": False, "pushed": False, "error": None}
-        
+
         # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
-        
+
         if branch_info["reason"] == "not_found":
             result["error"] = branch_info["message"]
             return result
-        
+
         # Get changed files
         changed = self._get_changed_files(branch=effective_branch)
         if not changed:
             result["success"] = True
             result["error"] = "No changes to commit"
             return result
-        
+
         try:
             # Stage tracked files that have changes
             add_result = self._git("add", "-u", check=False)
             if add_result.returncode != 0:
                 result["error"] = f"git add failed: {add_result.stderr.strip()}"
                 return result
-            
+
             # Commit
             commit_result = self._git("commit", "-m", message, check=False)
             if commit_result.returncode != 0:
@@ -639,17 +641,17 @@ class DotfilesManager:
                     return result
                 result["error"] = f"git commit failed: {commit_result.stderr.strip()}"
                 return result
-            
+
             result["committed"] = True
             logger.info(f"Created commit on {effective_branch}")
-            
+
         except subprocess.TimeoutExpired:
             result["error"] = "Commit timed out"
             return result
         except Exception as e:
             result["error"] = f"Commit failed: {e}"
             return result
-        
+
         # Push
         try:
             push_result = self._git_bare("push", "origin", effective_branch, check=False, timeout=60)
@@ -666,22 +668,22 @@ class DotfilesManager:
         except Exception as e:
             result["error"] = f"Push failed: {e}"
             logger.error(result["error"])
-        
+
         return result
 
     def push(self) -> Dict[str, Any]:
         """Push local commits to remote.
-        
+
         Returns:
             Dictionary with result info:
             - success: Whether push succeeded
             - error: Error message if failed
         """
         result = {"success": False, "error": None}
-        
+
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
-        
+
         try:
             push_result = self._git_bare("push", "-u", "origin", effective_branch, check=False, timeout=60)
             if push_result.returncode == 0:
@@ -696,7 +698,7 @@ class DotfilesManager:
         except Exception as e:
             result["error"] = str(e)
             logger.error(f"Push failed: {e}")
-        
+
         return result
 
     def force_checkout(self):
@@ -704,11 +706,11 @@ class DotfilesManager:
         # Fetch first
         logger.info("Fetching latest from remote...")
         self._fetch()
-        
+
         # Resolve branch
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
-        
+
         # Reset to remote
         try:
             self._git("reset", "--hard", f"origin/{effective_branch}")

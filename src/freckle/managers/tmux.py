@@ -1,5 +1,6 @@
 from .base import BaseToolManager
 
+
 class TmuxManager(BaseToolManager):
     @property
     def name(self) -> str:
