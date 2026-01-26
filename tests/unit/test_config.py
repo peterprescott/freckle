@@ -1,9 +1,4 @@
-"""Tests for Config class including v1 to v2 migration."""
-
-import tempfile
-from pathlib import Path
-
-import yaml
+"""Tests for Config class."""
 
 from freckle.config import Config
 
@@ -12,96 +7,18 @@ class TestConfigDefaults:
     """Tests for default configuration."""
 
     def test_config_defaults(self):
-        """Default config has v2 structure."""
+        """Default config has expected structure."""
         config = Config()
-        assert config.get("version") == 2
         assert config.get("dotfiles.repo_url") is None
+        assert config.get("dotfiles.dir") == "~/.dotfiles"
         assert config.get("profiles") == {}
+        assert config.get("tools") == {}
 
     def test_config_has_secrets_defaults(self):
         """Default config includes secrets section."""
         config = Config()
         assert config.get("secrets.block") == []
         assert config.get("secrets.allow") == []
-
-
-class TestConfigMigration:
-    """Tests for v1 to v2 config migration."""
-
-    def test_v1_config_is_migrated(self):
-        """V1 config is automatically migrated to v2."""
-        v1_config = {
-            "dotfiles": {
-                "branch": "main",
-                "dir": ".dotfiles",
-                "repo_url": "https://github.com/user/dotfiles",
-            },
-            "modules": ["dotfiles", "zsh", "nvim"],
-        }
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
-            yaml.dump(v1_config, f)
-            config_path = Path(f.name)
-
-        config = Config(config_path=config_path)
-
-        # Should be v2 now
-        assert config.get("version") == 2
-        assert config.migrated is True
-
-        # Should have profile
-        profiles = config.get_profiles()
-        assert "main" in profiles
-        assert profiles["main"]["modules"] == ["zsh", "nvim"]
-        assert "dotfiles" not in profiles["main"]["modules"]
-
-    def test_v1_modules_filtered(self):
-        """Migrated config removes 'dotfiles' from modules."""
-        v1_config = {
-            "dotfiles": {"branch": "dev", "repo_url": "https://..."},
-            "modules": ["dotfiles", "zsh", "tmux", "nvim"],
-        }
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
-            yaml.dump(v1_config, f)
-            config_path = Path(f.name)
-
-        config = Config(config_path=config_path)
-
-        modules = config.get_profile_modules("dev")
-        assert modules == ["zsh", "tmux", "nvim"]
-        assert "dotfiles" not in modules
-
-    def test_v2_config_not_migrated(self):
-        """V2 config is not migrated."""
-        v2_config = {
-            "version": 2,
-            "dotfiles": {
-                "dir": ".dotfiles",
-                "repo_url": "https://github.com/user/dotfiles",
-            },
-            "profiles": {
-                "main": {
-                    "description": "Main profile",
-                    "modules": ["zsh", "nvim"],
-                }
-            },
-        }
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
-            yaml.dump(v2_config, f)
-            config_path = Path(f.name)
-
-        config = Config(config_path=config_path)
-
-        assert config.migrated is False
-        assert config.get("version") == 2
 
 
 class TestConfigProfiles:
@@ -177,8 +94,8 @@ class TestConfigProfiles:
         assert "server" in names
 
 
-class TestConfigBackwardCompatibility:
-    """Tests for backward compatibility methods."""
+class TestConfigBranchAndModules:
+    """Tests for branch and module accessor methods."""
 
     def test_get_branch_from_profile(self):
         """get_branch() returns first profile's branch."""
@@ -191,6 +108,11 @@ class TestConfigBackwardCompatibility:
         # Should return first profile's branch
         assert config.get_branch() == "main"
 
+    def test_get_branch_defaults_to_main(self):
+        """get_branch() defaults to 'main' when no profiles."""
+        config = Config()
+        assert config.get_branch() == "main"
+
     def test_get_modules_from_profile(self):
         """get_modules() returns first profile's modules."""
         config = Config()
@@ -199,6 +121,11 @@ class TestConfigBackwardCompatibility:
         }
 
         assert config.get_modules() == ["zsh", "nvim"]
+
+    def test_get_modules_empty_when_no_profiles(self):
+        """get_modules() returns empty list when no profiles."""
+        config = Config()
+        assert config.get_modules() == []
 
 
 class TestConfigTemplating:

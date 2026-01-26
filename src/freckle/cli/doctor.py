@@ -103,21 +103,8 @@ def _check_config(verbose: bool) -> tuple[list[str], list[str]]:
         issues.append(f"Config parse error: {e}")
         return issues, warnings
 
-    # Check version
-    version = config.data.get("version")
-    if version == 2:
-        typer.echo("  ✓ Config version: v2")
-    elif version == 1 or version is None:
-        typer.echo("  ⚠ Config version: v1 (consider updating)")
-        warnings.append("Using legacy v1 config format")
-    else:
-        typer.echo(f"  ⚠ Unknown config version: {version}")
-        warnings.append(f"Unknown config version: {version}")
-
     # Check for unknown keys
-    known_keys = {
-        "version", "dotfiles", "modules", "profiles", "tools", "secrets"
-    }
+    known_keys = {"vars", "dotfiles", "profiles", "tools", "secrets"}
     unknown_keys = set(config.data.keys()) - known_keys
     if unknown_keys:
         for key in unknown_keys:
@@ -289,11 +276,7 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
         elif "behind remote" in item:
             suggestions.append("Run 'freckle update' to pull latest changes")
         elif "tools not installed" in item:
-            suggestions.append("Run 'freckle tools-list' to see missing tools")
-        elif "v1 config" in item:
-            suggestions.append(
-                "Add 'version: 2' to config for profile support"
-            )
+            suggestions.append("Run 'freckle tools' to see missing tools")
 
     # Dedupe and print
     for suggestion in dict.fromkeys(suggestions):
