@@ -1,7 +1,7 @@
 """Profile management commands for freckle CLI."""
 
 import subprocess
-from typing import Optional
+from typing import List, Optional
 
 import typer
 import yaml
@@ -16,6 +16,22 @@ from .helpers import (
 )
 
 
+def _complete_profile_action(incomplete: str) -> List[str]:
+    """Autocomplete profile actions."""
+    actions = ["list", "show", "switch", "create", "delete", "diff"]
+    return [a for a in actions if a.startswith(incomplete)]
+
+
+def _complete_profile_name(incomplete: str) -> List[str]:
+    """Autocomplete profile names from config."""
+    try:
+        config = get_config()
+        profiles = config.get_profiles()
+        return [p for p in profiles.keys() if p.startswith(incomplete)]
+    except Exception:
+        return []
+
+
 def register(app: typer.Typer) -> None:
     """Register profile commands with the app."""
     app.command()(profile)
@@ -25,15 +41,18 @@ def profile(
     action: Optional[str] = typer.Argument(
         None,
         help="Action: list, show, switch, create, delete, diff",
+        autocompletion=_complete_profile_action,
     ),
     name: Optional[str] = typer.Argument(
         None,
         help="Profile name (for switch, create, delete, diff)",
+        autocompletion=_complete_profile_name,
     ),
     from_profile: Optional[str] = typer.Option(
         None,
         "--from",
         help="Source profile for create",
+        autocompletion=_complete_profile_name,
     ),
     description: Optional[str] = typer.Option(
         None,
