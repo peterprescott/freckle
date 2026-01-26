@@ -1,11 +1,102 @@
 """Sync, backup, and update commands for freckle CLI."""
 
+import subprocess
+import tempfile
 from typing import Any, Dict, List, Optional, cast
 
 import typer
 
 from ..utils import validate_git_url
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+
+
+def _preview_first_sync(repo_url: str, branch: Optional[str]) -> None:
+    """Preview what files would be affected by first sync."""
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Clone to temp location (shallow for speed)
+            subprocess.run(
+                ["git", "clone", "--bare", "--depth=1", repo_url, tmpdir],
+                capture_output=True,
+                check=True,
+            )
+
+            # Get file list from remote
+            branch_to_use = branch or "main"
+            result = subprocess.run(
+                ["git", "--git-dir", tmpdir, "ls-tree", "-r",
+                 "--name-only", branch_to_use],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode != 0:
+                # Try 'master' if 'main' failed
+                result = subprocess.run(
+                    ["git", "--git-dir", tmpdir, "ls-tree", "-r",
+                     "--name-only", "master"],
+                    capture_output=True,
+                    text=True,
+                )
+
+            if result.returncode != 0:
+                typer.echo("Could not fetch file list from remote.")
+                return
+
+            remote_files = [
+                f for f in result.stdout.strip().split("\n") if f
+            ]
+
+            if not remote_files:
+                typer.echo("No files found in remote repository.")
+                return
+
+            # Compare with local
+            would_overwrite = []
+            would_create = []
+
+            for f in remote_files:
+                local_path = env.home / f
+                if local_path.exists():
+                    would_overwrite.append(f)
+                else:
+                    would_create.append(f)
+
+            if would_overwrite:
+                typer.echo(
+                    f"Files that would be OVERWRITTEN "
+                    f"({len(would_overwrite)}):"
+                )
+                typer.echo("  (backups will be created)")
+                for f in would_overwrite[:20]:
+                    local_path = env.home / f
+                    if local_path.is_file():
+                        lines = len(local_path.read_text().splitlines())
+                        typer.echo(f"  - {f} ({lines} lines)")
+                    else:
+                        typer.echo(f"  - {f}")
+                if len(would_overwrite) > 20:
+                    typer.echo(f"  ... and {len(would_overwrite) - 20} more")
+                typer.echo("")
+
+            if would_create:
+                typer.echo(f"Files that would be CREATED ({len(would_create)}):")  # noqa: E501
+                for f in would_create[:20]:
+                    typer.echo(f"  + {f}")
+                if len(would_create) > 20:
+                    typer.echo(f"  ... and {len(would_create) - 20} more")
+
+            typer.echo(
+                f"\nTotal: {len(remote_files)} files "
+                f"({len(would_overwrite)} overwrite, "
+                f"{len(would_create)} create)"
+            )
+
+    except subprocess.CalledProcessError:
+        typer.echo("Could not preview remote repository.")
+        typer.echo("(The repository may require authentication)")
+    except Exception as e:
+        typer.echo(f"Preview failed: {e}")
 
 
 def register(app: typer.Typer) -> None:
@@ -24,6 +115,9 @@ def sync(
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", "-n", help="Show what would happen without acting"
+    ),
+    preview: bool = typer.Option(
+        False, "--preview", "-p", help="Preview what files would be affected"
     ),
 ):
     """Check dotfiles sync status.
@@ -72,12 +166,20 @@ def sync(
         typer.echo("Failed to initialize dotfiles manager.", err=True)
         raise typer.Exit(1)
 
+    # Treat --preview as --dry-run
+    if preview:
+        dry_run = True
+
     try:
         if is_first_run:
             if dry_run:
-                typer.echo(f"[DRY-RUN] Would clone {repo_url}")
-                typer.echo(f"[DRY-RUN] Would checkout to {dotfiles_dir}")
-                typer.echo("\n--- Dry Run Complete ---\n")
+                typer.echo("\n--- PREVIEW (no changes will be made) ---\n")
+                typer.echo(f"Would sync from: {repo_url}")
+                typer.echo(f"Would clone to: {dotfiles_dir}\n")
+
+                # Try to show what files would be affected
+                _preview_first_sync(repo_url, config.get("dotfiles.branch"))
+                typer.echo("\n--- Preview Complete ---\n")
                 return
             typer.echo(f"[*] Initial setup of dotfiles from {repo_url}...")
             dotfiles.setup()
