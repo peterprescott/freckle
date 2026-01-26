@@ -52,16 +52,7 @@ class TestConfigProfiles:
         config = Config()
         assert config.get_profile("nonexistent") is None
 
-    def test_get_profile_branch_explicit(self):
-        """Gets explicit branch from profile."""
-        config = Config()
-        config.data["profiles"] = {
-            "work": {"branch": "work-laptop", "modules": []},
-        }
-
-        assert config.get_profile_branch("work") == "work-laptop"
-
-    def test_get_profile_branch_defaults_to_name(self):
+    def test_get_profile_branch_equals_name(self):
         """Profile branch defaults to profile name."""
         config = Config()
         config.data["profiles"] = {

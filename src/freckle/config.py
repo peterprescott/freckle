@@ -100,10 +100,7 @@ class Config:
         return profiles.get(name)
 
     def get_profile_branch(self, profile_name: str) -> str:
-        """Get the branch for a profile (defaults to profile name)."""
-        profile = self.get_profile(profile_name)
-        if profile:
-            return profile.get("branch", profile_name)
+        """Get the branch for a profile (same as profile name)."""
         return profile_name
 
     def get_profile_modules(self, profile_name: str) -> List[str]:

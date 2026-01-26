@@ -124,7 +124,7 @@ def _profile_list(config, profiles):
 
     typer.echo("Available profiles:\n")
     for name, profile in profiles.items():
-        branch = profile.get("branch", name)
+        branch = name  # Profile name = branch name
         desc = profile.get("description", "")
         modules = profile.get("modules", [])
 
@@ -151,7 +151,7 @@ def _profile_show(config, profiles):
     # Find profile matching current branch
     current_profile = None
     for name, profile in profiles.items():
-        branch = profile.get("branch", name)
+        branch = name  # Profile name = branch name
         if branch == current_branch:
             current_profile = name
             break
@@ -182,7 +182,7 @@ def _profile_switch(config, name, force):
         raise typer.Exit(1)
 
     profile = profiles[name]
-    target_branch = profile.get("branch", name)
+    target_branch = name  # Profile name = branch name
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
@@ -274,7 +274,7 @@ def _profile_create(config, name, from_profile, description):
         if from_profile not in profiles:
             typer.echo(f"Source profile not found: {from_profile}", err=True)
             raise typer.Exit(1)
-        source_branch = profiles[from_profile].get("branch", from_profile)
+        source_branch = from_profile  # Profile name = branch name
         source_modules = profiles[from_profile].get("modules", [])
     else:
         # Use current branch/profile
@@ -309,7 +309,7 @@ def _profile_create(config, name, from_profile, description):
         # Get all other branches that need updating
         other_branches = []
         for profile_name, profile_data in profiles.items():
-            branch = profile_data.get("branch", profile_name)
+            branch = profile_name  # Profile name = branch name
             if branch != name and branch != source_branch:
                 other_branches.append(branch)
 
@@ -369,8 +369,7 @@ def _profile_delete(config, name, force):
         raise typer.Exit(1)
 
     current_branch = _get_current_branch()
-    profile = profiles[name]
-    target_branch = profile.get("branch", name)
+    target_branch = name  # Profile name = branch name
 
     if current_branch == target_branch:
         typer.echo(
@@ -415,7 +414,7 @@ def _profile_diff(config, name):
         raise typer.Exit(1)
 
     current_branch = _get_current_branch()
-    target_branch = profiles[name].get("branch", name)
+    target_branch = name  # Profile name = branch name
 
     if current_branch == target_branch:
         typer.echo(f"Already on profile '{name}'")
