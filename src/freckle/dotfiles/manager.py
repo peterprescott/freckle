@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from . import operations
 from .branch import BranchResolver
-from .git import BareGitRepo
+from .repo import BareGitRepo
 
 logger = logging.getLogger(__name__)
 
