@@ -8,6 +8,8 @@ from typing import List
 
 import typer
 
+from freckle.secrets import SecretScanner
+
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
 
@@ -21,6 +23,12 @@ def register(app: typer.Typer) -> None:
 def add(
     files: List[str] = typer.Argument(
         ..., help="Files to add to dotfiles tracking"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Add files even if they appear to contain secrets",
     ),
 ):
     """Add files to be tracked in your dotfiles repository.
@@ -75,6 +83,32 @@ def add(
 
     if not home_relative_files:
         raise typer.Exit(1)
+
+    # Check for secrets unless --force is used
+    if not force:
+        scanner = SecretScanner()
+        secrets_found = scanner.scan_files(home_relative_files, env.home)
+
+        if secrets_found:
+            typer.echo(
+                f"✗ Blocked: {len(secrets_found)} file(s) appear to "
+                "contain secrets:\n",
+                err=True,
+            )
+            for match in secrets_found:
+                typer.echo(f"  {match.file}", err=True)
+                typer.echo(f"    └─ {match.reason}", err=True)
+                if match.line:
+                    typer.echo(f"       (line {match.line})", err=True)
+
+            typer.echo(
+                "\nSecrets should not be tracked in dotfiles.", err=True
+            )
+            typer.echo(
+                "To override (not recommended): freckle add --force <files>",
+                err=True,
+            )
+            raise typer.Exit(1)
 
     result = dotfiles.add_files(home_relative_files)
 

@@ -175,8 +175,11 @@ def do_backup(
     quiet: bool = False,
     scheduled: bool = False,
     dry_run: bool = False,
+    skip_secret_check: bool = False,
 ) -> bool:
     """Internal backup logic. Returns True on success."""
+    from freckle.secrets import SecretScanner
+
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)
@@ -206,6 +209,35 @@ def do_backup(
         return True
 
     changed_files = report.get("changed_files", [])
+
+    # Check for secrets in changed files
+    if changed_files and not skip_secret_check:
+        scanner = SecretScanner()
+        secrets_found = scanner.scan_files(changed_files, env.home)
+
+        if secrets_found:
+            if not quiet:
+                typer.echo(
+                    f"✗ Refusing to commit. Found potential secrets "
+                    f"in {len(secrets_found)} file(s):\n",
+                    err=True,
+                )
+                for match in secrets_found:
+                    typer.echo(f"  {match.file}", err=True)
+                    typer.echo(f"    └─ {match.reason}", err=True)
+                    if match.line:
+                        typer.echo(f"       (line {match.line})", err=True)
+
+                typer.echo(
+                    "\nRemove these files with: "
+                    "freckle remove <file> [file2] ...",
+                    err=True,
+                )
+                typer.echo(
+                    "Or to backup anyway: freckle backup --skip-secret-check",
+                    err=True,
+                )
+            return False
 
     # Dry run - show what would happen
     if dry_run:
@@ -293,6 +325,11 @@ def backup(
     dry_run: bool = typer.Option(
         False, "--dry-run", "-n", help="Show what would happen without acting"
     ),
+    skip_secret_check: bool = typer.Option(
+        False,
+        "--skip-secret-check",
+        help="Backup even if secrets are detected (not recommended)",
+    ),
     scheduled: bool = typer.Option(
         False, "--scheduled", hidden=True, help="Mark as scheduled backup"
     ),
@@ -305,6 +342,7 @@ def backup(
     """
     success = do_backup(
         message=message,
+        skip_secret_check=skip_secret_check,
         no_push=no_push,
         quiet=quiet,
         scheduled=scheduled,
