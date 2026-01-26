@@ -1,9 +1,11 @@
 """Profile management commands for freckle CLI."""
 
 import subprocess
+from pathlib import Path
 from typing import Optional
 
 import typer
+import yaml
 
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
@@ -258,34 +260,62 @@ def _profile_create(config, name, from_profile, description):
         typer.echo("Dotfiles repository not found.", err=True)
         raise typer.Exit(1)
 
-    # Determine source branch
+    # Determine source profile and branch
     if from_profile:
         if from_profile not in profiles:
             typer.echo(f"Source profile not found: {from_profile}", err=True)
             raise typer.Exit(1)
         source_branch = profiles[from_profile].get("branch", from_profile)
+        source_modules = profiles[from_profile].get("modules", [])
     else:
-        source_branch = _get_current_branch() or "main"
+        # Use current branch/profile
+        current = _get_current_branch() or "main"
+        source_branch = current
+        if current in profiles:
+            source_modules = profiles[current].get("modules", [])
+        else:
+            source_modules = []
 
     # Create new branch
     typer.echo(f"Creating profile '{name}' from '{source_branch}'...")
 
     try:
         dotfiles._git.run("checkout", "-b", name, source_branch)
-        typer.echo(f"✓ Created and switched to profile '{name}'")
+        typer.echo(f"✓ Created branch '{name}'")
 
-        typer.echo("\nTo complete setup, add this to .freckle.yaml:")
-        typer.echo("  profiles:")
-        typer.echo(f"    {name}:")
-        if description:
-            typer.echo(f'      description: "{description}"')
-        typer.echo("      modules: []  # Add your modules")
+        # Update config file with new profile
+        _add_profile_to_config(name, description, source_modules)
+        typer.echo("✓ Added profile to .freckle.yaml")
 
-        typer.echo("\nThen run 'freckle config propagate' to sync config.")
+        typer.echo(f"\n✓ Profile '{name}' created and ready to use")
 
     except subprocess.CalledProcessError as e:
         typer.echo(f"Failed to create branch: {e.stderr.strip()}", err=True)
         raise typer.Exit(1)
+
+
+def _add_profile_to_config(name: str, description: str, modules: list):
+    """Add a new profile to the config file."""
+    config_path = Path.home() / ".freckle.yaml"
+
+    # Read current config
+    with open(config_path, "r") as f:
+        data = yaml.safe_load(f) or {}
+
+    # Ensure profiles section exists
+    if "profiles" not in data:
+        data["profiles"] = {}
+
+    # Add new profile
+    new_profile = {"modules": modules}
+    if description:
+        new_profile["description"] = description
+
+    data["profiles"][name] = new_profile
+
+    # Write back
+    with open(config_path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
 def _profile_delete(config, name, force):
