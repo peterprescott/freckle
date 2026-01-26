@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .environment import Environment
+    from .system import Environment
 
 class Config:
     DEFAULT_CONFIG = {

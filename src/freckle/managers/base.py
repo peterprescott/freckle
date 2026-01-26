@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import List
-from ..environment import Environment
+from ..system import Environment
 from ..system import SystemPackageManager
 
 class BaseToolManager(ABC):
