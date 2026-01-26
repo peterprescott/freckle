@@ -288,20 +288,46 @@ def _profile_create(config, name, from_profile, description):
     typer.echo(f"Creating profile '{name}' from '{source_branch}'...")
 
     try:
-        # Step 1: Update config on current branch FIRST
+        # Step 1: Update config on current branch
         _add_profile_to_config(name, description, source_modules)
         typer.echo("✓ Added profile to .freckle.yaml")
 
-        # Step 2: Commit the config change on source branch
-        dotfiles._git.run("add", str(Path.home() / ".freckle.yaml"))
-        dotfiles._git.run(
-            "commit", "-m", f"Add profile: {name}"
-        )
+        # Step 2: Commit the config change
+        config_path = Path.home() / ".freckle.yaml"
+        dotfiles._git.run("add", str(config_path))
+        dotfiles._git.run("commit", "-m", f"Add profile: {name}")
         typer.echo("✓ Committed config change")
 
-        # Step 3: Create new branch from this commit
+        # Step 3: Create new branch
         dotfiles._git.run("checkout", "-b", name)
-        typer.echo(f"✓ Created and switched to branch '{name}'")
+        typer.echo(f"✓ Created branch '{name}'")
+
+        # Step 4: Propagate config to ALL other profile branches
+        # Read the updated config content
+        config_content = config_path.read_text()
+
+        # Get all other branches that need updating
+        other_branches = []
+        for profile_name, profile_data in profiles.items():
+            branch = profile_data.get("branch", profile_name)
+            if branch != name and branch != source_branch:
+                other_branches.append(branch)
+
+        if other_branches:
+            n = len(other_branches)
+            typer.echo(f"Syncing config to {n} other branch(es)...")
+            for branch in other_branches:
+                try:
+                    dotfiles._git.run("checkout", branch)
+                    config_path.write_text(config_content)
+                    dotfiles._git.run("add", str(config_path))
+                    dotfiles._git.run("commit", "-m", f"Add profile: {name}")
+                    typer.echo(f"  ✓ {branch}")
+                except subprocess.CalledProcessError:
+                    typer.echo(f"  ✗ {branch} (failed)")
+
+            # Return to the new profile branch
+            dotfiles._git.run("checkout", name)
 
         typer.echo(f"\n✓ Profile '{name}' created (config synced)")
 
