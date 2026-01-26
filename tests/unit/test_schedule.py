@@ -1,9 +1,6 @@
 """Tests for schedule command functionality."""
 
 import plistlib
-from io import BytesIO
-
-import pytest
 
 from freckle.cli.schedule import (
     CRON_MARKER,
@@ -157,7 +154,9 @@ class TestScheduleStatusParsing:
 
     def test_parse_cron_line_weekly(self):
         """Test parsing weekly schedule from cron line."""
-        cron_line = "30 14 * * 0 /usr/local/bin/freckle backup # freckle-backup"
+        cron_line = (
+            "30 14 * * 0 /usr/local/bin/freckle backup # freckle-backup"
+        )
         parts = cron_line.split()
         minute, hour, dom, month, dow = parts[:5]
 
