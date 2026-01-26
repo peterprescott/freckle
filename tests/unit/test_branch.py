@@ -13,7 +13,7 @@ def test_exact_match():
     result = resolver.resolve()
     assert result["effective"] == "main"
     assert result["reason"] == "exact"
-    assert result["message"] is None
+    assert result.get("message") is None
 
 
 def test_main_master_swap():

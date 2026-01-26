@@ -2,9 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 from .repo import BareGitRepo
+from .types import AddFilesResult, CommitPushResult
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ def add_files(
     git: BareGitRepo,
     work_tree: Path,
     files: List[str],
-) -> Dict[str, Any]:
+) -> AddFilesResult:
     """Add files to be tracked in the dotfiles repository.
 
     Args:
@@ -33,13 +34,12 @@ def add_files(
     error: Optional[str] = None
 
     if not git.git_dir.exists():
-        error = "Dotfiles repository not initialized"
-        return {
-            "success": False,
-            "added": added,
-            "skipped": skipped,
-            "error": error,
-        }
+        return AddFilesResult(
+            success=False,
+            added=[],
+            skipped=[],
+            error="Dotfiles repository not initialized",
+        )
 
     for f in files:
         file_path = work_tree / f
@@ -59,12 +59,14 @@ def add_files(
             skipped.append(f)
 
     success = len(added) > 0 or len(skipped) == len(files)
-    return {
+    result: AddFilesResult = {
         "success": success,
         "added": added,
         "skipped": skipped,
-        "error": error,
     }
+    if error is not None:
+        result["error"] = error
+    return result
 
 
 def commit_and_push(
@@ -72,7 +74,7 @@ def commit_and_push(
     branch: str,
     message: str,
     get_changed_files: Callable[[], List[str]],
-) -> Dict[str, Any]:
+) -> CommitPushResult:
     """Commit local changes to tracked files and push to remote.
 
     Args:
@@ -88,24 +90,24 @@ def commit_and_push(
         - pushed: Whether the push succeeded
         - error: Error message if any step failed
     """
-    result = {
-        "success": False,
-        "committed": False,
-        "pushed": False,
-        "error": None,
-    }
-
     changed = get_changed_files()
     if not changed:
-        result["success"] = True
-        result["error"] = "No changes to commit"
-        return result
+        return CommitPushResult(
+            success=True,
+            committed=False,
+            pushed=False,
+            error="No changes to commit",
+        )
 
     try:
         add_result = git.run("add", "-u", check=False)
         if add_result.returncode != 0:
-            result["error"] = f"git add failed: {add_result.stderr.strip()}"
-            return result
+            return CommitPushResult(
+                success=False,
+                committed=False,
+                pushed=False,
+                error=f"git add failed: {add_result.stderr.strip()}",
+            )
 
         commit_result = git.run("commit", "-m", message, check=False)
         if commit_result.returncode != 0:
@@ -113,20 +115,28 @@ def commit_and_push(
                 "nothing to commit" in commit_result.stdout
                 or "nothing to commit" in commit_result.stderr
             ):
-                result["success"] = True
-                result["error"] = "No changes to commit"
-                return result
-            result["error"] = (
-                f"git commit failed: {commit_result.stderr.strip()}"
+                return CommitPushResult(
+                    success=True,
+                    committed=False,
+                    pushed=False,
+                    error="No changes to commit",
+                )
+            return CommitPushResult(
+                success=False,
+                committed=False,
+                pushed=False,
+                error=f"git commit failed: {commit_result.stderr.strip()}",
             )
-            return result
 
-        result["committed"] = True
         logger.info(f"Created commit on {branch}")
 
     except Exception as e:
-        result["error"] = f"Commit failed: {e}"
-        return result
+        return CommitPushResult(
+            success=False,
+            committed=False,
+            pushed=False,
+            error=f"Commit failed: {e}",
+        )
 
     # Push
     try:
@@ -134,20 +144,33 @@ def commit_and_push(
             "push", "origin", branch, check=False, timeout=60
         )
         if push_result.returncode == 0:
-            result["pushed"] = True
-            result["success"] = True
             logger.info(f"Pushed to origin/{branch}")
+            return CommitPushResult(
+                success=True,
+                committed=True,
+                pushed=True,
+            )
         else:
-            result["error"] = f"Push failed: {push_result.stderr.strip()}"
-            logger.error(result["error"])
+            error = f"Push failed: {push_result.stderr.strip()}"
+            logger.error(error)
+            return CommitPushResult(
+                success=False,
+                committed=True,
+                pushed=False,
+                error=error,
+            )
     except Exception as e:
-        result["error"] = f"Push failed: {e}"
-        logger.error(result["error"])
+        error = f"Push failed: {e}"
+        logger.error(error)
+        return CommitPushResult(
+            success=False,
+            committed=True,
+            pushed=False,
+            error=error,
+        )
 
-    return result
 
-
-def push(git: BareGitRepo, branch: str) -> Dict[str, Any]:
+def push(git: BareGitRepo, branch: str) -> CommitPushResult:
     """Push local commits to remote.
 
     Args:
@@ -159,23 +182,21 @@ def push(git: BareGitRepo, branch: str) -> Dict[str, Any]:
         - success: Whether push succeeded
         - error: Error message if failed
     """
-    result = {"success": False, "error": None}
-
     try:
         push_result = git.run_bare(
             "push", "-u", "origin", branch, check=False, timeout=60
         )
         if push_result.returncode == 0:
-            result["success"] = True
             logger.info(f"Pushed to origin/{branch}")
+            return CommitPushResult(success=True)
         else:
-            result["error"] = push_result.stderr.strip()
-            logger.error(f"Push failed: {result['error']}")
+            error = push_result.stderr.strip()
+            logger.error(f"Push failed: {error}")
+            return CommitPushResult(success=False, error=error)
     except Exception as e:
-        result["error"] = str(e)
+        error = str(e)
         logger.error(f"Push failed: {e}")
-
-    return result
+        return CommitPushResult(success=False, error=error)
 
 
 def force_checkout(git: BareGitRepo, branch: str):
