@@ -1,6 +1,8 @@
 """Branch resolution logic for git repositories."""
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, List, Optional
+
+from .types import BranchInfo
 
 
 class BranchResolver:
@@ -26,7 +28,7 @@ class BranchResolver:
         self._get_available = get_available
         self._get_head = get_head
 
-    def resolve(self) -> Dict[str, Any]:
+    def resolve(self) -> BranchInfo:
         """Resolve which branch to use, with detailed context.
 
         Returns a dict with:
@@ -106,12 +108,13 @@ class BranchResolver:
         reason: str,
         available: List[str],
         message: Optional[str],
-    ) -> Dict[str, Any]:
+    ) -> BranchInfo:
         """Build a resolution result dict."""
-        return {
+        result: BranchInfo = {
             "effective": effective,
             "configured": self.configured,
             "reason": reason,
-            "available": available,
-            "message": message,
         }
+        if message is not None:
+            result["message"] = message
+        return result
