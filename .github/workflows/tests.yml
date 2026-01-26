@@ -70,8 +70,8 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-groups
 
-    - name: Run unit and integration tests
-      run: uv run pytest tests/unit tests/integration
+    - name: Run unit and integration tests with coverage
+      run: uv run pytest tests/unit tests/integration --cov=freckle --cov-report=term-missing --cov-fail-under=50
 
   test-e2e:
     runs-on: ${{ matrix.os }}

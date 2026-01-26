@@ -4,11 +4,17 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from . import operations
 from .branch import BranchResolver
 from .repo import BareGitRepo
+from .types import (
+    AddFilesResult,
+    BranchInfo,
+    CommitPushResult,
+    SyncStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +41,7 @@ class DotfilesManager:
         self.branch = branch
         self._git = BareGitRepo(self.dotfiles_dir, self.work_tree)
 
-    def _resolve_branch(self) -> Dict[str, Any]:
+    def _resolve_branch(self) -> BranchInfo:
         """Resolve which branch to use, with detailed context."""
         resolver = BranchResolver(
             configured_branch=self.branch,
@@ -192,7 +198,7 @@ class DotfilesManager:
             except Exception as e:
                 logger.warning(f"Could not push to remote: {e}")
 
-    def get_detailed_status(self, offline: bool = False) -> Dict[str, Any]:
+    def get_detailed_status(self, offline: bool = False) -> SyncStatus:
         """Get detailed sync status of the dotfiles repository."""
         if not self.dotfiles_dir.exists():
             return {"initialized": False}
@@ -338,11 +344,11 @@ class DotfilesManager:
         except Exception:
             return "error"
 
-    def add_files(self, files: List[str]) -> Dict[str, Any]:
+    def add_files(self, files: List[str]) -> AddFilesResult:
         """Add files to be tracked in the dotfiles repository."""
         return operations.add_files(self._git, self.work_tree, files)
 
-    def commit_and_push(self, message: str) -> Dict[str, Any]:
+    def commit_and_push(self, message: str) -> CommitPushResult:
         """Commit local changes to tracked files and push to remote."""
         branch_info = self._resolve_branch()
         effective_branch = branch_info["effective"]
@@ -362,7 +368,7 @@ class DotfilesManager:
             self._git.get_changed_files,
         )
 
-    def push(self) -> Dict[str, Any]:
+    def push(self) -> CommitPushResult:
         """Push local commits to remote."""
         branch_info = self._resolve_branch()
         return operations.push(self._git, branch_info["effective"])
