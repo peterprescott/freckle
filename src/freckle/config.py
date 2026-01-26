@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 import yaml
 
@@ -163,11 +163,12 @@ class Config:
         except (KeyError, TypeError):
             return default
 
-    def get_profiles(self) -> Dict[str, Dict]:
+    def get_profiles(self) -> Dict[str, Dict[str, Any]]:
         """Get all profile definitions."""
-        return self.data.get("profiles", {})
+        profiles = self.data.get("profiles", {})
+        return cast(Dict[str, Dict[str, Any]], profiles)
 
-    def get_profile(self, name: str) -> Optional[Dict]:
+    def get_profile(self, name: str) -> Optional[Dict[str, Any]]:
         """Get a specific profile by name."""
         profiles = self.get_profiles()
         return profiles.get(name)
@@ -201,7 +202,12 @@ class Config:
             return self.get_profile_branch(first_profile)
 
         # Fall back to legacy dotfiles.branch
-        return self.data.get("dotfiles", {}).get("branch", "main")
+        dotfiles_data = self.data.get("dotfiles", {})
+        if isinstance(dotfiles_data, dict):
+            branch = dotfiles_data.get("branch", "main")
+            if isinstance(branch, str):
+                return branch
+        return "main"
 
     # Backward compatibility: get modules from first profile or legacy location
     def get_modules(self) -> List[str]:
@@ -214,4 +220,9 @@ class Config:
 
         # Fall back to legacy modules list, filtering out 'dotfiles'
         modules = self.data.get("modules", [])
-        return [m for m in modules if m != "dotfiles"]
+        if isinstance(modules, list):
+            return [
+                m for m in modules
+                if isinstance(m, str) and m != "dotfiles"
+            ]
+        return []
