@@ -12,7 +12,6 @@ from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 def register(app: typer.Typer) -> None:
     """Register git commands with the app."""
     app.command()(log)
-    app.command()(branch)
     app.command()(diff)
 
 
@@ -66,69 +65,6 @@ def log(
             typer.echo("No commits yet.")
     except subprocess.CalledProcessError as e:
         typer.echo(f"Error: {e.stderr}", err=True)
-        raise typer.Exit(1)
-
-
-def branch(
-    name: Optional[str] = typer.Argument(
-        None, help="Branch name to switch to"
-    ),
-    create: bool = typer.Option(
-        False, "-c", "--create", help="Create a new branch"
-    ),
-    list_all: bool = typer.Option(
-        False, "-a", "--all", help="List all branches including remotes"
-    ),
-):
-    """Show or switch branches in your dotfiles repository.
-
-    Examples:
-        freckle branch              # List local branches
-        freckle branch -a           # List all branches (including remote)
-        freckle branch work         # Switch to 'work' branch
-        freckle branch -c laptop    # Create and switch to 'laptop' branch
-    """
-    config = get_config()
-
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        typer.echo(
-            "Dotfiles not configured. Run 'freckle init' first.", err=True
-        )
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-
-    if not dotfiles_dir.exists():
-        typer.echo(
-            "Dotfiles repository not found. Run 'freckle sync' first.",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    try:
-        if name:
-            # Switch to or create branch
-            if create:
-                dotfiles._git.run("checkout", "-b", name)
-                typer.echo(f"✓ Created and switched to branch '{name}'")
-            else:
-                dotfiles._git.run("checkout", name)
-                typer.echo(f"✓ Switched to branch '{name}'")
-        else:
-            # List branches
-            if list_all:
-                result = dotfiles._git.run("branch", "-a")
-            else:
-                result = dotfiles._git.run("branch")
-
-            if result.stdout.strip():
-                typer.echo("\nBranches:\n")
-                typer.echo(result.stdout)
-            else:
-                typer.echo("No branches found.")
-    except subprocess.CalledProcessError as e:
-        typer.echo(f"Error: {e.stderr.strip()}", err=True)
         raise typer.Exit(1)
 
 
