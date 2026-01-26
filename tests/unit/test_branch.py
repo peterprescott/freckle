@@ -1,6 +1,6 @@
 """Unit tests for BranchResolver."""
 
-from freckle.branch import BranchResolver
+from freckle.dotfiles import BranchResolver
 
 
 def test_exact_match():

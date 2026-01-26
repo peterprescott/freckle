@@ -173,10 +173,10 @@ def remove(
         try:
             if delete:
                 # Remove from git and delete file
-                dotfiles._git("rm", f)
+                dotfiles._git.run("rm", f)
             else:
                 # Remove from git but keep file
-                dotfiles._git("rm", "--cached", f)
+                dotfiles._git.run("rm", "--cached", f)
             removed.append(f)
         except subprocess.CalledProcessError as e:
             skipped.append((f, str(e)))

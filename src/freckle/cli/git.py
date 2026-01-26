@@ -51,9 +51,9 @@ def log(
 
     try:
         if oneline:
-            result = dotfiles._git("log", f"-{count}", "--oneline")
+            result = dotfiles._git.run("log", f"-{count}", "--oneline")
         else:
-            result = dotfiles._git(
+            result = dotfiles._git.run(
                 "log",
                 f"-{count}",
                 "--format=%C(yellow)%h%C(reset) - %C(green)%ar%C(reset) - %s",
@@ -110,17 +110,17 @@ def branch(
         if name:
             # Switch to or create branch
             if create:
-                dotfiles._git("checkout", "-b", name)
+                dotfiles._git.run("checkout", "-b", name)
                 typer.echo(f"✓ Created and switched to branch '{name}'")
             else:
-                dotfiles._git("checkout", name)
+                dotfiles._git.run("checkout", name)
                 typer.echo(f"✓ Switched to branch '{name}'")
         else:
             # List branches
             if list_all:
-                result = dotfiles._git("branch", "-a")
+                result = dotfiles._git.run("branch", "-a")
             else:
-                result = dotfiles._git("branch")
+                result = dotfiles._git.run("branch")
 
             if result.stdout.strip():
                 typer.echo("\nBranches:\n")
@@ -181,7 +181,7 @@ def diff(
                 except ValueError:
                     args.append(f)
 
-        result = dotfiles._git(*args)
+        result = dotfiles._git.run(*args)
 
         if result.stdout.strip():
             typer.echo("\nChanges not yet backed up:\n")
