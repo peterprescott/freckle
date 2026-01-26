@@ -1,6 +1,10 @@
 [project]
 name = "freckle"
+<<<<<<< HEAD
 version = "0.4.4"
+=======
+version = "0.4.5"
+>>>>>>> 85a1158 (test: add schedule command tests for v0.4.6)
 description = "Keep track of all your dot(file)s. A dotfiles manager with tool installation."
 readme = "README.md"
 license = "MIT"
