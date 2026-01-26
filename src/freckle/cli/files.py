@@ -8,7 +8,6 @@ from typing import List
 
 import typer
 
-from ..utils import setup_logging
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
 
@@ -34,7 +33,6 @@ def add(
 
     After adding, run 'freckle backup' to commit and push.
     """
-    setup_logging()
 
     if not files:
         typer.echo("Usage: freckle add <file> [file2] [file3] ...")
@@ -117,7 +115,6 @@ def remove(
 
     After removing, run 'freckle backup' to commit and push.
     """
-    setup_logging()
 
     if not files:
         typer.echo("Usage: freckle remove <file> [file2] ...")

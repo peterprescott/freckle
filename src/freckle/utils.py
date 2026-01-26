@@ -8,10 +8,15 @@ import sys
 from typing import Tuple
 
 
-def setup_logging():
-    """Configure logging for freckle."""
+def setup_logging(verbose: bool = False):
+    """Configure logging for freckle.
+
+    Args:
+        verbose: If True, set level to DEBUG. Otherwise WARNING.
+    """
+    level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )

@@ -8,7 +8,6 @@ from typing import Optional
 
 import typer
 
-from ..utils import setup_logging
 from .helpers import env
 
 LAUNCHD_PLIST_PATH = (
@@ -271,7 +270,6 @@ def schedule(
     On macOS, uses launchd (~/Library/LaunchAgents/).
     On Linux, uses cron.
     """
-    setup_logging()
 
     is_mac = env.os_info.get("system") == "Darwin"
 

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, cast
 
 import typer
 
-from ..utils import setup_logging, validate_git_url
+from ..utils import validate_git_url
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
 
@@ -31,7 +31,6 @@ def sync(
 
     On first run, clones your dotfiles repository.
     """
-    setup_logging()
     config = get_config()
 
     # Override from CLI
@@ -272,7 +271,6 @@ def backup(
     to the remote repository. The commit message includes a list of
     changed files for easy reference.
     """
-    setup_logging()
     success = do_backup(
         message=message, no_push=no_push, quiet=quiet, scheduled=scheduled
     )
@@ -290,7 +288,6 @@ def update(
     Updates your local dotfiles to match the remote repository.
     If you have local changes, use --force to discard them.
     """
-    setup_logging()
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)

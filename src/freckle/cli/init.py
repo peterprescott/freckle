@@ -8,7 +8,7 @@ import typer
 import yaml
 
 from ..dotfiles import DotfilesManager
-from ..utils import setup_logging, validate_git_url, verify_git_url_accessible
+from ..utils import validate_git_url, verify_git_url_accessible
 from .helpers import env, logger
 
 
@@ -28,7 +28,6 @@ def init(
     1. Clone an existing dotfiles repository
     2. Create a new dotfiles repository from scratch
     """
-    setup_logging()
     config_path = env.home / ".freckle.yaml"
 
     if config_path.exists() and not force:
