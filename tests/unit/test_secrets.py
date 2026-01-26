@@ -124,6 +124,15 @@ alias ll="ls -la"
         match = scanner.check_content(".zshrc", content)
         assert match is None
 
+    def test_check_content_allowed_file(self):
+        """Returns None for explicitly allowed files."""
+        scanner = SecretScanner()
+
+        # .ssh/config is in DEFAULT_ALLOWED
+        content = "password = supersecret123"
+        match = scanner.check_content(".ssh/config", content)
+        assert match is None
+
     def test_check_content_line_number(self):
         """Reports correct line number for matches."""
         scanner = SecretScanner()
@@ -148,6 +157,48 @@ line 4"""
 
             match = scanner.scan_file("secret.key", home)
             assert match is not None
+
+    def test_scan_file_content_match_safe_filename(self):
+        """Scans content when filename is safe but content has secret."""
+        scanner = SecretScanner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            # Safe filename but secret content
+            config_file = home / "config.txt"
+            config_file.write_text("-----BEGIN RSA PRIVATE KEY-----\nxxx\n")
+
+            match = scanner.scan_file("config.txt", home)
+            assert match is not None
+            assert "private key" in match.reason.lower()
+
+    def test_scan_file_handles_permission_error(self):
+        """Handles permission errors gracefully."""
+        scanner = SecretScanner()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            # Create a file that can't be read
+            secret_file = home / "unreadable.txt"
+            secret_file.write_text("content")
+            secret_file.chmod(0o000)
+
+            try:
+                # Should not raise, just return None
+                match = scanner.scan_file("unreadable.txt", home)
+                # No filename pattern match, and content can't be read
+                assert match is None
+            finally:
+                # Restore permissions for cleanup
+                secret_file.chmod(0o644)
+
+    def test_scan_file_without_home_skips_content(self):
+        """Skips content check when home is None."""
+        scanner = SecretScanner()
+
+        # File with safe name, no home to read content
+        match = scanner.scan_file("config.txt", home=None)
+        assert match is None
 
     def test_scan_files_multiple(self):
         """Scans multiple files and returns all matches."""

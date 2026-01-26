@@ -377,6 +377,71 @@ class TestGetFileSyncStatus:
 
         assert result == "error"
 
+    def test_up_to_date_when_remote_ref_missing(self, tmp_path):
+        """Returns 'up-to-date' when remote ref doesn't exist."""
+        dotfiles_dir = tmp_path / ".dotfiles"
+        dotfiles_dir.mkdir()
+        (tmp_path / ".zshrc").write_text("# zshrc")
+
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=dotfiles_dir,
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager, "_resolve_branch") as mock_resolve:
+            mock_resolve.return_value = {
+                "configured": "main",
+                "effective": "main",
+                "reason": "configured"
+            }
+            with patch.object(manager._git, "get_tracked_files") as mock_t:
+                mock_t.return_value = [".zshrc"]
+                with patch.object(manager._git, "run") as mock_run:
+                    # File matches HEAD
+                    mock_run.return_value = MagicMock(returncode=0)
+                    with patch.object(manager._git, "run_bare") as mock_bare:
+                        # Remote ref doesn't exist
+                        mock_bare.return_value = MagicMock(returncode=1)
+                        result = manager.get_file_sync_status(".zshrc")
+
+        assert result == "up-to-date"
+
+    def test_behind_when_differs_from_remote(self, tmp_path):
+        """Returns 'behind' when file differs from remote."""
+        dotfiles_dir = tmp_path / ".dotfiles"
+        dotfiles_dir.mkdir()
+        (tmp_path / ".zshrc").write_text("# zshrc")
+
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=dotfiles_dir,
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager, "_resolve_branch") as mock_resolve:
+            mock_resolve.return_value = {
+                "configured": "main",
+                "effective": "main",
+                "reason": "configured"
+            }
+            with patch.object(manager._git, "get_tracked_files") as mock_t:
+                mock_t.return_value = [".zshrc"]
+                with patch.object(manager._git, "run") as mock_run:
+                    mock_run.side_effect = [
+                        MagicMock(returncode=0),  # diff HEAD - no changes
+                        MagicMock(returncode=1),  # diff remote - has changes
+                        MagicMock(returncode=1),  # diff HEAD remote - behind
+                    ]
+                    with patch.object(manager._git, "run_bare") as mock_bare:
+                        # Remote ref exists
+                        mock_bare.return_value = MagicMock(returncode=0)
+                        result = manager.get_file_sync_status(".zshrc")
+
+        assert result == "behind"
+
 
 class TestCommitAndPush:
     """Tests for commit_and_push method."""
@@ -435,6 +500,107 @@ class TestCommitAndPush:
 
         assert result["success"] is True
         mock_op.assert_called_once()
+
+
+class TestPush:
+    """Tests for push method."""
+
+    def test_push_delegates_to_operations(self, tmp_path):
+        """Delegates to operations.push."""
+        dotfiles_dir = tmp_path / ".dotfiles"
+        dotfiles_dir.mkdir()
+
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=dotfiles_dir,
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager, "_resolve_branch") as mock_resolve:
+            mock_resolve.return_value = {
+                "configured": "main",
+                "effective": "main",
+                "reason": "configured"
+            }
+            with patch(
+                "freckle.dotfiles.manager.operations.push"
+            ) as mock_push:
+                mock_push.return_value = {"success": True, "error": None}
+                result = manager.push()
+
+        assert result["success"] is True
+        mock_push.assert_called_once()
+
+
+class TestForceCheckout:
+    """Tests for force_checkout method."""
+
+    def test_force_checkout_delegates_to_operations(self, tmp_path):
+        """Delegates to operations.force_checkout."""
+        dotfiles_dir = tmp_path / ".dotfiles"
+        dotfiles_dir.mkdir()
+
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=dotfiles_dir,
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager, "_resolve_branch") as mock_resolve:
+            mock_resolve.return_value = {
+                "configured": "main",
+                "effective": "main",
+                "reason": "configured"
+            }
+            with patch(
+                "freckle.dotfiles.manager.operations.force_checkout"
+            ) as mock_fc:
+                manager.force_checkout()
+
+        mock_fc.assert_called_once()
+
+
+class TestCheckoutToWorktree:
+    """Tests for _checkout_to_worktree method."""
+
+    def test_checkout_failure_raises(self, tmp_path):
+        """Raises RuntimeError when checkout fails."""
+        dotfiles_dir = tmp_path / ".dotfiles"
+        dotfiles_dir.mkdir()
+
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=dotfiles_dir,
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager._git, "run") as mock_run:
+            mock_run.side_effect = Exception("Checkout error")
+            with pytest.raises(RuntimeError, match="Checkout failed"):
+                manager._checkout_to_worktree("main")
+
+
+class TestSetup:
+    """Tests for setup method."""
+
+    def test_setup_when_dir_exists_returns_early(self, tmp_path):
+        """Returns early when dotfiles_dir already exists."""
+        dotfiles_dir = tmp_path / ".dotfiles"
+        dotfiles_dir.mkdir()
+
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=dotfiles_dir,
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager._git, "clone_bare") as mock_clone:
+            manager.setup()
+            mock_clone.assert_not_called()
 
 
 class TestCreateNew:
@@ -520,3 +686,53 @@ class TestCreateNew:
             if len(c[0]) > 1 and c[0][0] == "remote"
         ]
         assert len(remote_calls) > 0
+
+    def test_push_failure_logs_warning(self, tmp_path):
+        """Logs warning when push fails."""
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=tmp_path / ".dotfiles",
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager._git, "init_bare"):
+            with patch.object(manager._git, "run_bare") as mock_bare:
+                # First calls succeed, push fails
+                mock_bare.side_effect = [
+                    MagicMock(returncode=0),  # config
+                    MagicMock(returncode=0),  # remote add
+                    MagicMock(returncode=1, stderr="push rejected"),  # push
+                ]
+                with patch.object(manager._git, "run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
+                    with patch.object(manager._git, "ensure_fetch_refspec"):
+                        # Should not raise, just log warning
+                        manager.create_new(
+                            remote_url="git@github.com:user/dotfiles.git"
+                        )
+
+    def test_push_exception_logs_warning(self, tmp_path):
+        """Logs warning when push raises exception."""
+        manager = DotfilesManager(
+            repo_url="https://github.com/user/dotfiles.git",
+            dotfiles_dir=tmp_path / ".dotfiles",
+            work_tree=tmp_path,
+            branch="main"
+        )
+
+        with patch.object(manager._git, "init_bare"):
+            with patch.object(manager._git, "run_bare") as mock_bare:
+                # First calls succeed, push raises
+                mock_bare.side_effect = [
+                    MagicMock(returncode=0),  # config
+                    MagicMock(returncode=0),  # remote add
+                    Exception("Network error"),  # push
+                ]
+                with patch.object(manager._git, "run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
+                    with patch.object(manager._git, "ensure_fetch_refspec"):
+                        # Should not raise, just log warning
+                        manager.create_new(
+                            remote_url="git@github.com:user/dotfiles.git"
+                        )
