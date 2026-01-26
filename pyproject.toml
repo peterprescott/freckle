@@ -1,18 +1,6 @@
 [project]
 name = "freckle"
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-version = "0.4.4"
-=======
-version = "0.4.5"
->>>>>>> 85a1158 (test: add schedule command tests for v0.4.6)
-=======
-version = "0.4.6"
->>>>>>> 6cc6171 (fix: improve error handling in profile operations for v0.4.7)
-=======
-version = "0.4.7"
->>>>>>> ed2fe31 (refactor: centralize config path for v0.4.8)
+version = "0.4.8"
 description = "Keep track of all your dot(file)s. A dotfiles manager with tool installation."
 readme = "README.md"
 license = "MIT"

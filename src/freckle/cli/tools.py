@@ -1,12 +1,24 @@
 """Tools command for installing and checking tool installations."""
 
 import os
-from typing import Optional
+from typing import List, Optional
 
 import typer
 
 from ..tools_registry import get_tools_from_config
 from .helpers import get_config
+
+
+def _complete_tool_name(incomplete: str) -> List[str]:
+    """Autocomplete tool names from config."""
+    try:
+        config = get_config()
+        registry = get_tools_from_config(config)
+        tools = registry.list_tools()
+        return [t.name for t in tools if t.name.startswith(incomplete)]
+    except Exception:
+        return []
+
 
 # Create tools sub-app
 tools_app = typer.Typer(
@@ -25,7 +37,9 @@ def register(app: typer.Typer) -> None:
 def tools_callback(
     ctx: typer.Context,
     tool_name: Optional[str] = typer.Argument(
-        None, help="Specific tool to check"
+        None,
+        help="Specific tool to check",
+        autocompletion=_complete_tool_name,
     ),
 ):
     """List configured tools and their installation status.
@@ -113,7 +127,11 @@ def tools_list(tool_name: Optional[str] = None):
 
 @tools_app.command(name="install")
 def tools_install(
-    tool_name: str = typer.Argument(..., help="Tool name to install"),
+    tool_name: str = typer.Argument(
+        ...,
+        help="Tool name to install",
+        autocompletion=_complete_tool_name,
+    ),
     force: bool = typer.Option(
         False, "--force", "-f",
         help="Skip confirmation for script installations"
