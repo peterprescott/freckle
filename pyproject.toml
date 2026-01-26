@@ -1,6 +1,6 @@
 [project]
 name = "freckle"
-version = "0.4.9"
+version = "0.4.10"
 description = "Keep track of all your dot(file)s. A dotfiles manager with tool installation."
 readme = "README.md"
 license = "MIT"

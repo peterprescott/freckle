@@ -4,6 +4,7 @@ import typer
 
 from ..utils import get_version, setup_logging
 from . import (
+    backup,
     config,
     doctor,
     files,
@@ -15,6 +16,7 @@ from . import (
     status,
     sync,
     tools,
+    update,
 )
 
 # Create the main app
@@ -42,6 +44,8 @@ def main_callback(
 # Register all commands
 init.register(app)
 sync.register(app)
+backup.register(app)
+update.register(app)
 files.register(app)
 status.register(app)
 git.register(app)
