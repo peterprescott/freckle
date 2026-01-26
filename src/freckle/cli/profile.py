@@ -247,7 +247,10 @@ def _profile_switch(config, name, force):
             typer.echo(f"  Modules: {', '.join(modules)}")
 
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Failed to switch: {e.stderr.strip()}", err=True)
+        stderr = getattr(e, "stderr", "")
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        typer.echo(f"Failed to switch: {stderr.strip()}", err=True)
         raise typer.Exit(1)
 
 
@@ -269,6 +272,19 @@ def _profile_create(config, name, from_profile, description):
         typer.echo("Dotfiles repository not found.", err=True)
         raise typer.Exit(1)
 
+    # Check if branch already exists (even if profile doesn't)
+    try:
+        result = dotfiles._git.run("branch", "--list", name)
+        if result.stdout.strip():
+            typer.echo(
+                f"Branch '{name}' already exists. "
+                "Delete it first or use a different name.",
+                err=True,
+            )
+            raise typer.Exit(1)
+    except subprocess.CalledProcessError:
+        pass  # OK, branch doesn't exist
+
     # Determine source profile and branch
     if from_profile:
         if from_profile not in profiles:
@@ -287,28 +303,33 @@ def _profile_create(config, name, from_profile, description):
 
     typer.echo(f"Creating profile '{name}' from '{source_branch}'...")
 
+    config_path = Path.home() / ".freckle.yaml"
+    original_branch = _get_current_branch()
+
     try:
         # Step 1: Update config on current branch
         _add_profile_to_config(name, description, source_modules)
         typer.echo("✓ Added profile to .freckle.yaml")
 
         # Step 2: Commit the config change
-        config_path = Path.home() / ".freckle.yaml"
         dotfiles._git.run("add", str(config_path))
-        dotfiles._git.run("commit", "-m", f"Add profile: {name}")
-        typer.echo("✓ Committed config change")
+        try:
+            dotfiles._git.run("commit", "-m", f"Add profile: {name}")
+            typer.echo("✓ Committed config change")
+        except subprocess.CalledProcessError:
+            # Config might be unchanged (already committed)
+            typer.echo("  (config already committed)")
 
         # Step 3: Create new branch
         dotfiles._git.run("checkout", "-b", name)
         typer.echo(f"✓ Created branch '{name}'")
 
         # Step 4: Propagate config to ALL other profile branches
-        # Read the updated config content
         config_content = config_path.read_text()
 
         # Get all other branches that need updating
         other_branches = []
-        for profile_name, profile_data in profiles.items():
+        for profile_name in profiles.keys():
             branch = profile_name  # Profile name = branch name
             if branch != name and branch != source_branch:
                 other_branches.append(branch)
@@ -316,23 +337,57 @@ def _profile_create(config, name, from_profile, description):
         if other_branches:
             n = len(other_branches)
             typer.echo(f"Syncing config to {n} other branch(es)...")
+            failed_branches = []
             for branch in other_branches:
                 try:
                     dotfiles._git.run("checkout", branch)
                     config_path.write_text(config_content)
                     dotfiles._git.run("add", str(config_path))
-                    dotfiles._git.run("commit", "-m", f"Add profile: {name}")
-                    typer.echo(f"  ✓ {branch}")
-                except subprocess.CalledProcessError:
+                    try:
+                        dotfiles._git.run(
+                            "commit", "-m", f"Add profile: {name}"
+                        )
+                        typer.echo(f"  ✓ {branch}")
+                    except subprocess.CalledProcessError:
+                        # Already has this content
+                        typer.echo(f"  ✓ {branch} (already synced)")
+                except subprocess.CalledProcessError as e:
+                    stderr = getattr(e, "stderr", "")
+                    if isinstance(stderr, bytes):
+                        stderr = stderr.decode("utf-8", errors="replace")
+                    failed_branches.append((branch, stderr.strip()))
                     typer.echo(f"  ✗ {branch} (failed)")
 
             # Return to the new profile branch
-            dotfiles._git.run("checkout", name)
+            try:
+                dotfiles._git.run("checkout", name)
+            except subprocess.CalledProcessError:
+                typer.echo(
+                    f"Warning: could not return to branch '{name}'",
+                    err=True
+                )
 
-        typer.echo(f"\n✓ Profile '{name}' created (config synced)")
+            if failed_branches:
+                typer.echo(
+                    f"\n⚠ {len(failed_branches)} branch(es) failed to sync. "
+                    "Run 'freckle config propagate' later."
+                )
+
+        typer.echo(f"\n✓ Profile '{name}' created")
 
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Failed to create profile: {e.stderr.strip()}", err=True)
+        stderr = getattr(e, "stderr", "")
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        typer.echo(f"Failed to create profile: {stderr}", err=True)
+
+        # Try to return to original branch
+        if original_branch:
+            try:
+                dotfiles._git.run("checkout", original_branch)
+            except subprocess.CalledProcessError:
+                pass  # Best effort
+
         raise typer.Exit(1)
 
 
@@ -401,7 +456,10 @@ def _profile_delete(config, name, force):
         typer.echo("Then run 'freckle config propagate' to sync config.")
 
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Failed to delete: {e.stderr.strip()}", err=True)
+        stderr = getattr(e, "stderr", "")
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        typer.echo(f"Failed to delete: {stderr.strip()}", err=True)
         raise typer.Exit(1)
 
 
@@ -440,5 +498,8 @@ def _profile_diff(config, name):
             typer.echo("No differences found.")
 
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Failed to diff: {e.stderr.strip()}", err=True)
+        stderr = getattr(e, "stderr", "")
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        typer.echo(f"Failed to diff: {stderr.strip()}", err=True)
         raise typer.Exit(1)
