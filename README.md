@@ -93,6 +93,28 @@ freckle schedule weekly   # Enable weekly backups (Sundays)
 freckle schedule off      # Disable scheduled backups
 ```
 
+## Shell Completion
+
+Freckle supports tab completion for bash, zsh, and fish.
+
+```bash
+# Install completion for your current shell
+freckle --install-completion
+
+# Or show the completion script to customize installation
+freckle --show-completion
+```
+
+After installation, restart your shell or source your shell config.
+
+## Global Options
+
+```bash
+freckle --verbose ...     # Enable debug logging
+freckle sync --dry-run    # Preview what would happen
+freckle backup --dry-run  # See what would be committed
+```
+
 ## Configuration
 
 Freckle stores its configuration in `~/.freckle.yaml`.
