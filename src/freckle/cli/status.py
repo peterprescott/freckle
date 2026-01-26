@@ -18,7 +18,7 @@ def status():
 
     repo_url = config.get("dotfiles.repo_url")
     dotfiles_dir = get_dotfiles_dir(config)
-    branch = config.get("dotfiles.branch")
+    branch = config.get_branch()
 
     typer.echo("\n--- freckle Status ---")
     typer.echo(
