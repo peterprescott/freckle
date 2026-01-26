@@ -22,6 +22,9 @@ def sync(
     branch: Optional[str] = typer.Option(
         None, "--branch", "-b", help="Override git branch"
     ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-n", help="Show what would happen without acting"
+    ),
 ):
     """Check dotfiles sync status.
 
@@ -58,6 +61,9 @@ def sync(
     is_first_run = not dotfiles_dir.exists()
     action_name = "Setup" if is_first_run else "Sync"
 
+    if dry_run:
+        typer.echo("\n--- DRY RUN (no changes will be made) ---")
+
     typer.echo(f"\n--- freckle {action_name} ---")
     typer.echo(f"Platform: {env.os_info['pretty_name']}")
 
@@ -68,6 +74,11 @@ def sync(
 
     try:
         if is_first_run:
+            if dry_run:
+                typer.echo(f"[DRY-RUN] Would clone {repo_url}")
+                typer.echo(f"[DRY-RUN] Would checkout to {dotfiles_dir}")
+                typer.echo("\n--- Dry Run Complete ---\n")
+                return
             typer.echo(f"[*] Initial setup of dotfiles from {repo_url}...")
             dotfiles.setup()
         else:
@@ -163,6 +174,7 @@ def do_backup(
     no_push: bool = False,
     quiet: bool = False,
     scheduled: bool = False,
+    dry_run: bool = False,
 ) -> bool:
     """Internal backup logic. Returns True on success."""
     config = get_config()
@@ -194,6 +206,23 @@ def do_backup(
         return True
 
     changed_files = report.get("changed_files", [])
+
+    # Dry run - show what would happen
+    if dry_run:
+        typer.echo("\n--- DRY RUN (no changes will be made) ---\n")
+        if report["has_local_changes"]:
+            typer.echo("Would commit the following files:")
+            for f in changed_files:
+                typer.echo(f"  - {f}")
+        if report.get("is_ahead", False):
+            ahead = report.get("ahead_count", 0)
+            typer.echo(f"\nWould push {ahead} commit(s) to remote.")
+        elif report["has_local_changes"] and not no_push:
+            typer.echo("\nWould push 1 new commit to remote.")
+        if no_push:
+            typer.echo("\n(--no-push: would not push to remote)")
+        typer.echo("\n--- Dry Run Complete ---")
+        return True
 
     if report["has_local_changes"] and not quiet:
         typer.echo("Backing up changed file(s):")
@@ -261,6 +290,9 @@ def backup(
     quiet: bool = typer.Option(
         False, "--quiet", "-q", help="Suppress output (for scripts/cron)"
     ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-n", help="Show what would happen without acting"
+    ),
     scheduled: bool = typer.Option(
         False, "--scheduled", hidden=True, help="Mark as scheduled backup"
     ),
@@ -272,7 +304,11 @@ def backup(
     changed files for easy reference.
     """
     success = do_backup(
-        message=message, no_push=no_push, quiet=quiet, scheduled=scheduled
+        message=message,
+        no_push=no_push,
+        quiet=quiet,
+        scheduled=scheduled,
+        dry_run=dry_run,
     )
     if not success:
         raise typer.Exit(1)
@@ -281,6 +317,9 @@ def backup(
 def update(
     force: bool = typer.Option(
         False, "--force", "-f", help="Discard local changes and update"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-n", help="Show what would happen without acting"
     ),
 ):
     """Pull and apply remote changes.
@@ -321,6 +360,17 @@ def update(
         return
 
     behind_count = report.get("behind_count", 0)
+
+    if dry_run:
+        typer.echo("\n--- DRY RUN (no changes will be made) ---\n")
+        typer.echo(f"Would pull {behind_count} commit(s) from remote.")
+        if report["has_local_changes"]:
+            typer.echo("Would discard local changes to:")
+            for f in report["changed_files"]:
+                typer.echo(f"  - {f}")
+        typer.echo("\n--- Dry Run Complete ---")
+        return
+
     typer.echo(f"Fetching {behind_count} new commit(s) from remote...")
 
     dotfiles.force_checkout()
