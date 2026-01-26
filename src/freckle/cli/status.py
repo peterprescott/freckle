@@ -5,9 +5,10 @@ from pathlib import Path
 import typer
 
 from ..dotfiles import DotfilesManager
+from ..managers import GitManager, NvimManager, TmuxManager, ZshManager
 from ..system import SystemPackageManager
 from ..utils import setup_logging
-from .helpers import env, get_config, get_dotfiles_dir, get_tool_managers
+from .helpers import env, get_config, get_dotfiles_dir
 
 
 def register(app: typer.Typer) -> None:
@@ -35,7 +36,12 @@ def status():
     if repo_url:
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
 
-    tool_managers = get_tool_managers(pkg_mgr)
+    tool_managers = [
+        GitManager(env, pkg_mgr),
+        ZshManager(env, pkg_mgr),
+        TmuxManager(env, pkg_mgr),
+        NvimManager(env, pkg_mgr),
+    ]
     
     # Freckle config status
     config_path = env.home / ".freckle.yaml"

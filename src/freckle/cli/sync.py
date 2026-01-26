@@ -5,9 +5,8 @@ from typing import List, Optional
 
 import typer
 
-from ..system import SystemPackageManager
 from ..utils import setup_logging, validate_git_url
-from .helpers import env, get_config, get_dotfiles_manager, get_dotfiles_dir, get_tool_managers
+from .helpers import env, get_config, get_dotfiles_manager, get_dotfiles_dir
 
 
 def register(app: typer.Typer) -> None:
@@ -21,11 +20,13 @@ def sync(
     repo: Optional[str] = typer.Option(None, "--repo", "-r", help="Override dotfiles repository URL"),
     branch: Optional[str] = typer.Option(None, "--branch", "-b", help="Override git branch"),
 ):
-    """Sync dotfiles and verify tool installations.
+    """Check dotfiles sync status.
     
     Checks the current state of your dotfiles and reports any changes.
     If there are local changes, suggests 'freckle backup'.
     If remote has updates, suggests 'freckle update'.
+    
+    On first run, clones your dotfiles repository.
     """
     setup_logging()
     config = get_config()
@@ -46,8 +47,6 @@ def sync(
 
     dotfiles_dir = get_dotfiles_dir(config)
     branch_name = config.get("dotfiles.branch")
-    work_tree = env.home
-    enabled_modules = config.get("modules", [])
 
     is_first_run = not dotfiles_dir.exists()
     action_name = "Setup" if is_first_run else "Sync"
@@ -55,66 +54,57 @@ def sync(
     typer.echo(f"\n--- freckle {action_name} ---")
     typer.echo(f"Platform: {env.os_info['pretty_name']}")
     
-    pkg_mgr = SystemPackageManager(env)
-    
-    # Initialize managers
     dotfiles = get_dotfiles_manager(config)
-    tool_managers = get_tool_managers(pkg_mgr)
 
     try:
-        if "dotfiles" in enabled_modules:
-            if is_first_run:
-                typer.echo(f"[*] Initial setup of dotfiles from {repo_url}...")
-                dotfiles.setup()
-            else:
-                report = dotfiles.get_detailed_status()
-                
-                if report.get("fetch_failed"):
-                    typer.echo("⚠ Could not connect to remote (offline mode)")
-                
-                local_changes = report["has_local_changes"]
-                is_behind = report.get("is_behind", False)
-                is_ahead = report.get("is_ahead", False)
+        if is_first_run:
+            typer.echo(f"[*] Initial setup of dotfiles from {repo_url}...")
+            dotfiles.setup()
+        else:
+            report = dotfiles.get_detailed_status()
+            
+            if report.get("fetch_failed"):
+                typer.echo("⚠ Could not connect to remote (offline mode)")
+            
+            local_changes = report["has_local_changes"]
+            is_behind = report.get("is_behind", False)
+            is_ahead = report.get("is_ahead", False)
 
-                if not local_changes and not is_behind and not is_ahead:
-                    typer.echo("✓ Dotfiles are up-to-date.")
-                elif local_changes and not is_behind:
-                    typer.echo("⚠ You have local changes that are not backed up:")
-                    for f in report["changed_files"]:
-                        typer.echo(f"    - {f}")
+            if not local_changes and not is_behind and not is_ahead:
+                typer.echo("✓ Dotfiles are up-to-date.")
+            elif local_changes and not is_behind:
+                typer.echo("⚠ You have local changes that are not backed up:")
+                for f in report["changed_files"]:
+                    typer.echo(f"    - {f}")
+                
+                if is_ahead:
+                    typer.echo(f"\n  (Local is {report.get('ahead_count', 0)} commit(s) ahead of remote)")
+                
+                typer.echo("\nTo backup these changes, run: freckle backup")
+            elif not local_changes and is_behind:
+                behind_count = report.get('behind_count', 0)
+                typer.echo(f"↓ Remote repository ({branch_name}) has {behind_count} new commit(s).")
+                typer.echo("\nTo update your local files, run: freckle update")
+            elif local_changes and is_behind:
+                typer.echo("‼ CONFLICT: You have local changes AND remote has new commits.")
+                typer.echo(f"  Local Commit : {report['local_commit']}")
+                typer.echo(f"  Remote Commit: {report['remote_commit']}")
+                typer.echo(f"  Behind by: {report.get('behind_count', 0)} commit(s)")
+                
+                typer.echo("\nLocal changes:")
+                for f in report["changed_files"]:
+                    typer.echo(f"    - {f}")
                     
-                    if is_ahead:
-                        typer.echo(f"\n  (Local is {report.get('ahead_count', 0)} commit(s) ahead of remote)")
-                    
-                    typer.echo("\nTo backup these changes, run: freckle backup")
-                elif not local_changes and is_behind:
-                    behind_count = report.get('behind_count', 0)
-                    typer.echo(f"↓ Remote repository ({branch_name}) has {behind_count} new commit(s).")
-                    typer.echo("\nTo update your local files, run: freckle update")
-                elif local_changes and is_behind:
-                    typer.echo("‼ CONFLICT: You have local changes AND remote has new commits.")
-                    typer.echo(f"  Local Commit : {report['local_commit']}")
-                    typer.echo(f"  Remote Commit: {report['remote_commit']}")
-                    typer.echo(f"  Behind by: {report.get('behind_count', 0)} commit(s)")
-                    
-                    typer.echo("\nLocal changes:")
-                    for f in report["changed_files"]:
-                        typer.echo(f"    - {f}")
-                        
-                    typer.echo("\nOptions to resolve conflict:")
-                    typer.echo("  - To keep local changes and backup: freckle backup")
-                    typer.echo("  - To discard local changes and update: freckle update --force")
-                elif is_ahead and not local_changes:
-                    ahead_count = report.get('ahead_count', 0)
-                    typer.echo(f"↑ Local is {ahead_count} commit(s) ahead of remote.")
-                    typer.echo("\nTo push, run: freckle backup")
-                elif report.get("remote_branch_missing") and not local_changes:
-                    typer.echo("↑ Local branch has no remote counterpart.")
-                    typer.echo("\nTo push, run: freckle backup")
-
-        for manager in tool_managers:
-            if manager.bin_name in enabled_modules:
-                manager.setup()
+                typer.echo("\nOptions to resolve conflict:")
+                typer.echo("  - To keep local changes and backup: freckle backup")
+                typer.echo("  - To discard local changes and update: freckle update --force")
+            elif is_ahead and not local_changes:
+                ahead_count = report.get('ahead_count', 0)
+                typer.echo(f"↑ Local is {ahead_count} commit(s) ahead of remote.")
+                typer.echo("\nTo push, run: freckle backup")
+            elif report.get("remote_branch_missing") and not local_changes:
+                typer.echo("↑ Local branch has no remote counterpart.")
+                typer.echo("\nTo push, run: freckle backup")
         
         typer.echo(f"\n--- {action_name} Complete! ---\n")
         

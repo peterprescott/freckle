@@ -7,10 +7,6 @@ from typing import Optional
 from ..config import Config
 from ..dotfiles import DotfilesManager
 from ..environment import Environment
-from ..managers.git import GitManager
-from ..managers.nvim import NvimManager
-from ..managers.tmux import TmuxManager
-from ..managers.zsh import ZshManager
 from ..system import SystemPackageManager
 
 # Global environment instance
@@ -36,16 +32,6 @@ def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
     branch = config.get("dotfiles.branch")
     
     return DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
-
-
-def get_tool_managers(pkg_mgr: SystemPackageManager) -> list:
-    """Create all tool managers."""
-    return [
-        GitManager(env, pkg_mgr),
-        ZshManager(env, pkg_mgr),
-        TmuxManager(env, pkg_mgr),
-        NvimManager(env, pkg_mgr)
-    ]
 
 
 def get_dotfiles_dir(config: Config) -> Path:
