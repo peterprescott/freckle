@@ -3,7 +3,7 @@
 import typer
 
 from ..utils import get_version, setup_logging
-from . import files, git, init, restore, schedule, status, sync, tools
+from . import files, git, init, profile, restore, schedule, status, sync, tools
 
 # Create the main app
 app = typer.Typer(
@@ -33,6 +33,7 @@ sync.register(app)
 files.register(app)
 status.register(app)
 git.register(app)
+profile.register(app)
 restore.register(app)
 schedule.register(app)
 tools.register(app)
