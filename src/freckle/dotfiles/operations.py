@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .repo import BareGitRepo
 
@@ -71,7 +71,7 @@ def commit_and_push(
     git: BareGitRepo,
     branch: str,
     message: str,
-    get_changed_files: callable,
+    get_changed_files: Callable[[], List[str]],
 ) -> Dict[str, Any]:
     """Commit local changes to tracked files and push to remote.
 
