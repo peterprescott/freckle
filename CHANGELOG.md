@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/peterprescott/freckle/compare/v0.10.2...v0.11.0) (2026-01-27)
+
+
+### Features
+
+* add propagate command to copy files across branches ([#39](https://github.com/peterprescott/freckle/issues/39)) ([84c0a98](https://github.com/peterprescott/freckle/commit/84c0a98213720e6431296dc377176bdcd2917cc9))
+
 ## [0.10.2](https://github.com/peterprescott/freckle/compare/v0.10.1...v0.10.2) (2026-01-27)
 
 
