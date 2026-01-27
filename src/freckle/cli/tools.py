@@ -1,12 +1,13 @@
 """Tools command for installing and checking tool installations."""
 
 import os
+import subprocess
 from typing import List, Optional
 
 import typer
 
 from ..tools_registry import get_tools_from_config
-from .helpers import get_config, get_dotfiles_manager
+from .helpers import env, get_config, get_dotfiles_manager
 from .profile.helpers import get_current_branch
 
 
@@ -246,6 +247,94 @@ def _get_profile_tools(registry):
         filtered = [t for t in all_tools if t.name in active_modules]
         return filtered, active_modules
     return all_tools, []
+
+
+@tools_app.command(name="config")
+def tools_config(
+    tool_name: str = typer.Argument(
+        ...,
+        help="Tool name to open config for",
+        autocompletion=_complete_tool_name,
+    ),
+    list_only: bool = typer.Option(
+        False, "--list", "-l",
+        help="Just list config files, don't open"
+    ),
+):
+    """Open a tool's config file in your editor.
+
+    Uses $EDITOR or falls back to vim.
+
+    Examples:
+        freckle tools config git
+        freckle tools config nvim
+        freckle tools config starship --list
+    """
+    config = get_config()
+    registry = get_tools_from_config(config)
+
+    tool = registry.get_tool(tool_name)
+
+    if not tool:
+        typer.echo(f"Tool '{tool_name}' not found in config.", err=True)
+        typer.echo("")
+        typer.echo("Available tools:")
+        for t in registry.list_tools():
+            typer.echo(f"  - {t.name}")
+        raise typer.Exit(1)
+
+    if not tool.config_files:
+        typer.echo(f"No config files defined for '{tool_name}'.")
+        typer.echo("")
+        typer.echo("Add config files in .freckle.yaml:")
+        typer.echo("")
+        typer.echo("  tools:")
+        typer.echo(f"    {tool_name}:")
+        typer.echo("      config:")
+        typer.echo(f"      - .config/{tool_name}/config")
+        raise typer.Exit(1)
+
+    # Resolve paths relative to home
+    config_paths = []
+    for cfg in tool.config_files:
+        path = env.home / cfg
+        config_paths.append(path)
+
+    if list_only:
+        typer.echo(f"Config files for {tool_name}:")
+        for path in config_paths:
+            exists = "✓" if path.exists() else "✗"
+            typer.echo(f"  {exists} {path}")
+        return
+
+    # Filter to existing files
+    existing = [p for p in config_paths if p.exists()]
+
+    if not existing:
+        typer.echo(f"Config files for '{tool_name}' don't exist yet:")
+        for path in config_paths:
+            typer.echo(f"  - {path}")
+        typer.echo("")
+        if typer.confirm("Create them?"):
+            for path in config_paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+                typer.echo(f"  Created {path}")
+            existing = config_paths
+        else:
+            raise typer.Exit(1)
+
+    # Open in editor
+    editor = os.environ.get("EDITOR", "vim")
+
+    typer.echo(f"Opening {len(existing)} file(s) in {editor}...")
+
+    try:
+        subprocess.run([editor] + [str(p) for p in existing])
+    except FileNotFoundError:
+        typer.echo(f"Editor '{editor}' not found.", err=True)
+        typer.echo("Set $EDITOR or install vim.")
+        raise typer.Exit(1)
 
 
 def _install_all_tools(registry, force: bool):
