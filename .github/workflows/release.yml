@@ -14,11 +14,19 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      pr: ${{ steps.release.outputs.pr }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           release-type: python
+
+      - name: Enable auto-merge for release PR
+        if: ${{ steps.release.outputs.pr }}
+        run: gh pr merge --auto --squash "${{ steps.release.outputs.pr }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
 
   publish:
     needs: release-please
