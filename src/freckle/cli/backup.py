@@ -1,16 +1,100 @@
 """Backup command for committing and pushing dotfiles changes."""
 
+import subprocess
 from typing import List, Optional
 
 import typer
 
 from ..secrets import SecretScanner
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import (
+    CONFIG_FILENAME,
+    env,
+    get_config,
+    get_dotfiles_dir,
+    get_dotfiles_manager,
+)
 
 
 def register(app: typer.Typer) -> None:
     """Register backup command with the app."""
     app.command()(backup)
+
+
+def _auto_propagate_config(config, dotfiles, no_push: bool, quiet: bool):
+    """Auto-propagate config to other profile branches after backup."""
+    profiles = config.get_profiles()
+    if len(profiles) <= 1:
+        return  # No other branches to sync
+
+    # Get current branch
+    try:
+        result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
+        current_branch = result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return
+
+    # Get current config content
+    config_path = dotfiles.work_tree / CONFIG_FILENAME
+    if not config_path.exists():
+        return
+    current_content = config_path.read_text()
+
+    # Find branches to update
+    branches_to_update = [
+        name for name in profiles.keys() if name != current_branch
+    ]
+
+    if not branches_to_update:
+        return
+
+    if not quiet:
+        typer.echo(f"\nSyncing {CONFIG_FILENAME} to other branches...")
+
+    updated = []
+    for branch in branches_to_update:
+        try:
+            # Checkout branch
+            dotfiles._git.run("checkout", branch)
+
+            # Write config
+            config_path.write_text(current_content)
+
+            # Stage and commit
+            dotfiles._git.run("add", CONFIG_FILENAME)
+            try:
+                dotfiles._git.run(
+                    "commit", "-m",
+                    f"Sync {CONFIG_FILENAME} from {current_branch}"
+                )
+                updated.append(branch)
+                if not quiet:
+                    typer.echo(f"  ✓ {branch}")
+            except subprocess.CalledProcessError:
+                # Already has same content
+                if not quiet:
+                    typer.echo(f"  ✓ {branch} (already synced)")
+
+        except subprocess.CalledProcessError:
+            if not quiet:
+                typer.echo(f"  ✗ {branch} (failed)")
+
+    # Return to original branch
+    try:
+        dotfiles._git.run("checkout", current_branch)
+    except subprocess.CalledProcessError:
+        pass
+
+    # Push updated branches
+    if updated and not no_push:
+        try:
+            dotfiles._git.run_bare(
+                "push", "origin", *updated, check=True, timeout=60
+            )
+            if not quiet:
+                typer.echo(f"  Pushed {len(updated)} branch(es)")
+        except subprocess.CalledProcessError:
+            if not quiet:
+                typer.echo("  ⚠ Could not push synced branches")
 
 
 def _build_commit_message(
@@ -157,6 +241,11 @@ def do_backup(
                 typer.echo("✓ Changes committed locally.")
             else:
                 typer.echo("✓ Backed up successfully.")
+
+        # Auto-propagate config if it was changed
+        if CONFIG_FILENAME in changed_files:
+            _auto_propagate_config(config, dotfiles, no_push, quiet)
+
         return True
     elif result.get("committed") and not result.get("pushed"):
         if not quiet:
