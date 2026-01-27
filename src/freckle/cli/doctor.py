@@ -346,10 +346,30 @@ def _check_tools(verbose: bool) -> tuple[list[str], list[str]]:
         return issues, warnings
 
     registry = get_tools_from_config(config)
-    tools = registry.list_tools()
+    all_tools = registry.list_tools()
+
+    if not all_tools:
+        typer.echo("  No tools configured")
+        return issues, warnings
+
+    # Filter by active profile's modules
+    dotfiles = get_dotfiles_manager(config)
+    if dotfiles:
+        from .profile.helpers import get_current_branch
+        current_branch = get_current_branch(config=config, dotfiles=dotfiles)
+        if current_branch:
+            active_modules = config.get_profile_modules(current_branch)
+            if active_modules:
+                tools = [t for t in all_tools if t.name in active_modules]
+            else:
+                tools = all_tools
+        else:
+            tools = all_tools
+    else:
+        tools = all_tools
 
     if not tools:
-        typer.echo("  No tools configured")
+        typer.echo("  No tools for current profile")
         return issues, warnings
 
     installed = 0
