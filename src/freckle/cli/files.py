@@ -1,8 +1,8 @@
-"""Add and remove file commands for freckle CLI."""
+"""Add, remove, and propagate file commands for freckle CLI."""
 
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import typer
 
@@ -15,6 +15,7 @@ def register(app: typer.Typer) -> None:
     """Register file commands with the app."""
     app.command()(add)
     app.command()(remove)
+    app.command()(propagate)
 
 
 def add(
@@ -237,4 +238,218 @@ def remove(
     if removed:
         typer.echo("\nTo commit this change, run: freckle backup")
     else:
+        raise typer.Exit(1)
+
+
+def propagate(
+    file: str = typer.Argument(
+        ..., help="File to propagate to other branches"
+    ),
+    to: Optional[List[str]] = typer.Option(
+        None, "--to", "-t",
+        help="Target branch(es). Defaults to all profile branches."
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Skip confirmation"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-n", help="Show what would happen"
+    ),
+    push: bool = typer.Option(
+        False, "--push", "-p", help="Push changes after propagating"
+    ),
+):
+    """Propagate a file to other profile branches.
+
+    Copies a file from the current branch to other profile branches,
+    creating a commit on each.
+
+    Examples:
+        freckle propagate .config/nvim/init.lua
+        freckle propagate .zshrc --to linux --to main
+        freckle propagate .config/starship.toml --push
+    """
+    config = get_config()
+    profiles = config.get_profiles()
+
+    if not profiles:
+        typer.echo("No profiles configured.")
+        return
+
+    dotfiles = get_dotfiles_manager(config)
+    if not dotfiles:
+        typer.echo("Dotfiles not configured.", err=True)
+        raise typer.Exit(1)
+
+    dotfiles_dir = get_dotfiles_dir(config)
+    if not dotfiles_dir.exists():
+        typer.echo("Dotfiles repository not found.", err=True)
+        raise typer.Exit(1)
+
+    # Normalize file path to be relative to home
+    file_path = Path(file).expanduser()
+    if not file_path.is_absolute():
+        # Check if it exists relative to cwd or home
+        cwd_path = Path.cwd() / file_path
+        home_path = env.home / file_path
+        if cwd_path.exists():
+            file_path = cwd_path.resolve()
+        elif home_path.exists():
+            file_path = home_path.resolve()
+        else:
+            file_path = home_path.resolve()
+
+    try:
+        relative_path = str(file_path.relative_to(env.home))
+    except ValueError:
+        typer.echo(f"File must be under home directory: {file}", err=True)
+        raise typer.Exit(1)
+
+    # Get current branch
+    try:
+        result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
+        current_branch = result.stdout.strip()
+    except subprocess.CalledProcessError:
+        typer.echo("Failed to get current branch.", err=True)
+        raise typer.Exit(1)
+
+    # Get file content from current branch
+    try:
+        git_path = f"{current_branch}:{relative_path}"
+        result = dotfiles._git.run("show", git_path)
+        file_content = result.stdout
+    except subprocess.CalledProcessError:
+        typer.echo(
+            f"File not found in current branch: {relative_path}", err=True
+        )
+        raise typer.Exit(1)
+
+    # Determine target branches
+    if to:
+        # Validate specified branches exist as profiles
+        branches_to_update = []
+        for branch in to:
+            if branch not in profiles:
+                typer.echo(
+                    f"Warning: '{branch}' is not a profile branch", err=True
+                )
+            if branch != current_branch:
+                branches_to_update.append(branch)
+    else:
+        # All profile branches except current
+        branches_to_update = [
+            name for name in profiles if name != current_branch
+        ]
+
+    if not branches_to_update:
+        typer.echo("No other branches to update.")
+        return
+
+    n = len(branches_to_update)
+    typer.echo(
+        f"Propagating {relative_path} from '{current_branch}' "
+        f"to {n} branch(es):"
+    )
+    for branch in branches_to_update:
+        typer.echo(f"  - {branch}")
+
+    if dry_run:
+        typer.echo("\n--- Dry run, no changes made ---")
+        return
+
+    if not force:
+        if not typer.confirm("\nProceed?"):
+            typer.echo("Cancelled.")
+            return
+
+    typer.echo("")
+
+    # Check for uncommitted changes
+    try:
+        result = dotfiles._git.run("status", "--porcelain")
+        output = result.stdout.strip()
+        if output:
+            tracked_changes = [
+                line for line in output.split("\n")
+                if line and not line.startswith("??")
+            ]
+            has_changes = bool(tracked_changes)
+        else:
+            has_changes = False
+    except subprocess.CalledProcessError:
+        has_changes = False
+
+    stashed = False
+    if has_changes:
+        typer.echo("Stashing local changes...")
+        try:
+            dotfiles._git.run("stash", "push", "-m", "freckle propagate")
+            stashed = True
+        except subprocess.CalledProcessError:
+            typer.echo("Failed to stash changes.", err=True)
+            raise typer.Exit(1)
+
+    updated = []
+    failed = []
+
+    try:
+        for branch in branches_to_update:
+            try:
+                # Checkout branch
+                dotfiles._git.run("checkout", branch)
+
+                # Write file
+                target_file = dotfiles.work_tree / relative_path
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                target_file.write_text(file_content)
+
+                # Stage and commit
+                dotfiles._git.run("add", relative_path)
+                dotfiles._git.run(
+                    "commit", "-m",
+                    f"Propagate {relative_path} from {current_branch}"
+                )
+
+                updated.append(branch)
+                typer.echo(f"  ✓ {branch}")
+
+            except subprocess.CalledProcessError as e:
+                failed.append((branch, str(e)))
+                typer.echo(f"  ✗ {branch} - failed")
+
+    finally:
+        # Return to original branch
+        try:
+            dotfiles._git.run("checkout", current_branch)
+        except subprocess.CalledProcessError:
+            typer.echo(
+                f"Warning: failed to return to {current_branch}", err=True
+            )
+
+        # Restore stashed changes
+        if stashed:
+            try:
+                dotfiles._git.run("stash", "pop")
+            except subprocess.CalledProcessError:
+                typer.echo("Warning: failed to restore stashed changes")
+
+    typer.echo("")
+
+    if updated:
+        typer.echo(f"✓ Updated {len(updated)} branch(es).")
+
+        if push:
+            typer.echo("\nPushing changes...")
+            for branch in updated:
+                try:
+                    dotfiles._git.run("push", "origin", branch)
+                    typer.echo(f"  ✓ Pushed {branch}")
+                except subprocess.CalledProcessError:
+                    typer.echo(f"  ✗ Failed to push {branch}")
+        else:
+            typer.echo("\nTo push changes:")
+            typer.echo(f"  git push origin {' '.join(updated)}")
+
+    if failed:
+        typer.echo(f"\n✗ Failed to update {len(failed)} branch(es).")
         raise typer.Exit(1)
