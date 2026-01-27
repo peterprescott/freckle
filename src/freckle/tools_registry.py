@@ -298,6 +298,7 @@ class ToolsRegistry:
                 input=curl_result.stdout,
                 check=True,
                 timeout=300,
+                text=True,
             )
 
             return True
