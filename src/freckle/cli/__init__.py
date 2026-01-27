@@ -17,6 +17,7 @@ from . import (
     sync,
     tools,
     update,
+    upgrade,
 )
 
 # Create the main app
@@ -55,6 +56,7 @@ restore.register(app)
 schedule.register(app)
 tools.register(app)
 doctor.register(app)
+upgrade.register(app)
 
 
 @app.command()
