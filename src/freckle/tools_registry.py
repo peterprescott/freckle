@@ -30,6 +30,14 @@ CURATED_SCRIPTS: Dict[str, str] = {
     "rye": "https://rye.astral.sh/get",
     "mise": "https://mise.run",
     "atuin": "https://setup.atuin.sh",
+    "ghcup": "https://get-ghcup.haskell.org",
+    "sdkman": "https://get.sdkman.io",
+    "homebrew": (
+        "https://raw.githubusercontent.com/Homebrew/install/"
+        "HEAD/install.sh"
+    ),
+    "bun": "https://bun.sh/install",
+    "deno": "https://deno.land/install.sh",
 }
 
 
