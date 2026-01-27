@@ -5,6 +5,7 @@ import typer
 from ..dotfiles import DotfilesManager
 from ..tools_registry import get_tools_from_config
 from .helpers import env, get_config, get_dotfiles_dir
+from .profile.helpers import get_current_branch
 
 
 def register(app: typer.Typer) -> None:
@@ -31,9 +32,21 @@ def status():
     if repo_url:
         dotfiles = DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
 
-    # Get tools from declarative config
+    # Get tools from declarative config, filtered by active profile
     registry = get_tools_from_config(config)
-    tools = registry.list_tools()
+    all_tools = registry.list_tools()
+
+    # Filter by active profile's modules
+    current_branch = get_current_branch(config=config, dotfiles=dotfiles)
+    if current_branch:
+        active_modules = config.get_profile_modules(current_branch)
+    else:
+        active_modules = []
+
+    if active_modules:
+        tools = [t for t in all_tools if t.name in active_modules]
+    else:
+        tools = all_tools
 
     # Freckle config status
     config_path = env.home / ".freckle.yaml"
