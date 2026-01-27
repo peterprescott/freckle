@@ -97,12 +97,12 @@ class TestConfigBranchAndModules:
         }
 
         # Should return first profile's branch
-        assert config.get_branch() == "main"
+        assert config.get_default_branch() == "main"
 
     def test_get_branch_defaults_to_main(self):
         """get_branch() defaults to 'main' when no profiles."""
         config = Config()
-        assert config.get_branch() == "main"
+        assert config.get_default_branch() == "main"
 
     def test_get_modules_from_profile(self):
         """get_modules() returns first profile's modules."""
