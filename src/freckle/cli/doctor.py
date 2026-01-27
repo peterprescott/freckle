@@ -412,7 +412,7 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
             suggestions.append("Run 'freckle tools' to see missing tools")
         elif ".freckle.yaml differs" in item:
             suggestions.append(
-                "Run 'freckle backup' to propagate config to all branches"
+                "Run 'freckle config propagate' to sync config to all branches"
             )
 
     # Dedupe and print
