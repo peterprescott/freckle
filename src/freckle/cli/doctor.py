@@ -1,11 +1,15 @@
 """Doctor command for health check diagnostics."""
 
+import json
 import subprocess
+import urllib.request
+from typing import Optional
 
 import typer
 
 from ..config import Config
 from ..tools_registry import get_tools_from_config
+from ..utils import get_version
 from .helpers import (
     CONFIG_PATH,
     get_config,
@@ -41,6 +45,13 @@ def doctor(
     warnings = []
 
     typer.echo("Running freckle health check...\n")
+
+    # Check freckle version
+    typer.echo("Freckle:")
+    version_warnings = _check_version(verbose)
+    warnings.extend(version_warnings)
+
+    typer.echo("")
 
     # Check prerequisites
     typer.echo("Prerequisites:")
@@ -91,6 +102,39 @@ def doctor(
         raise typer.Exit(1 if issues else 0)
     else:
         typer.echo("✓ All checks passed!")
+
+
+def _get_latest_version() -> Optional[str]:
+    """Fetch the latest version from PyPI."""
+    try:
+        url = "https://pypi.org/pypi/freckle/json"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return data.get("info", {}).get("version")
+    except Exception:
+        return None
+
+
+def _check_version(verbose: bool) -> list[str]:
+    """Check if freckle is up to date."""
+    warnings = []
+
+    current = get_version()
+    typer.echo(f"  Current version: {current}")
+
+    latest = _get_latest_version()
+    if latest:
+        if latest != current:
+            typer.echo(f"  ⚠ New version available: {latest}")
+            msg = f"Freckle {latest} available (you have {current})"
+            warnings.append(msg)
+        else:
+            typer.echo("  ✓ Up to date")
+    else:
+        if verbose:
+            typer.echo("  ⚠ Could not check for updates")
+
+    return warnings
 
 
 def _check_prerequisites(verbose: bool) -> list[str]:
@@ -294,7 +338,9 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
     suggestions = []
 
     for item in issues + warnings:
-        if "git is not installed" in item:
+        if "available (you have" in item:
+            suggestions.append("Run 'freckle upgrade' to update freckle")
+        elif "git is not installed" in item:
             suggestions.append(
                 "Install git: brew install git (macOS) "
                 "or apt install git (Linux)"
