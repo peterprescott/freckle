@@ -5,6 +5,13 @@
 
 ### Bug Fixes
 
+* config editor double-open and auto-propagate config on backup ([#25](https://github.com/peterprescott/freckle/issues/25)) ([641c688](https://github.com/peterprescott/freckle/commit/641c6888699850aef190a62979ee9ea8a5d20ab8))
+
+## [0.10.1](https://github.com/peterprescott/freckle/compare/v0.10.0...v0.10.1) (2026-01-27)
+
+
+### Bug Fixes
+
 * config editor double-open and auto-propagate config on backup ([#25](https://github.com/peterprescott/freckle/issues/25)) ([12a0ae9](https://github.com/peterprescott/freckle/commit/12a0ae92e9c9e7dfff06b92be3950e91ba62ab89))
 
 ## [0.10.0](https://github.com/peterprescott/freckle/compare/v0.9.2...v0.10.0) (2026-01-27)
