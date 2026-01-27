@@ -12,14 +12,16 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+      # Use PAT to allow release-please actions to trigger other workflows
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           release-type: python
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Enable auto-merge for release PR
         if: ${{ steps.release.outputs.pr }}
         run: gh pr merge --auto --squash "${{ steps.release.outputs.pr }}"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           GH_REPO: ${{ github.repository }}
