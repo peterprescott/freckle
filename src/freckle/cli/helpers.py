@@ -34,8 +34,8 @@ def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
     if not dotfiles_dir.is_absolute():
         dotfiles_dir = env.home / dotfiles_dir
 
-    # Try to get actual git branch, fall back to configured branch
-    branch = config.get_branch()
+    # Try to get actual git branch, fall back to configured default
+    branch = config.get_default_branch()
     if dotfiles_dir.exists():
         try:
             from ..dotfiles import BareGitRepo
