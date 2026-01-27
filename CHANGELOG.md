@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/peterprescott/freckle/compare/v0.9.1...v0.9.2) (2026-01-27)
+
+
+### Bug Fixes
+
+* status shows actual git branch, profile create pushes to remote ([#21](https://github.com/peterprescott/freckle/issues/21)) ([66d1721](https://github.com/peterprescott/freckle/commit/66d17213e00a32efc0c91eafba3ca24d7a7ba78f))
+
 ## [0.9.1](https://github.com/peterprescott/freckle/compare/v0.9.0...v0.9.1) (2026-01-27)
 
 
