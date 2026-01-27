@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/peterprescott/freckle/compare/v0.9.2...v0.10.0) (2026-01-27)
+
+
+### Features
+
+* add version check to doctor and upgrade command ([#23](https://github.com/peterprescott/freckle/issues/23)) ([2d305af](https://github.com/peterprescott/freckle/commit/2d305af3a7f8df849e8d264f7d0f8d34709edac6))
+
 ## [0.9.2](https://github.com/peterprescott/freckle/compare/v0.9.1...v0.9.2) (2026-01-27)
 
 
