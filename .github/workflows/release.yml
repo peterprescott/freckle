@@ -1,0 +1,78 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pyproject.toml'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(grep -m1 'version = ' pyproject.toml | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        id: notes
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges | grep -E "^- (feat|fix|docs|chore|refactor|test|style|perf):" || true)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges -20 | grep -E "^- (feat|fix|docs|chore|refactor|test|style|perf):" || true)
+          fi
+          
+          # Create release notes
+          {
+            echo "notes<<EOF"
+            echo "## What's Changed"
+            echo ""
+            if echo "$COMMITS" | grep -q "^- feat:"; then
+              echo "### Features"
+              echo "$COMMITS" | grep "^- feat:" || true
+              echo ""
+            fi
+            if echo "$COMMITS" | grep -q "^- fix:"; then
+              echo "### Bug Fixes"
+              echo "$COMMITS" | grep "^- fix:" || true
+              echo ""
+            fi
+            if echo "$COMMITS" | grep -q "^- docs:"; then
+              echo "### Documentation"
+              echo "$COMMITS" | grep "^- docs:" || true
+              echo ""
+            fi
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG:-initial}...v${{ steps.version.outputs.version }}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: ${{ steps.notes.outputs.notes }}
+          generate_release_notes: false
