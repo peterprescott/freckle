@@ -61,7 +61,8 @@ def config_edit():
     is_mac = platform.system() == "Darwin"
 
     if is_mac:
-        subprocess.run(["open", "-t", str(CONFIG_PATH)], check=True)
+        # -W waits for the app to close, -t opens in default text editor
+        subprocess.run(["open", "-W", "-t", str(CONFIG_PATH)], check=True)
     else:
         if shutil.which("xdg-open"):
             subprocess.run(["xdg-open", str(CONFIG_PATH)], check=True)
