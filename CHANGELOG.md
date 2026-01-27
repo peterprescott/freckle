@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/peterprescott/freckle/compare/v0.9.0...v0.9.1) (2026-01-27)
+
+
+### Bug Fixes
+
+* use shell=True for verify commands ([#19](https://github.com/peterprescott/freckle/issues/19)) ([ce1e735](https://github.com/peterprescott/freckle/commit/ce1e73511772b45ddbef8458da57682b827b8c46))
+
 ## [0.9.0](https://github.com/peterprescott/freckle/compare/v0.8.1...v0.9.0) (2026-01-27)
 
 
