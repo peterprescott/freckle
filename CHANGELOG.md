@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/peterprescott/freckle/compare/v0.7.1...v0.8.0) (2026-01-27)
+
+
+### Features
+
+* add curated install scripts for more tools ([#11](https://github.com/peterprescott/freckle/issues/11)) ([9d2ba16](https://github.com/peterprescott/freckle/commit/9d2ba16ec7dd4e1a3cc8c553c212103aa8bbe2a5))
+
 ## [0.7.1](https://github.com/peterprescott/freckle/compare/v0.7.0...v0.7.1) (2026-01-27)
 
 
