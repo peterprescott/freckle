@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/peterprescott/freckle/compare/v0.11.1...v0.12.0) (2026-01-27)
+
+
+### Features
+
+* add `freckle tools config` command to open tool configs ([#41](https://github.com/peterprescott/freckle/issues/41)) ([3210c9e](https://github.com/peterprescott/freckle/commit/3210c9ed810754adf27d06f146983f99bad5c062))
+
 ## [0.11.0](https://github.com/peterprescott/freckle/compare/v0.10.2...v0.11.0) (2026-01-27)
 
 
