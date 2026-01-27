@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.0](https://github.com/peterprescott/freckle/compare/v0.2.3...v0.3.0) (2026-01-27)
+
+
+### Features
+
+* add --all flag to install all missing tools ([#3](https://github.com/peterprescott/freckle/issues/3)) ([ac0ddde](https://github.com/peterprescott/freckle/commit/ac0dddee6efc442e8f5ef4c64ed06bebcd7e37ce))
+* add bootstrap script for fresh system setup ([fc51620](https://github.com/peterprescott/freckle/commit/fc51620203a999f695229c3558100f607153b96e))
+* add bootstrap script for fresh system setup ([c57d381](https://github.com/peterprescott/freckle/commit/c57d381f7678ddbbd538f806aa6f76697524289f))
+* add curated install scripts for more tools ([#11](https://github.com/peterprescott/freckle/issues/11)) ([2332c39](https://github.com/peterprescott/freckle/commit/2332c391a995449c5a5a48597e7b29b781c15721))
+* add shell completion for profile and tool names in v0.4.8 ([7eb82a0](https://github.com/peterprescott/freckle/commit/7eb82a009592dd4f7c48900dfbac32a65eaf9495))
+* add version check to doctor and upgrade command ([#23](https://github.com/peterprescott/freckle/issues/23)) ([2b0083e](https://github.com/peterprescott/freckle/commit/2b0083e41e35f3048287c826c77c8a87a9bcbd14))
+* auto-remove profile from config on delete for v0.4.9 ([97d3d91](https://github.com/peterprescott/freckle/commit/97d3d91ca56ca1c0567e3aeae98e56d1d638a24a))
+* filter tools by active profile modules ([#15](https://github.com/peterprescott/freckle/issues/15)) ([2e086e4](https://github.com/peterprescott/freckle/commit/2e086e4d5ec8acc05007b3aee6b52fb610eae414))
+* v0.5.0 with Priority 1 improvements from Staff Review ([56b197f](https://github.com/peterprescott/freckle/commit/56b197ffd7e09e77f15fe9acd7e6e64f40aa34d1))
+* v0.5.1 with Priority 2 and 3 improvements ([74c59d9](https://github.com/peterprescott/freckle/commit/74c59d9613fe4be968eccc5231a783eb5cd5d046))
+
+
+### Bug Fixes
+
+* CI failures and TypedDict return types ([e84167e](https://github.com/peterprescott/freckle/commit/e84167e6cb9a016d95f152fd3c2ca37ef15fbf31))
+* config editor double-open and auto-propagate config on backup ([#25](https://github.com/peterprescott/freckle/issues/25)) ([8203c1a](https://github.com/peterprescott/freckle/commit/8203c1a32ab4fbba802bae015b8faa733cdf5b6d))
+* extract PR number from release-please output JSON ([#13](https://github.com/peterprescott/freckle/issues/13)) ([76339d7](https://github.com/peterprescott/freckle/commit/76339d7d2c91128b4c67462fbcbbc3a63115158f))
+* improve error handling in profile operations for v0.4.6 ([ed584c9](https://github.com/peterprescott/freckle/commit/ed584c93d10905057823ea0f0ec2089ffad8ec1f))
+* script installation TypeError ([#8](https://github.com/peterprescott/freckle/issues/8)) ([47d766f](https://github.com/peterprescott/freckle/commit/47d766f39b6780f07aadb7c62259102ac9faf20e))
+* status shows actual git branch, profile create pushes to remote ([#21](https://github.com/peterprescott/freckle/issues/21)) ([e185fa4](https://github.com/peterprescott/freckle/commit/e185fa4cdb54437404b8ff136e11bcd32c144cf4))
+* type annotations for TypedDict returns ([1ec3259](https://github.com/peterprescott/freckle/commit/1ec3259442d2f2d43d1808e7106eeaece1ba1891))
+* use explicit --initial-branch=main in test setup ([971185a](https://github.com/peterprescott/freckle/commit/971185a45c8f4f7252281d281da80c3fd5bd5322))
+* use shell=True for verify commands ([#19](https://github.com/peterprescott/freckle/issues/19)) ([37a0d70](https://github.com/peterprescott/freckle/commit/37a0d70ad0775eeb95cae0abbb3363e71ac15a6e))
+
+
+### Documentation
+
+* update CONTRIBUTING.md with testing details ([cd41c35](https://github.com/peterprescott/freckle/commit/cd41c35d92d1349a46ed01605a58cb3afcd329a7))
+* update README for v0.4.1 features ([b3b9b0b](https://github.com/peterprescott/freckle/commit/b3b9b0b58063add3e6e801396c7c80d7b1fd85fd))
+
 ## [0.10.1](https://github.com/peterprescott/freckle/compare/v0.10.0...v0.10.1) (2026-01-27)
 
 
