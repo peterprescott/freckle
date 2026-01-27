@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/peterprescott/freckle/compare/v0.7.0...v0.7.1) (2026-01-27)
+
+
+### Bug Fixes
+
+* script installation TypeError ([#8](https://github.com/peterprescott/freckle/issues/8)) ([ba81531](https://github.com/peterprescott/freckle/commit/ba8153120789fa7947f05550e1c984fa254f837f))
+
 ## [0.7.0](https://github.com/peterprescott/freckle/compare/v0.6.0...v0.7.0) (2026-01-27)
 
 
