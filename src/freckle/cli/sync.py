@@ -152,8 +152,6 @@ def sync(
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
-    branch_name = config.get_branch()
-
     is_first_run = not dotfiles_dir.exists()
     action_name = "Setup" if is_first_run else "Sync"
 
@@ -180,7 +178,7 @@ def sync(
                 typer.echo(f"Would clone to: {dotfiles_dir}\n")
 
                 # Try to show what files would be affected
-                _preview_first_sync(repo_url, config.get_branch())
+                _preview_first_sync(repo_url, config.get_default_branch())
                 typer.echo("\n--- Preview Complete ---\n")
                 return
             typer.echo(f"[*] Initial setup of dotfiles from {repo_url}...")
@@ -212,7 +210,7 @@ def sync(
             elif not local_changes and is_behind:
                 behind_count = report.get("behind_count", 0)
                 typer.echo(
-                    f"↓ Remote ({branch_name}) has "
+                    f"↓ Remote ({dotfiles.branch}) has "
                     f"{behind_count} new commit(s)."
                 )
                 typer.echo("\nTo update your local files, run: freckle update")
