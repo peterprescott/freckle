@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2](https://github.com/peterprescott/freckle/compare/v0.10.1...v0.10.2) (2026-01-27)
+
+
+### Bug Fixes
+
+* doctor checks config alignment across profile branches ([#36](https://github.com/peterprescott/freckle/issues/36)) ([21775e7](https://github.com/peterprescott/freckle/commit/21775e7de9da6a3f0a16dcc56a78619b8ee14b17))
+* doctor suggests config propagate instead of backup ([#38](https://github.com/peterprescott/freckle/issues/38)) ([ea1de16](https://github.com/peterprescott/freckle/commit/ea1de16591e7ff8aeaa97cef5f52569aa80590e5))
+
 ## [0.10.1](https://github.com/peterprescott/freckle/compare/v0.10.0...v0.10.1) (2026-01-27)
 
 
