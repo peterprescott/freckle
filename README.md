@@ -25,6 +25,20 @@ conflict resolution, automatic backups, and cross-platform package management.
 
 ## Installation
 
+### Quick Install (Recommended)
+
+Bootstrap freckle on a fresh system with a single command:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/peterprescott/freckle/main/scripts/bootstrap.sh | bash
+```
+
+This installs [uv](https://docs.astral.sh/uv/) and freckle automatically.
+
+### Manual Install
+
+If you already have uv:
+
 ```bash
 uv tool install freckle
 ```
