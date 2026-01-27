@@ -19,7 +19,6 @@ def status():
 
     repo_url = config.get("dotfiles.repo_url")
     dotfiles_dir = get_dotfiles_dir(config)
-    branch = config.get_branch()
 
     typer.echo("\n--- freckle Status ---")
     typer.echo(
@@ -30,7 +29,15 @@ def status():
 
     dotfiles = None
     if repo_url:
-        dotfiles = DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
+        # Use a placeholder branch; get_detailed_status will detect actual HEAD
+        dotfiles = DotfilesManager(repo_url, dotfiles_dir, env.home, "main")
+        # Get the actual current branch from git
+        actual_branch = get_current_branch(config=config, dotfiles=dotfiles)
+        if actual_branch:
+            # Recreate with correct branch for accurate status
+            dotfiles = DotfilesManager(
+                repo_url, dotfiles_dir, env.home, actual_branch
+            )
 
     # Get tools from declarative config, filtered by active profile
     registry = get_tools_from_config(config)
@@ -136,7 +143,7 @@ def status():
                 typer.echo("  Status: Not initialized")
             else:
                 branch_info = report.get("branch_info", {})
-                effective_branch = report.get("branch", branch)
+                effective_branch = report.get("branch", "main")
 
                 reason = branch_info.get("reason", "exact")
                 if reason == "exact":

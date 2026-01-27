@@ -153,6 +153,18 @@ def profile_create(config, name, from_profile, description):
                     "Run 'freckle config propagate' later."
                 )
 
+        # Step 5: Push the new branch to remote
+        try:
+            dotfiles._git.run_bare(
+                "push", "-u", "origin", name, check=True, timeout=60
+            )
+            typer.echo(f"✓ Pushed branch '{name}' to origin")
+        except subprocess.CalledProcessError:
+            typer.echo(
+                f"⚠ Could not push to origin/{name}. "
+                "Run 'freckle backup' to push later."
+            )
+
         typer.echo(f"\n✓ Profile '{name}' created")
 
     except subprocess.CalledProcessError as e:
