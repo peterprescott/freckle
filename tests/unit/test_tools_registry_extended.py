@@ -15,7 +15,7 @@ class TestToolDefinitionIsInstalled:
     """Tests for ToolDefinition.is_installed method."""
 
     def test_uses_verify_command_when_provided(self):
-        """Uses verify command when specified."""
+        """Uses verify command when specified with shell=True."""
         tool = ToolDefinition(
             name="mytool",
             verify="mytool --check"
@@ -27,7 +27,9 @@ class TestToolDefinitionIsInstalled:
 
         assert result is True
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][0] == ["mytool", "--check"]
+        # Verify command passed as string with shell=True
+        assert mock_run.call_args[0][0] == "mytool --check"
+        assert mock_run.call_args[1]["shell"] is True
 
     def test_verify_command_failure(self):
         """Returns False when verify command fails."""

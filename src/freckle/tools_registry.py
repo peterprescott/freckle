@@ -142,11 +142,12 @@ class ToolDefinition:
     def is_installed(self) -> bool:
         """Check if this tool is installed."""
         if self.verify:
-            # Use explicit verify command
+            # Use explicit verify command with shell=True to handle
+            # quotes, pipes, and other shell constructs
             try:
-                cmd = self.verify.split()
                 subprocess.run(
-                    cmd,
+                    self.verify,
+                    shell=True,
                     check=True,
                     capture_output=True,
                     timeout=10,
@@ -156,6 +157,7 @@ class ToolDefinition:
                 subprocess.CalledProcessError,
                 FileNotFoundError,
                 OSError,
+                subprocess.TimeoutExpired,
             ):
                 return False
 
