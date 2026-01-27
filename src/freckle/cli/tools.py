@@ -6,7 +6,8 @@ from typing import List, Optional
 import typer
 
 from ..tools_registry import get_tools_from_config
-from .helpers import get_config
+from .helpers import get_config, get_dotfiles_manager
+from .profile.helpers import get_current_branch
 
 
 def _complete_tool_name(incomplete: str) -> List[str]:
@@ -52,7 +53,8 @@ def tools_list(tool_name: Optional[str] = None):
     config = get_config()
     registry = get_tools_from_config(config)
 
-    all_tools = registry.list_tools()
+    # Filter by active profile's modules
+    all_tools, active_modules = _get_profile_tools(registry)
 
     if not all_tools:
         typer.echo("No tools configured in .freckle.yaml")
@@ -227,21 +229,44 @@ def _install_single_tool(registry, tool, force: bool) -> bool:
         return False
 
 
-def _install_all_tools(registry, force: bool):
-    """Install all missing tools."""
+def _get_profile_tools(registry):
+    """Get tools filtered by active profile's modules."""
+    config = get_config()
     all_tools = registry.list_tools()
 
-    if not all_tools:
-        typer.echo("No tools configured in .freckle.yaml")
+    # Get active profile's modules
+    dotfiles = get_dotfiles_manager(config)
+    current_branch = get_current_branch(config=config, dotfiles=dotfiles)
+    if current_branch:
+        active_modules = config.get_profile_modules(current_branch)
+    else:
+        active_modules = []
+
+    if active_modules:
+        filtered = [t for t in all_tools if t.name in active_modules]
+        return filtered, active_modules
+    return all_tools, []
+
+
+def _install_all_tools(registry, force: bool):
+    """Install all missing tools for the active profile."""
+    profile_tools, active_modules = _get_profile_tools(registry)
+
+    if not profile_tools:
+        if active_modules:
+            modules_str = ", ".join(active_modules)
+            typer.echo(f"No tools match profile modules: {modules_str}")
+        else:
+            typer.echo("No tools configured in .freckle.yaml")
         return
 
     # Find missing tools
-    missing = [t for t in all_tools if not t.is_installed()]
+    missing = [t for t in profile_tools if not t.is_installed()]
 
     if not missing:
         typer.echo("All configured tools are already installed.")
         typer.echo("")
-        for tool in all_tools:
+        for tool in profile_tools:
             version = tool.get_version() or "installed"
             if len(version) > 40:
                 version = version[:37] + "..."
