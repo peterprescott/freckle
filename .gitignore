@@ -18,6 +18,3 @@ SCRATCH/
 
 # Local documentation (not for version control)
 docs/
-
-# IDE-specific
-.cursorignore
