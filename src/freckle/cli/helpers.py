@@ -33,7 +33,19 @@ def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
     dotfiles_dir = Path(config.get("dotfiles.dir")).expanduser()
     if not dotfiles_dir.is_absolute():
         dotfiles_dir = env.home / dotfiles_dir
-    branch = config.get_branch()
+
+    # Try to get actual git branch, fall back to configured default
+    branch = config.get_default_branch()
+    if dotfiles_dir.exists():
+        try:
+            from ..dotfiles import BareGitRepo
+            git = BareGitRepo(dotfiles_dir, env.home)
+            result = git.run("rev-parse", "--abbrev-ref", "HEAD")
+            actual_branch = result.stdout.strip()
+            if actual_branch:
+                branch = actual_branch
+        except Exception:
+            pass  # Fall back to configured branch
 
     return DotfilesManager(repo_url, dotfiles_dir, env.home, branch)
 

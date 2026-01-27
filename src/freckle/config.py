@@ -114,13 +114,18 @@ class Config:
         """Get list of all profile names."""
         return list(self.get_profiles().keys())
 
-    def get_branch(self) -> str:
-        """Get the current branch from the first profile."""
+    def get_default_branch(self) -> str:
+        """Get the default branch name from the first profile.
+
+        Note: This returns the configured default, not the actual git branch.
+        Use get_dotfiles_manager() to get a manager with the actual branch.
+        """
         profiles = self.get_profiles()
         if profiles:
             first_profile = list(profiles.keys())[0]
             return self.get_profile_branch(first_profile)
         return "main"
+
 
     def get_modules(self) -> List[str]:
         """Get the modules from the first profile."""

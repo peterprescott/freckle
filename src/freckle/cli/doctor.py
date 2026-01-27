@@ -277,7 +277,60 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
         except subprocess.CalledProcessError:
             pass
 
+    # Check config alignment across branches
+    config_warnings = _check_config_alignment(
+        config, dotfiles, branch, verbose
+    )
+    warnings.extend(config_warnings)
+
     return issues, warnings
+
+
+def _check_config_alignment(
+    config: Config, dotfiles, current_branch: Optional[str], verbose: bool
+) -> list[str]:
+    """Check that .freckle.yaml is consistent across all profile branches."""
+    warnings = []
+
+    profiles = config.get_profiles()
+    if not profiles or len(profiles) < 2:
+        return warnings
+
+    # Get config content from current branch
+    try:
+        current_config = dotfiles._git.run(
+            "show", f"{current_branch}:.freckle.yaml"
+        ).stdout
+    except subprocess.CalledProcessError:
+        return warnings  # Config not tracked, skip check
+
+    mismatched = []
+    for profile_name in profiles:
+        if profile_name == current_branch:
+            continue
+
+        try:
+            branch_config = dotfiles._git.run(
+                "show", f"{profile_name}:.freckle.yaml"
+            ).stdout
+            if branch_config != current_config:
+                mismatched.append(profile_name)
+        except subprocess.CalledProcessError:
+            # Branch doesn't exist or config not tracked there
+            continue
+
+    if mismatched:
+        typer.echo(f"  ⚠ Config differs on {len(mismatched)} branch(es)")
+        warnings.append(
+            f".freckle.yaml differs on branches: {', '.join(mismatched)}"
+        )
+        if verbose:
+            for name in mismatched:
+                typer.echo(f"      - {name}")
+    else:
+        typer.echo("  ✓ Config aligned across branches")
+
+    return warnings
 
 
 def _check_tools(verbose: bool) -> tuple[list[str], list[str]]:
@@ -357,6 +410,10 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
             suggestions.append("Run 'freckle update' to pull latest changes")
         elif "tools not installed" in item:
             suggestions.append("Run 'freckle tools' to see missing tools")
+        elif ".freckle.yaml differs" in item:
+            suggestions.append(
+                "Run 'freckle backup' to propagate config to all branches"
+            )
 
     # Dedupe and print
     for suggestion in dict.fromkeys(suggestions):

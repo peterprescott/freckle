@@ -2,9 +2,8 @@
 
 import typer
 
-from ..dotfiles import DotfilesManager
 from ..tools_registry import get_tools_from_config
-from .helpers import env, get_config, get_dotfiles_dir
+from .helpers import env, get_config, get_dotfiles_manager
 from .profile.helpers import get_current_branch
 
 
@@ -18,7 +17,6 @@ def status():
     config = get_config()
 
     repo_url = config.get("dotfiles.repo_url")
-    dotfiles_dir = get_dotfiles_dir(config)
 
     typer.echo("\n--- freckle Status ---")
     typer.echo(
@@ -29,15 +27,8 @@ def status():
 
     dotfiles = None
     if repo_url:
-        # Use a placeholder branch; get_detailed_status will detect actual HEAD
-        dotfiles = DotfilesManager(repo_url, dotfiles_dir, env.home, "main")
-        # Get the actual current branch from git
-        actual_branch = get_current_branch(config=config, dotfiles=dotfiles)
-        if actual_branch:
-            # Recreate with correct branch for accurate status
-            dotfiles = DotfilesManager(
-                repo_url, dotfiles_dir, env.home, actual_branch
-            )
+        # get_dotfiles_manager now detects actual git branch
+        dotfiles = get_dotfiles_manager(config)
 
     # Get tools from declarative config, filtered by active profile
     registry = get_tools_from_config(config)
