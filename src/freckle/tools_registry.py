@@ -38,6 +38,10 @@ CURATED_SCRIPTS: Dict[str, str] = {
     ),
     "bun": "https://bun.sh/install",
     "deno": "https://deno.land/install.sh",
+    "gh": (
+        "https://raw.githubusercontent.com/max-programming/"
+        "gh-cli-installer/main/debian.sh"
+    ),
 }
 
 
