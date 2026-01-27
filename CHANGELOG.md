@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/peterprescott/freckle/compare/v0.12.0...v0.12.1) (2026-01-27)
+
+
+### Bug Fixes
+
+* doctor only checks tools for current profile ([#43](https://github.com/peterprescott/freckle/issues/43)) ([5df93a3](https://github.com/peterprescott/freckle/commit/5df93a3775e4e1f681deb8d92c6a79e4e28cc8e9))
+
 ## [0.12.0](https://github.com/peterprescott/freckle/compare/v0.11.1...v0.12.0) (2026-01-27)
 
 
