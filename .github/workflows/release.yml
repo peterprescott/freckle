@@ -20,8 +20,8 @@ jobs:
           token: ${{ secrets.RELEASE_PAT }}
 
       - name: Enable auto-merge for release PR
-        if: ${{ steps.release.outputs.pr }}
-        run: gh pr merge --auto --squash "${{ steps.release.outputs.pr }}"
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        run: gh pr merge --auto --squash "${{ fromJson(steps.release.outputs.pr).number }}"
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           GH_REPO: ${{ github.repository }}
