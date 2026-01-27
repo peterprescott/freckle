@@ -296,7 +296,7 @@ class TestConfigProfiles:
         }))
 
         config = Config(config_path=config_file)
-        branch = config.get_branch()
+        branch = config.get_default_branch()
 
         # Should be one of the profile names
         assert branch in ["work", "home"]
@@ -305,7 +305,7 @@ class TestConfigProfiles:
         """Returns 'main' when no profiles."""
         config = Config()
 
-        assert config.get_branch() == "main"
+        assert config.get_default_branch() == "main"
 
     def test_get_modules_from_first_profile(self, tmp_path):
         """Gets modules from first profile."""

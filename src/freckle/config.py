@@ -126,10 +126,6 @@ class Config:
             return self.get_profile_branch(first_profile)
         return "main"
 
-    # Alias for backwards compatibility
-    def get_branch(self) -> str:
-        """Deprecated: Use get_default_branch() instead."""
-        return self.get_default_branch()
 
     def get_modules(self) -> List[str]:
         """Get the modules from the first profile."""
