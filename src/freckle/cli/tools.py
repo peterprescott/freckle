@@ -36,20 +36,15 @@ def register(app: typer.Typer) -> None:
 @tools_app.callback(invoke_without_command=True)
 def tools_callback(
     ctx: typer.Context,
-    tool_name: Optional[str] = typer.Argument(
-        None,
-        help="Specific tool to check",
-        autocompletion=_complete_tool_name,
-    ),
 ):
     """List configured tools and their installation status.
 
-    Without subcommands, shows tool status.
     Use 'freckle tools install <name>' to install a tool.
+    Use 'freckle tools install --all' to install all missing tools.
     """
     # Only run list if no subcommand was invoked
     if ctx.invoked_subcommand is None:
-        tools_list(tool_name)
+        tools_list(None)
 
 
 def tools_list(tool_name: Optional[str] = None):
@@ -127,10 +122,14 @@ def tools_list(tool_name: Optional[str] = None):
 
 @tools_app.command(name="install")
 def tools_install(
-    tool_name: str = typer.Argument(
-        ...,
-        help="Tool name to install",
+    tool_name: Optional[str] = typer.Argument(
+        None,
+        help="Tool name to install (omit if using --all)",
         autocompletion=_complete_tool_name,
+    ),
+    all_tools: bool = typer.Option(
+        False, "--all", "-a",
+        help="Install all missing tools"
     ),
     force: bool = typer.Option(
         False, "--force", "-f",
@@ -145,11 +144,20 @@ def tools_install(
     3. cargo/pip/npm (if available)
     4. Curated script (with confirmation)
 
-    Example:
+    Examples:
         freckle tools install starship
+        freckle tools install --all
     """
     config = get_config()
     registry = get_tools_from_config(config)
+
+    if all_tools:
+        _install_all_tools(registry, force)
+        return
+
+    if not tool_name:
+        typer.echo("Error: provide a tool name or use --all", err=True)
+        raise typer.Exit(1)
 
     tool = registry.get_tool(tool_name)
 
@@ -161,10 +169,15 @@ def tools_install(
             typer.echo(f"  - {t.name}")
         raise typer.Exit(1)
 
+    _install_single_tool(registry, tool, force)
+
+
+def _install_single_tool(registry, tool, force: bool) -> bool:
+    """Install a single tool. Returns True on success."""
     if tool.is_installed():
         version = tool.get_version() or "unknown"
         typer.echo(f"{tool.name} is already installed ({version})")
-        return
+        return True
 
     typer.echo(f"Installing {tool.name}...")
     if tool.description:
@@ -191,7 +204,7 @@ def tools_install(
             )
             if not typer.confirm("Proceed with script installation?"):
                 typer.echo("Cancelled.")
-                return
+                return False
 
             # Set env var for script confirmation
             os.environ["FRECKLE_CONFIRM_SCRIPTS"] = "1"
@@ -207,7 +220,52 @@ def tools_install(
             version = tool.get_version()
             if version:
                 typer.echo(f"  Version: {version}")
+        return True
     else:
         typer.echo("")
         typer.echo(f"✗ Failed to install {tool.name}", err=True)
+        return False
+
+
+def _install_all_tools(registry, force: bool):
+    """Install all missing tools."""
+    all_tools = registry.list_tools()
+
+    if not all_tools:
+        typer.echo("No tools configured in .freckle.yaml")
+        return
+
+    # Find missing tools
+    missing = [t for t in all_tools if not t.is_installed()]
+
+    if not missing:
+        typer.echo("All configured tools are already installed.")
+        typer.echo("")
+        for tool in all_tools:
+            version = tool.get_version() or "installed"
+            if len(version) > 40:
+                version = version[:37] + "..."
+            typer.echo(f"  ✓ {tool.name:15} {version}")
+        return
+
+    typer.echo(f"Installing {len(missing)} missing tool(s)...")
+    typer.echo("")
+
+    succeeded = 0
+    failed = []
+
+    for tool in missing:
+        typer.echo(f"{'─' * 40}")
+        if _install_single_tool(registry, tool, force):
+            succeeded += 1
+        else:
+            failed.append(tool.name)
+        typer.echo("")
+
+    typer.echo(f"{'─' * 40}")
+    typer.echo("")
+    typer.echo(f"Installed: {succeeded}/{len(missing)}")
+
+    if failed:
+        typer.echo(f"Failed: {', '.join(failed)}")
         raise typer.Exit(1)
