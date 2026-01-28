@@ -12,6 +12,18 @@ from freckle.dotfiles import GitHistoryService
 
 from .helpers import env, get_config, get_dotfiles_dir
 from .history import resolve_to_repo_paths
+from .output import (
+    console,
+    diff_add,
+    diff_context,
+    diff_remove,
+    error,
+    info,
+    muted,
+    plain,
+    success,
+    warning,
+)
 
 
 def get_history_service(dotfiles_dir: Path) -> GitHistoryService:
@@ -94,22 +106,23 @@ def restore(
         points = manager.list_restore_points()
 
         if not points:
-            typer.echo("No restore points available.")
-            typer.echo(
+            plain("No restore points available.")
+            muted(
                 "\nRestore points are created automatically before "
                 "sync or force-checkout."
             )
             return
 
-        typer.echo("Available restore points:\n")
+        plain("Available restore points:\n")
         for point in points:
             file_count = len(point.files)
-            typer.echo(
+            plain(
                 f"  {point.display_time} - {point.reason} ({file_count} files)"
             )
 
-        typer.echo(
-            f"\nTo restore: freckle restore <date>  (e.g. {points[0].timestamp[:10]})"  # noqa: E501
+        muted(
+            f"\nTo restore: freckle restore <date>  "
+            f"(e.g. {points[0].timestamp[:10]})"
         )
         return
 
@@ -117,32 +130,24 @@ def restore(
     if delete:
         point = manager.get_restore_point(delete)
         if not point:
-            typer.echo(f"Restore point not found: {delete}", err=True)
+            error(f"Restore point not found: {delete}")
             raise typer.Exit(1)
 
         if manager.delete_restore_point(point):
-            typer.echo(f"✓ Deleted restore point from {point.display_time}")
+            success(f"Deleted restore point from {point.display_time}")
         else:
-            typer.echo("Failed to delete restore point", err=True)
+            error("Failed to delete restore point")
             raise typer.Exit(1)
         return
 
     # Restore requires identifier
     if not identifier:
-        typer.echo(
-            "Usage: freckle restore <identifier> [tool_or_path]", err=True
-        )
-        typer.echo("\nExamples:")
-        typer.echo(
-            "  freckle restore abc123f nvim       # Restore from git commit"
-        )
-        typer.echo(
-            "  freckle restore 2026-01-25         # Restore from backup"
-        )
-        typer.echo(
-            "\nRun 'freckle restore --list' to see backup restore points."
-        )
-        typer.echo("Run 'freckle history <tool>' to see git commit history.")
+        error("Usage: freckle restore <identifier> [tool_or_path]")
+        plain("\nExamples:")
+        muted("  freckle restore abc123f nvim       # Restore from git commit")
+        muted("  freckle restore 2026-01-25         # Restore from backup")
+        muted("\nRun 'freckle restore --list' to see backup restore points.")
+        muted("Run 'freckle history <tool>' to see git commit history.")
         raise typer.Exit(1)
 
     # Determine if identifier is a git commit or backup restore point
@@ -259,13 +264,13 @@ def show_diff(current_content: str, new_content: str, file_path: str) -> None:
 
     for line in diff:
         if line.startswith("+") and not line.startswith("+++"):
-            typer.echo(typer.style(line.rstrip(), fg=typer.colors.GREEN))
+            diff_add(line.rstrip())
         elif line.startswith("-") and not line.startswith("---"):
-            typer.echo(typer.style(line.rstrip(), fg=typer.colors.RED))
+            diff_remove(line.rstrip())
         elif line.startswith("@@"):
-            typer.echo(typer.style(line.rstrip(), fg=typer.colors.CYAN))
+            info(line.rstrip())
         else:
-            typer.echo(line.rstrip())
+            diff_context(line.rstrip())
 
 
 def restore_from_commit(
@@ -288,7 +293,7 @@ def restore_from_commit(
         # Restore all files changed in the commit
         files_to_restore = history_svc.get_commit_files(commit_hash)
         if not files_to_restore:
-            typer.echo(f"No files found in commit {commit_hash}", err=True)
+            error(f"No files found in commit {commit_hash}")
             raise typer.Exit(1)
     elif explicit_files:
         # Use explicitly specified files
@@ -306,19 +311,19 @@ def restore_from_commit(
             tool_or_path, config, dotfiles_dir
         )
     else:
-        typer.echo("Error: Must specify a tool/path or use --all", err=True)
-        typer.echo("\nExamples:")
-        typer.echo(f"  freckle restore {commit_hash} nvim")
-        typer.echo(f"  freckle restore {commit_hash} --all")
+        error("Must specify a tool/path or use --all")
+        plain("\nExamples:")
+        muted(f"  freckle restore {commit_hash} nvim")
+        muted(f"  freckle restore {commit_hash} --all")
         raise typer.Exit(1)
 
     # Get commit info
     commit_info = history_svc.get_commit_subject(commit_hash)
 
-    typer.echo(f"Restoring from commit {commit_hash}")
+    plain(f"Restoring from commit {commit_hash}")
     if commit_info:
-        typer.echo(f"  {commit_info}")
-    typer.echo("")
+        muted(f"  {commit_info}")
+    plain("")
 
     # Validate files exist in commit
     valid_files = []
@@ -327,62 +332,47 @@ def restore_from_commit(
         if content is not None:
             valid_files.append((f, content))
         else:
-            typer.echo(
-                typer.style(
-                    f"  ⚠ {f} - not found in commit", fg=typer.colors.YELLOW
-                )
-            )
+            warning(f"{f} - not found in commit", prefix="  ⚠")
 
     if not valid_files:
-        typer.echo("\nNo valid files to restore from this commit.", err=True)
+        error("No valid files to restore from this commit.")
         raise typer.Exit(1)
 
-    typer.echo(f"Files to restore ({len(valid_files)}):\n")
+    plain(f"Files to restore ({len(valid_files)}):\n")
 
     # Show each file and its diff
     for file_path, new_content in valid_files:
         target_path = env.home / file_path
 
-        typer.echo(typer.style(f"  {file_path}", bold=True))
+        console.print(f"  [bold]{file_path}[/bold]")
 
         if target_path.exists():
             try:
                 current_content = target_path.read_text()
                 if current_content == new_content:
-                    typer.echo(
-                        typer.style("    (no changes needed)", dim=True)
-                    )
+                    muted("    (no changes needed)")
                 else:
-                    typer.echo("    Changes:")
+                    plain("    Changes:")
                     # Show condensed diff info
                     current_lines = len(current_content.splitlines())
                     new_lines = len(new_content.splitlines())
-                    typer.echo(
-                        typer.style(
-                            f"      {current_lines} lines → {new_lines} lines",
-                            dim=True,
-                        )
-                    )
+                    muted(f"      {current_lines} lines → {new_lines} lines")
             except Exception:
-                typer.echo("    (could not read current file)")
+                muted("    (could not read current file)")
         else:
-            typer.echo(
-                typer.style(
-                    "    (file does not exist, will be created)", dim=True
-                )
-            )
+            muted("    (file does not exist, will be created)")
 
-    typer.echo("")
+    plain("")
 
     if dry_run:
-        typer.echo("[Dry run - no changes made]")
-        typer.echo("\nTo apply these changes, run without --dry-run")
+        plain("[Dry run - no changes made]")
+        muted("\nTo apply these changes, run without --dry-run")
         return
 
     # Confirm unless --force
     if not force:
         if not typer.confirm("Restore these files?"):
-            typer.echo("Cancelled.")
+            plain("Cancelled.")
             raise typer.Exit(0)
 
     # Create backup before restoring
@@ -394,8 +384,8 @@ def restore_from_commit(
             env.home,
         )
         if backup_point:
-            typer.echo("\n✓ Backed up current files to:")
-            typer.echo(f"    {backup_point.path}")
+            success("Backed up current files to:")
+            muted(f"    {backup_point.path}")
 
     # Perform the restore
     restored_count = 0
@@ -417,16 +407,14 @@ def restore_from_commit(
         try:
             target_path.write_text(new_content)
             restored_count += 1
-            typer.echo(f"✓ Restored {file_path}")
+            success(f"Restored {file_path}")
         except Exception as e:
-            typer.echo(f"✗ Failed to restore {file_path}: {e}", err=True)
+            error(f"Failed to restore {file_path}: {e}")
 
     if restored_count > 0:
-        typer.echo(
-            f"\n✓ Restored {restored_count} file(s) from {commit_hash[:7]}"
-        )
+        success(f"Restored {restored_count} file(s) from {commit_hash[:7]}")
     else:
-        typer.echo("\nNo files needed restoration (all up to date).")
+        muted("\nNo files needed restoration (all up to date).")
 
 
 def get_commit_info(dotfiles_dir: Path, commit_hash: str) -> Optional[str]:
@@ -461,51 +449,47 @@ def restore_from_backup(
     """Restore files from a backup restore point (legacy mode)."""
     point = manager.get_restore_point(identifier)
     if not point:
-        typer.echo(f"Restore point not found: {identifier}", err=True)
-        typer.echo(
-            "\nRun 'freckle restore --list' to see available restore points."
-        )
-        typer.echo(
-            "If this is a git commit, ensure your dotfiles repo exists."
-        )
+        error(f"Restore point not found: {identifier}")
+        muted("\nRun 'freckle restore --list' to see available points.")
+        muted("If this is a git commit, ensure your dotfiles repo exists.")
         raise typer.Exit(1)
 
     # Show what we're about to restore
     files_to_restore = files if files else point.files
 
-    typer.echo(f"Restoring from {point.display_time} ({point.reason}):\n")
+    plain(f"Restoring from {point.display_time} ({point.reason}):\n")
 
     # Validate requested files exist in restore point
     if files:
         missing = [f for f in files if f not in point.files]
         if missing:
-            typer.echo("Warning: These files are not in the restore point:")
+            warning("These files are not in the restore point:")
             for f in missing:
-                typer.echo(f"  - {f}")
-            typer.echo("")
+                muted(f"  - {f}")
+            plain("")
 
         files_to_restore = [f for f in files if f in point.files]
         if not files_to_restore:
-            typer.echo("No matching files to restore.", err=True)
+            error("No matching files to restore.")
             raise typer.Exit(1)
 
     for f in files_to_restore:
-        typer.echo(f"  {f}")
+        plain(f"  {f}")
 
-    typer.echo("")
+    plain("")
 
     # Confirm
     if not typer.confirm("Restore these files?"):
-        typer.echo("Cancelled.")
+        plain("Cancelled.")
         raise typer.Exit(0)
 
     # Do the restore
     restored = manager.restore(point, env.home, files_to_restore)
 
     if restored:
-        typer.echo(f"\n✓ Restored {len(restored)} file(s):")
+        success(f"Restored {len(restored)} file(s):")
         for f in restored:
-            typer.echo(f"    {f}")
+            muted(f"    {f}")
     else:
-        typer.echo("No files were restored.", err=True)
+        error("No files were restored.")
         raise typer.Exit(1)

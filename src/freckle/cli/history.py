@@ -9,6 +9,7 @@ import typer
 
 from ..dotfiles import GitHistoryService
 from .helpers import env, get_config, get_dotfiles_dir
+from .output import console, diff_add, diff_remove, error, info, muted, plain
 
 
 def get_history_service(dotfiles_dir: Path) -> GitHistoryService:
@@ -62,8 +63,8 @@ def history(
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles directory not found.", err=True)
-        typer.echo("Run 'freckle init' first to set up your dotfiles.")
+        error("Dotfiles directory not found.")
+        muted("Run 'freckle init' first to set up your dotfiles.")
         raise typer.Exit(1)
 
     # If no tool specified, show general commit history
@@ -75,33 +76,31 @@ def history(
     file_paths = resolve_to_repo_paths(tool_or_path, config, dotfiles_dir)
 
     if not file_paths:
-        typer.echo(
-            f"Could not find config files for: {tool_or_path}", err=True
-        )
-        typer.echo("\nTry using a file path directly, e.g.:")
-        typer.echo("  freckle history ~/.config/nvim/init.lua")
+        error(f"Could not find config files for: {tool_or_path}")
+        muted("\nTry using a file path directly, e.g.:")
+        muted("  freckle history ~/.config/nvim/init.lua")
         raise typer.Exit(1)
 
     # Get history for these files
     commits = get_file_history(dotfiles_dir, file_paths, limit)
 
     if not commits:
-        typer.echo(f"No history found for: {tool_or_path}")
-        typer.echo("\nThis file may not be tracked in your dotfiles repo.")
+        plain(f"No history found for: {tool_or_path}")
+        muted("\nThis file may not be tracked in your dotfiles repo.")
         return
 
     # Display header
     if len(file_paths) == 1:
-        typer.echo(f"History for {file_paths[0]}:\n")
+        plain(f"History for {file_paths[0]}:\n")
     else:
-        typer.echo(f"History for {tool_or_path} ({len(file_paths)} files):\n")
+        plain(f"History for {tool_or_path} ({len(file_paths)} files):\n")
 
     # Display commits with diff preview
     for commit in commits:
         display_commit(commit, show_files, dotfiles_dir, file_paths)
 
     if len(commits) == limit:
-        typer.echo(f"\n[Showing {limit} commits. Use --limit to see more]")
+        muted(f"\n[Showing {limit} commits. Use --limit to see more]")
 
 
 def show_general_history(
@@ -131,14 +130,14 @@ def show_general_history(
         )
 
         if result.returncode != 0:
-            typer.echo("No commits yet.")
+            plain("No commits yet.")
             return
 
         if not result.stdout.strip():
-            typer.echo("No commits yet.")
+            plain("No commits yet.")
             return
 
-        typer.echo(f"Recent commits (last {limit}):\n")
+        plain(f"Recent commits (last {limit}):\n")
 
         if oneline:
             # Simple oneline format
@@ -146,13 +145,11 @@ def show_general_history(
                 if line:
                     parts = line.split(" ", 1)
                     if len(parts) == 2:
-                        typer.echo(
-                            typer.style(parts[0], fg=typer.colors.YELLOW)
-                            + " "
-                            + parts[1]
+                        console.print(
+                            f"[yellow]{parts[0]}[/yellow] {parts[1]}"
                         )
                     else:
-                        typer.echo(line)
+                        plain(line)
         else:
             # Detailed format with relative dates
             for line in result.stdout.strip().split("\n"):
@@ -174,18 +171,16 @@ def show_general_history(
                 except ValueError:
                     date_display = date_str[:10]
 
-                typer.echo(
-                    typer.style(commit_hash, fg=typer.colors.YELLOW, bold=True)
-                    + " - "
-                    + typer.style(date_display, fg=typer.colors.GREEN)
-                    + " - "
-                    + subject
+                console.print(
+                    f"[bold yellow]{commit_hash}[/bold yellow] - "
+                    f"[green]{date_display}[/green] - "
+                    f"{subject}"
                 )
 
     except subprocess.TimeoutExpired:
-        typer.echo("Timeout fetching history.", err=True)
+        error("Timeout fetching history.")
     except Exception as e:
-        typer.echo(f"Error: {e}", err=True)
+        error(f"Error: {e}")
 
 
 def diff(
@@ -221,7 +216,7 @@ def diff(
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles directory not found.", err=True)
+        error("Dotfiles directory not found.")
         raise typer.Exit(1)
 
     # Use the history service for git operations
@@ -229,36 +224,28 @@ def diff(
 
     # Validate commits exist
     if not history_svc.is_valid_commit(commit1):
-        typer.echo(f"Invalid commit: {commit1}", err=True)
+        error(f"Invalid commit: {commit1}")
         raise typer.Exit(1)
 
     if not history_svc.is_valid_commit(commit2):
-        typer.echo(f"Invalid commit: {commit2}", err=True)
+        error(f"Invalid commit: {commit2}")
         raise typer.Exit(1)
 
     # Resolve tool to file paths
     file_paths = resolve_to_repo_paths(tool_or_path, config, dotfiles_dir)
 
     if not file_paths:
-        typer.echo(
-            f"Could not find config files for: {tool_or_path}", err=True
-        )
+        error(f"Could not find config files for: {tool_or_path}")
         raise typer.Exit(1)
 
     # Get commit info for display
     info1 = history_svc.get_commit_subject(commit1)
     info2 = history_svc.get_commit_subject(commit2)
 
-    typer.echo(f"Comparing {tool_or_path}:")
-    typer.echo(
-        typer.style(f"  {commit1[:7]}", fg=typer.colors.RED)
-        + f" {info1 or ''}"
-    )
-    typer.echo(
-        typer.style(f"  {commit2[:7]}", fg=typer.colors.GREEN)
-        + f" {info2 or ''}"
-    )
-    typer.echo("")
+    plain(f"Comparing {tool_or_path}:")
+    console.print(f"  [red]{commit1[:7]}[/red] {info1 or ''}")
+    console.print(f"  [green]{commit2[:7]}[/green] {info2 or ''}")
+    plain("")
 
     # Show diff for each file
     for file_path in file_paths:
@@ -267,13 +254,13 @@ def diff(
         )
 
         if diff_output:
-            typer.echo(typer.style(f"─── {file_path} ───", bold=True))
+            console.print(f"[bold]─── {file_path} ───[/bold]")
             display_colored_diff(diff_output)
-            typer.echo("")
+            plain("")
         else:
-            typer.echo(typer.style(f"─── {file_path} ───", bold=True))
-            typer.echo(typer.style("  (no changes)", dim=True))
-            typer.echo("")
+            console.print(f"[bold]─── {file_path} ───[/bold]")
+            muted("  (no changes)")
+            plain("")
 
 
 def resolve_to_repo_paths(
@@ -502,29 +489,19 @@ def display_commit(
     file_paths: Optional[List[str]] = None,
 ) -> None:
     """Display a single commit entry with diff preview."""
-    typer.echo(
-        typer.style(commit["hash"], fg=typer.colors.YELLOW, bold=True)
-        + " - "
-        + typer.style(commit["date"], fg=typer.colors.GREEN)
-        + " - "
-        + commit["author"]
+    console.print(
+        f"[bold yellow]{commit['hash']}[/bold yellow] - "
+        f"[green]{commit['date']}[/green] - "
+        f"{commit['author']}"
     )
-    typer.echo(f"    {commit['subject']}")
+    plain(f"    {commit['subject']}")
 
     if show_files and commit["files"]:
-        typer.echo(
-            typer.style(
-                f"    {len(commit['files'])} file(s) changed:", dim=True
-            )
-        )
+        muted(f"    {len(commit['files'])} file(s) changed:")
         for f in commit["files"][:5]:
-            typer.echo(typer.style(f"      {f}", dim=True))
+            muted(f"      {f}")
         if len(commit["files"]) > 5:
-            typer.echo(
-                typer.style(
-                    f"      ... and {len(commit['files']) - 5} more", dim=True
-                )
-            )
+            muted(f"      ... and {len(commit['files']) - 5} more")
 
     # Show diff preview if we have the dotfiles_dir
     if dotfiles_dir and file_paths:
@@ -534,15 +511,13 @@ def display_commit(
         if diff_lines:
             for line in diff_lines:
                 if line.startswith("+"):
-                    typer.echo(
-                        typer.style(f"    {line}", fg=typer.colors.GREEN)
-                    )
+                    diff_add(f"    {line}")
                 elif line.startswith("-"):
-                    typer.echo(typer.style(f"    {line}", fg=typer.colors.RED))
+                    diff_remove(f"    {line}")
                 else:
-                    typer.echo(typer.style(f"    {line}", dim=True))
+                    muted(f"    {line}")
 
-    typer.echo("")  # Blank line between commits
+    plain("")  # Blank line between commits
 
 
 def is_valid_commit(dotfiles_dir: Path, commit: str) -> bool:
@@ -693,14 +668,14 @@ def display_colored_diff(diff_output: str) -> None:
     """Display a colorized diff output."""
     for line in diff_output.split("\n"):
         if line.startswith("+") and not line.startswith("+++"):
-            typer.echo(typer.style(line, fg=typer.colors.GREEN))
+            diff_add(line)
         elif line.startswith("-") and not line.startswith("---"):
-            typer.echo(typer.style(line, fg=typer.colors.RED))
+            diff_remove(line)
         elif line.startswith("@@"):
-            typer.echo(typer.style(line, fg=typer.colors.CYAN))
+            info(line)
         elif line.startswith("diff --git"):
             continue  # Skip, we show our own header
         elif line.startswith("index "):
             continue  # Skip index line
         else:
-            typer.echo(line)
+            plain(line)

@@ -9,6 +9,7 @@ from typing import Optional
 import typer
 
 from .helpers import env
+from .output import error, header, muted, plain, success
 
 LAUNCHD_PLIST_PATH = (
     Path.home() / "Library/LaunchAgents/com.freckle.save.plist"
@@ -281,19 +282,17 @@ def schedule(
             status = _get_cron_status()
 
         if status:
-            typer.echo("\n--- Scheduled Save Status ---")
-            typer.echo("  Enabled : Yes")
-            typer.echo(f"  Schedule: {status['schedule']}")
+            header("--- Scheduled Save Status ---")
+            plain("  Enabled : Yes")
+            plain(f"  Schedule: {status['schedule']}")
             if is_mac and "loaded" in status:
-                typer.echo(
-                    f"  Loaded  : {'Yes' if status['loaded'] else 'No'}"
-                )
+                plain(f"  Loaded  : {'Yes' if status['loaded'] else 'No'}")
             if "path" in status:
-                typer.echo(f"  Path    : {status['path']}")
-            typer.echo("\nLog file: /tmp/freckle-save.log")
+                muted(f"  Path    : {status['path']}")
+            muted("\nLog file: /tmp/freckle-save.log")
         else:
-            typer.echo("\nNo scheduled save configured.")
-            typer.echo(
+            plain("\nNo scheduled save configured.")
+            muted(
                 "Run 'freckle schedule daily' or "
                 "'freckle schedule weekly' to enable."
             )
@@ -302,40 +301,37 @@ def schedule(
     if frequency.lower() == "off":
         # Disable
         if is_mac:
-            success = _uninstall_launchd()
+            result = _uninstall_launchd()
         else:
-            success = _uninstall_cron()
+            result = _uninstall_cron()
 
-        if success:
-            typer.echo("✓ Scheduled saves disabled.")
+        if result:
+            success("Scheduled saves disabled.")
         else:
-            typer.echo("✗ Failed to disable scheduled saves.", err=True)
+            error("Failed to disable scheduled saves.")
             raise typer.Exit(1)
         return
 
     if frequency.lower() not in ["daily", "weekly"]:
-        typer.echo(
+        error(
             f"Invalid frequency: {frequency}. "
-            "Use 'daily', 'weekly', or 'off'.",
-            err=True,
+            "Use 'daily', 'weekly', or 'off'."
         )
         raise typer.Exit(1)
 
     daily = frequency.lower() == "daily"
 
     if is_mac:
-        success = _install_launchd(hour, minute, daily)
+        result = _install_launchd(hour, minute, daily)
     else:
-        success = _install_cron(hour, minute, daily)
+        result = _install_cron(hour, minute, daily)
 
-    if success:
+    if result:
         schedule_desc = "daily" if daily else "weekly (Sunday)"
-        typer.echo(
-            f"✓ Scheduled {schedule_desc} save at {hour:02d}:{minute:02d}"
-        )
-        typer.echo("  Log file: /tmp/freckle-save.log")
+        success(f"Scheduled {schedule_desc} save at {hour:02d}:{minute:02d}")
+        muted("  Log file: /tmp/freckle-save.log")
         if is_mac:
-            typer.echo(f"  Config  : {LAUNCHD_PLIST_PATH}")
+            muted(f"  Config  : {LAUNCHD_PLIST_PATH}")
     else:
-        typer.echo("✗ Failed to set up scheduled save.", err=True)
+        error("Failed to set up scheduled save.")
         raise typer.Exit(1)

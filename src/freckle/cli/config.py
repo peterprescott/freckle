@@ -17,6 +17,7 @@ from .helpers import (
     get_dotfiles_dir,
     get_dotfiles_manager,
 )
+from .output import console, error, muted, plain, success, warning
 
 # Create config sub-app
 config_app = typer.Typer(
@@ -46,8 +47,8 @@ def config_callback(ctx: typer.Context):
 def config_edit():
     """Open the freckle configuration file in your editor."""
     if not CONFIG_PATH.exists():
-        typer.echo(f"Config file not found: {CONFIG_PATH}")
-        typer.echo("Run 'freckle init' to create one.")
+        plain(f"Config file not found: {CONFIG_PATH}")
+        muted("Run 'freckle init' to create one.")
         raise typer.Exit(1)
 
     open_in_editor([CONFIG_PATH])
@@ -56,7 +57,7 @@ def config_edit():
 def open_in_editor(files: List[Path]) -> None:
     """Open one or more files in the user's editor."""
     if not files:
-        typer.echo("No files to open.")
+        plain("No files to open.")
         raise typer.Exit(1)
 
     # Convert to strings
@@ -88,9 +89,9 @@ def open_in_editor(files: List[Path]) -> None:
         elif shutil.which("vi"):
             subprocess.run(["vi", *file_args], check=True)
         else:
-            typer.echo("Could not find an editor. Files are at:")
+            plain("Could not find an editor. Files are at:")
             for f in file_args:
-                typer.echo(f"  {f}")
+                muted(f"  {f}")
             raise typer.Exit(1)
 
 
@@ -142,14 +143,14 @@ def config_open(
     files = get_tool_config_files(tool_name)
 
     if not files:
-        typer.echo(f"No config files found for tool: {tool_name}", err=True)
-        typer.echo("\nEither the tool is not defined in .freckle.yaml,")
-        typer.echo("or it has no 'config' section.")
-        typer.echo("\nTo add config files, edit .freckle.yaml:")
-        typer.echo("  tools:")
-        typer.echo(f"    {tool_name}:")
-        typer.echo("      config:")
-        typer.echo(f"        - ~/.config/{tool_name}/config")
+        error(f"No config files found for tool: {tool_name}")
+        plain("\nEither the tool is not defined in .freckle.yaml,")
+        plain("or it has no 'config' section.")
+        muted("\nTo add config files, edit .freckle.yaml:")
+        muted("  tools:")
+        muted(f"    {tool_name}:")
+        muted("      config:")
+        muted(f"        - ~/.config/{tool_name}/config")
         raise typer.Exit(1)
 
     # Filter to existing files
@@ -158,21 +159,20 @@ def config_open(
 
     if missing:
         for f in missing:
-            msg = f"Note: {f} does not exist"
-            typer.echo(typer.style(msg, fg=typer.colors.YELLOW))
+            warning(f"Note: {f} does not exist", prefix="⚠")
 
     if not existing:
-        typer.echo("None of the config files exist yet.", err=True)
-        typer.echo("\nExpected files:")
+        error("None of the config files exist yet.")
+        plain("\nExpected files:")
         for f in files:
-            typer.echo(f"  {f}")
+            muted(f"  {f}")
         raise typer.Exit(1)
 
     # Open existing files
     if len(existing) == 1:
-        typer.echo(f"Opening {existing[0]}")
+        plain(f"Opening {existing[0]}")
     else:
-        typer.echo(f"Opening {len(existing)} config file(s) for {tool_name}")
+        plain(f"Opening {len(existing)} config file(s) for {tool_name}")
 
     open_in_editor(existing)
 
@@ -188,17 +188,17 @@ def config_check():
     profiles = config.get_profiles()
 
     if not profiles:
-        typer.echo("No profiles configured.")
+        plain("No profiles configured.")
         return
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured.", err=True)
+        error("Dotfiles not configured.")
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found.", err=True)
+        error("Dotfiles repository not found.")
         raise typer.Exit(1)
 
     # Get current branch
@@ -206,7 +206,7 @@ def config_check():
         result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
         current_branch = result.stdout.strip()
     except subprocess.CalledProcessError:
-        typer.echo("Failed to get current branch.", err=True)
+        error("Failed to get current branch.")
         raise typer.Exit(1)
 
     # Get current config content
@@ -215,12 +215,10 @@ def config_check():
         result = dotfiles._git.run("show", git_path)
         current_content = result.stdout
     except subprocess.CalledProcessError:
-        typer.echo(
-            f"No {CONFIG_FILENAME} found on current branch.", err=True
-        )
+        error(f"No {CONFIG_FILENAME} found on current branch.")
         raise typer.Exit(1)
 
-    typer.echo(f"Checking {CONFIG_FILENAME} consistency...\n")
+    plain(f"Checking {CONFIG_FILENAME} consistency...\n")
 
     consistent = []
     inconsistent = []
@@ -247,20 +245,22 @@ def config_check():
     # Report results
     for name, branch, note in consistent:
         if note:
-            typer.echo(f"  ✓ {name} ({branch}) {note}")
+            console.print(f"  [green]✓[/green] {name} ({branch}) {note}")
         else:
-            typer.echo(f"  ✓ {name} ({branch})")
+            console.print(f"  [green]✓[/green] {name} ({branch})")
 
     for name, branch in inconsistent:
-        typer.echo(f"  ✗ {name} ({branch}) - differs or missing")
+        console.print(
+            f"  [red]✗[/red] {name} ({branch}) - differs or missing"
+        )
 
     if inconsistent:
-        typer.echo(
+        muted(
             "\nRun 'freckle config propagate' to sync config to all branches."
         )
         raise typer.Exit(1)
     else:
-        typer.echo("\n✓ Config is consistent across all branches.")
+        success("Config is consistent across all branches.")
 
 
 @config_app.command(name="propagate")
@@ -281,17 +281,17 @@ def config_propagate(
     profiles = config.get_profiles()
 
     if not profiles:
-        typer.echo("No profiles configured.")
+        plain("No profiles configured.")
         return
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured.", err=True)
+        error("Dotfiles not configured.")
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found.", err=True)
+        error("Dotfiles repository not found.")
         raise typer.Exit(1)
 
     # Get current branch
@@ -299,7 +299,7 @@ def config_propagate(
         result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
         current_branch = result.stdout.strip()
     except subprocess.CalledProcessError:
-        typer.echo("Failed to get current branch.", err=True)
+        error("Failed to get current branch.")
         raise typer.Exit(1)
 
     # Get current config content
@@ -308,9 +308,7 @@ def config_propagate(
         result = dotfiles._git.run("show", git_path)
         current_content = result.stdout
     except subprocess.CalledProcessError:
-        typer.echo(
-            f"No {CONFIG_FILENAME} found on current branch.", err=True
-        )
+        error(f"No {CONFIG_FILENAME} found on current branch.")
         raise typer.Exit(1)
 
     # Find branches to update
@@ -321,24 +319,24 @@ def config_propagate(
             branches_to_update.append((name, branch))
 
     if not branches_to_update:
-        typer.echo("No other branches to update.")
+        plain("No other branches to update.")
         return
 
     n = len(branches_to_update)
-    typer.echo(f"Will update {CONFIG_FILENAME} on {n} branch(es):")
+    plain(f"Will update {CONFIG_FILENAME} on {n} branch(es):")
     for name, branch in branches_to_update:
-        typer.echo(f"  - {name} ({branch})")
+        muted(f"  - {name} ({branch})")
 
     if dry_run:
-        typer.echo("\n--- Dry run, no changes made ---")
+        plain("\n--- Dry run, no changes made ---")
         return
 
     if not force:
         if not typer.confirm("\nProceed?"):
-            typer.echo("Cancelled.")
+            plain("Cancelled.")
             return
 
-    typer.echo("")
+    plain("")
 
     # Check for uncommitted changes (only tracked files)
     try:
@@ -357,14 +355,14 @@ def config_propagate(
 
     stashed = False
     if has_changes:
-        typer.echo("Stashing local changes...")
+        plain("Stashing local changes...")
         try:
             dotfiles._git.run(
                 "stash", "push", "-m", "freckle config propagate"
             )
             stashed = True
         except subprocess.CalledProcessError:
-            typer.echo("Failed to stash changes.", err=True)
+            error("Failed to stash changes.")
             raise typer.Exit(1)
 
     updated = []
@@ -388,36 +386,34 @@ def config_propagate(
                 )
 
                 updated.append((name, branch))
-                typer.echo(f"  ✓ {name} ({branch})")
+                success(f"{name} ({branch})", prefix="  ✓")
 
-            except subprocess.CalledProcessError as e:
-                failed.append((name, branch, str(e)))
-                typer.echo(f"  ✗ {name} ({branch}) - failed")
+            except subprocess.CalledProcessError:
+                failed.append((name, branch))
+                error(f"{name} ({branch}) - failed", prefix="  ✗")
 
     finally:
         # Return to original branch
         try:
             dotfiles._git.run("checkout", current_branch)
         except subprocess.CalledProcessError:
-            typer.echo(
-                f"Warning: failed to return to {current_branch}", err=True
-            )
+            warning(f"Failed to return to {current_branch}")
 
         # Restore stashed changes
         if stashed:
             try:
                 dotfiles._git.run("stash", "pop")
             except subprocess.CalledProcessError:
-                typer.echo("Warning: failed to restore stashed changes")
+                warning("Failed to restore stashed changes")
 
-    typer.echo("")
+    plain("")
 
     if updated:
-        typer.echo(f"Updated {len(updated)} branch(es).")
-        typer.echo("\nTo push changes:")
+        plain(f"Updated {len(updated)} branch(es).")
+        muted("\nTo push changes:")
         branch_names = [b for _, b in updated]
-        typer.echo(f"  git push origin {' '.join(branch_names)}")
+        muted(f"  git push origin {' '.join(branch_names)}")
 
     if failed:
-        typer.echo(f"\nFailed to update {len(failed)} branch(es).")
+        error(f"Failed to update {len(failed)} branch(es).")
         raise typer.Exit(1)
