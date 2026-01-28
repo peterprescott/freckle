@@ -8,6 +8,7 @@ import typer
 
 from ..tools_registry import ToolDefinition, get_tools_from_config
 from .helpers import env, get_config, get_config_path, get_dotfiles_manager
+from .output import error, header, muted, plain, success, warning
 from .profile.helpers import get_current_branch
 
 
@@ -61,18 +62,30 @@ def register(app: typer.Typer) -> None:
     app.command()(status)
 
 
+def _format_file_status(file_status: str) -> str:
+    """Format file status with colors."""
+    status_map = {
+        "up-to-date": "[green]✓[/green] up-to-date",
+        "modified": "[yellow]⚠[/yellow] modified locally",
+        "behind": "[cyan]↓[/cyan] update available",
+        "untracked": "[red]✗[/red] not tracked",
+        "missing": "[red]✗[/red] missing from home",
+        "not-found": "[green]✓[/green] local only",
+        "error": "[yellow]⚠[/yellow] error checking",
+    }
+    return status_map.get(file_status, f"status: {file_status}")
+
+
 def status():
     """Show current setup status and check for updates."""
     config = get_config()
 
     repo_url = config.get("dotfiles.repo_url")
 
-    typer.echo("\n--- freckle Status ---")
-    typer.echo(
-        f"OS     : {env.os_info['pretty_name']} ({env.os_info['machine']})"
-    )
-    typer.echo(f"Kernel : {env.os_info['release']}")
-    typer.echo(f"User   : {env.user}")
+    header("--- freckle Status ---")
+    plain(f"OS     : {env.os_info['pretty_name']} ({env.os_info['machine']})")
+    plain(f"Kernel : {env.os_info['release']}")
+    plain(f"User   : {env.user}")
 
     dotfiles = None
     if repo_url:
@@ -98,40 +111,37 @@ def status():
     # Freckle config status
     config_path = get_config_path()
     config_filename = config_path.name
-    typer.echo("\nConfiguration:")
+    plain("\nConfiguration:")
     if config_path.exists():
         if dotfiles:
             file_status = dotfiles.get_file_sync_status(config_filename)
-            status_str = {
-                "up-to-date": "✓ up-to-date",
-                "modified": "⚠ modified locally",
-                "behind": "↓ update available (behind remote)",
-                "untracked": "✗ not tracked in dotfiles",
-                "missing": "✓ local only",
-                "not-found": "✓ local only",
-                "error": "⚠ error checking status",
-            }.get(file_status, f"status: {file_status}")
-            typer.echo(f"  {config_filename} : {status_str}")
+            status_str = _format_file_status(file_status)
+            from .output import console
+            console.print(f"  {config_filename} : {status_str}")
         else:
-            typer.echo(f"  {config_filename} : ✓ exists (no dotfiles repo)")
+            success(f"{config_filename} : exists (no dotfiles)", prefix="  ✓")
     else:
-        typer.echo(f"  {config_filename} : ✗ not found (run 'freckle init')")
+        error(f"{config_filename} : not found (run init)", prefix="  ✗")
 
     # Collect all config files associated with tools
     tool_config_files = set()
 
     if tools:
-        typer.echo("\nConfigured Tools:")
+        plain("\nConfigured Tools:")
 
         # Check all tools in parallel for faster status
         tool_statuses = check_tools_parallel(tools)
 
+        from .output import console
+
         for ts in tool_statuses:
             if ts.is_installed:
-                typer.echo(f"  {ts.tool.name}:")
-                typer.echo(f"    Status : ✓ {ts.version}")
+                plain(f"  {ts.tool.name}:")
+                console.print(f"    Status : [green]✓[/green] {ts.version}")
             else:
-                typer.echo(f"  {ts.tool.name}: ✗ not installed")
+                console.print(
+                    f"  {ts.tool.name}: [red]✗[/red] not installed"
+                )
                 continue
 
             if dotfiles and ts.tool.config_files:
@@ -141,16 +151,8 @@ def status():
                     if file_status == "not-found":
                         continue
 
-                    status_str = {
-                        "up-to-date": "✓ up-to-date",
-                        "modified": "⚠ modified locally",
-                        "behind": "↓ update available (behind remote)",
-                        "untracked": "✗ not tracked",
-                        "missing": "✗ missing from home",
-                        "error": "⚠ error checking status",
-                    }.get(file_status, f"status: {file_status}")
-
-                    typer.echo(f"    Config : {status_str} ({cfg})")
+                    status_str = _format_file_status(file_status)
+                    console.print(f"    Config : {status_str} ({cfg})")
 
     # Show all other tracked files
     if dotfiles:
@@ -163,102 +165,110 @@ def status():
         ]
 
         if other_tracked:
-            typer.echo("\nOther Tracked Files:")
+            plain("\nOther Tracked Files:")
+            from .output import console
+
             for f in sorted(other_tracked):
                 file_status = dotfiles.get_file_sync_status(f)
-                status_str = {
-                    "up-to-date": "✓",
-                    "modified": "⚠ modified",
-                    "behind": "↓ behind",
-                    "missing": "✗ missing",
-                    "error": "?",
-                }.get(file_status, "?")
-                typer.echo(f"  {status_str} {f}")
+                status_map = {
+                    "up-to-date": "[green]✓[/green]",
+                    "modified": "[yellow]⚠[/yellow] modified",
+                    "behind": "[cyan]↓[/cyan] behind",
+                    "missing": "[red]✗[/red] missing",
+                    "error": "[yellow]?[/yellow]",
+                }
+                status_str = status_map.get(file_status, "?")
+                console.print(f"  {status_str} {f}")
 
     # Global Dotfiles Status
     if not repo_url:
-        typer.echo("\nDotfiles: Not configured (run 'freckle init')")
+        plain("\nDotfiles: Not configured (run 'freckle init')")
     elif dotfiles:
-        typer.echo(f"\nDotfiles ({repo_url}):")
+        plain(f"\nDotfiles ({repo_url}):")
         try:
             report = dotfiles.get_detailed_status()
             if not report["initialized"]:
-                typer.echo("  Status: Not initialized")
+                plain("  Status: Not initialized")
             else:
                 branch_info = report.get("branch_info", {})
                 effective_branch = report.get("branch", "main")
 
                 reason = branch_info.get("reason", "exact")
                 if reason == "exact":
-                    typer.echo(f"  Branch: {effective_branch}")
+                    plain(f"  Branch: {effective_branch}")
                 elif reason == "main_master_swap":
-                    typer.echo(f"  Branch: {effective_branch}")
+                    plain(f"  Branch: {effective_branch}")
                     configured = branch_info.get("configured")
-                    typer.echo(
+                    muted(
                         f"    Note: '{configured}' not found, "
                         f"using '{effective_branch}'"
                     )
                 elif reason == "not_found":
-                    typer.echo(
-                        f"  Branch: {effective_branch} "
-                        "(configured, but not found!)"
+                    warning(
+                        f"Branch: {effective_branch} (configured, not found!)",
+                        prefix="  ⚠"
                     )
                     available = branch_info.get("available", [])
                     if available:
-                        typer.echo(
-                            f"    Available branches: {', '.join(available)}"
-                        )
+                        muted(f"    Available: {', '.join(available)}")
                     else:
-                        typer.echo(
-                            "    No branches found - is this repo initialized?"
-                        )
+                        muted("    No branches found - is repo initialized?")
                 else:
-                    typer.echo(f"  Branch: {effective_branch}")
+                    plain(f"  Branch: {effective_branch}")
                     if branch_info.get("message"):
-                        typer.echo(f"    Note: {branch_info['message']}")
+                        muted(f"    Note: {branch_info['message']}")
 
-                typer.echo(f"  Local Commit : {report['local_commit']}")
+                plain(f"  Local Commit : {report['local_commit']}")
+
+                from .output import console
 
                 if report.get("remote_branch_missing"):
-                    typer.echo(
-                        f"  Remote Commit: ✗ No origin/"
-                        f"{effective_branch} branch!"
+                    console.print(
+                        f"  Remote Commit: [red]✗[/red] "
+                        f"No origin/{effective_branch} branch!"
                     )
-                    typer.echo(
+                    muted(
                         f"    The local '{effective_branch}' branch "
                         "has no remote counterpart."
                     )
-                    typer.echo("    To push it: freckle save")
+                    muted("    To push it: freckle save")
                 else:
                     remote = report.get("remote_commit", "N/A")
-                    typer.echo(f"  Remote Commit: {remote}")
+                    plain(f"  Remote Commit: {remote}")
 
                 if report.get("fetch_failed"):
-                    typer.echo("  Remote Status: ⚠ Could not fetch (offline?)")
+                    console.print(
+                        "  Remote Status: [yellow]⚠[/yellow] "
+                        "Could not fetch (offline?)"
+                    )
 
                 if report["has_local_changes"]:
-                    typer.echo("  Local Changes: Yes (uncommitted changes)")
+                    console.print(
+                        "  Local Changes: [yellow]Yes[/yellow] "
+                        "(uncommitted changes)"
+                    )
                 else:
-                    typer.echo("  Local Changes: No")
+                    console.print("  Local Changes: [green]No[/green]")
 
                 if report.get("remote_branch_missing"):
                     pass
                 elif report.get("is_ahead"):
                     ahead = report.get("ahead_count", 0)
-                    typer.echo(
-                        f"  Ahead: Yes ({ahead} commits not pushed)"
+                    console.print(
+                        f"  Ahead: [yellow]Yes[/yellow] "
+                        f"({ahead} commits not pushed)"
                     )
 
                 if report.get("is_behind"):
                     behind = report.get("behind_count", 0)
-                    typer.echo(
-                        f"  Behind: Yes ({behind} commits to pull)"
+                    console.print(
+                        f"  Behind: [cyan]Yes[/cyan] ({behind} to pull)"
                     )
                 elif not report.get("fetch_failed") and not report.get(
                     "remote_branch_missing"
                 ):
-                    typer.echo("  Behind: No (up to date)")
+                    console.print("  Behind: [green]No[/green] (up to date)")
 
         except Exception as e:
-            typer.echo(f"  Error checking status: {e}")
-    typer.echo("")
+            error(f"Error checking status: {e}", prefix="  ✗")
+    plain("")

@@ -13,6 +13,14 @@ from .helpers import (
     get_dotfiles_dir,
     get_dotfiles_manager,
 )
+from .output import (
+    error,
+    muted,
+    plain,
+    plain_err,
+    success,
+    warning,
+)
 
 
 def register(app: typer.Typer) -> None:
@@ -48,7 +56,7 @@ def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
         return
 
     if not quiet:
-        typer.echo(f"\nSyncing {CONFIG_FILENAME} to other branches...")
+        plain(f"\nSyncing {CONFIG_FILENAME} to other branches...")
 
     updated = []
     for branch in branches_to_update:
@@ -68,15 +76,15 @@ def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
                 )
                 updated.append(branch)
                 if not quiet:
-                    typer.echo(f"  ✓ {branch}")
+                    success(branch, prefix="  ✓")
             except subprocess.CalledProcessError:
                 # Already has same content
                 if not quiet:
-                    typer.echo(f"  ✓ {branch} (already synced)")
+                    success(f"{branch} (already synced)", prefix="  ✓")
 
         except subprocess.CalledProcessError:
             if not quiet:
-                typer.echo(f"  ✗ {branch} (failed)")
+                error(f"{branch} (failed)", prefix="  ✗")
 
     # Return to original branch
     try:
@@ -91,10 +99,10 @@ def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
                 "push", "origin", *updated, check=True, timeout=60
             )
             if not quiet:
-                typer.echo(f"  Pushed {len(updated)} branch(es)")
+                muted(f"  Pushed {len(updated)} branch(es)")
         except subprocess.CalledProcessError:
             if not quiet:
-                typer.echo("  ⚠ Could not push synced branches (offline?)")
+                warning("Could not push synced branches", prefix="  ⚠")
 
 
 def _build_commit_message(
@@ -129,27 +137,21 @@ def do_save(
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
         if not quiet:
-            typer.echo(
-                "No dotfiles repository configured. Run 'freckle init' first.",
-                err=True,
-            )
+            error("No dotfiles configured. Run 'freckle init' first.")
         return False
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
         if not quiet:
-            typer.echo(
-                "Dotfiles repository not found. Run 'freckle init' first.",
-                err=True,
-            )
+            error("Dotfiles repository not found. Run 'freckle init' first.")
         return False
 
     report = dotfiles.get_detailed_status()
 
     if not report["has_local_changes"] and not report.get("is_ahead", False):
         if not quiet:
-            typer.echo("✓ Nothing to save - already up-to-date.")
+            success("Nothing to save - already up-to-date.")
         return True
 
     changed_files = report.get("changed_files", [])
@@ -165,46 +167,39 @@ def do_save(
 
         if secrets_found:
             if not quiet:
-                typer.echo(
-                    f"✗ Found potential secrets in {len(secrets_found)} "
-                    "file(s):\n",
-                    err=True,
+                error(
+                    f"Found potential secrets in {len(secrets_found)} file(s):"
                 )
+                plain_err("")
                 for match in secrets_found:
-                    typer.echo(f"  {match.file}", err=True)
-                    typer.echo(f"    └─ {match.reason}", err=True)
+                    plain_err(f"  {match.file}")
+                    plain_err(f"    └─ {match.reason}")
                     if match.line:
-                        typer.echo(f"       (line {match.line})", err=True)
+                        plain_err(f"       (line {match.line})")
 
-                typer.echo(
-                    "\nTo untrack: freckle untrack <file>",
-                    err=True,
-                )
-                typer.echo(
-                    "To save anyway: freckle save --skip-secret-check",
-                    err=True,
-                )
+                plain_err("\nTo untrack: freckle untrack <file>")
+                plain_err("To save anyway: freckle save --skip-secret-check")
             return False
 
     # Dry run - show what would happen
     if dry_run:
-        typer.echo("\n--- DRY RUN (no changes will be made) ---\n")
+        plain("\n--- DRY RUN (no changes will be made) ---\n")
         if report["has_local_changes"]:
-            typer.echo("Would save the following files:")
+            plain("Would save the following files:")
             for f in changed_files:
-                typer.echo(f"  - {f}")
+                plain(f"  - {f}")
         if report.get("is_ahead", False):
             ahead = report.get("ahead_count", 0)
-            typer.echo(f"\nWould sync {ahead} change(s) to cloud.")
+            plain(f"\nWould sync {ahead} change(s) to cloud.")
         elif report["has_local_changes"]:
-            typer.echo("\nWould sync to cloud.")
-        typer.echo("\n--- Dry Run Complete ---")
+            plain("\nWould sync to cloud.")
+        plain("\n--- Dry Run Complete ---")
         return True
 
     if report["has_local_changes"] and not quiet:
-        typer.echo("Saving changed file(s):")
+        plain("Saving changed file(s):")
         for f in changed_files:
-            typer.echo(f"  - {f}")
+            muted(f"  - {f}")
 
     # Build commit message
     if message:
@@ -221,10 +216,10 @@ def do_save(
             dotfiles._git.run("add", "-A")
             dotfiles._git.run("commit", "-m", commit_msg)
             if not quiet:
-                typer.echo("✓ Saved locally")
+                success("Saved locally")
         except Exception as e:
             if not quiet:
-                typer.echo(f"✗ Failed to save: {e}", err=True)
+                error(f"Failed to save: {e}")
             return False
 
     # Then, try to push (may fail if offline)
@@ -233,17 +228,17 @@ def do_save(
         result = dotfiles.push()
         if result.get("success"):
             if not quiet:
-                typer.echo("✓ Synced to cloud")
+                success("Synced to cloud")
         else:
             offline = True
             if not quiet:
-                typer.echo("⚠ Could not sync to cloud (offline?)")
-                typer.echo("  Run 'freckle save' again when online")
+                warning("Could not sync to cloud (offline?)")
+                muted("  Run 'freckle save' again when online")
     except Exception:
         offline = True
         if not quiet:
-            typer.echo("⚠ Could not sync to cloud (offline?)")
-            typer.echo("  Run 'freckle save' again when online")
+            warning("Could not sync to cloud (offline?)")
+            muted("  Run 'freckle save' again when online")
 
     # Auto-propagate config if it was changed
     if CONFIG_FILENAME in changed_files:
@@ -280,12 +275,12 @@ def save(
         freckle save                    # Save all changes
         freckle save -m "Updated zshrc" # With custom message
     """
-    success = do_save(
+    result = do_save(
         message=message,
         skip_secret_check=skip_secret_check,
         quiet=quiet,
         scheduled=scheduled,
         dry_run=dry_run,
     )
-    if not success:
+    if not result:
         raise typer.Exit(1)

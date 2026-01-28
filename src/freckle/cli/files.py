@@ -9,6 +9,7 @@ import typer
 from freckle.secrets import SecretScanner
 
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .output import console, error, muted, plain, plain_err, success, warning
 
 
 def register(app: typer.Typer) -> None:
@@ -63,25 +64,20 @@ def track(
     """
 
     if not files:
-        typer.echo("Usage: freckle track <file> [file2] [file3] ...")
+        plain("Usage: freckle track <file> [file2] [file3] ...")
         raise typer.Exit(1)
 
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo(
-            "Dotfiles not configured. Run 'freckle init' first.", err=True
-        )
+        error("Dotfiles not configured. Run 'freckle init' first.")
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo(
-            "Dotfiles repository not found. Run 'freckle init' first.",
-            err=True,
-        )
+        error("Dotfiles repository not found. Run 'freckle init' first.")
         raise typer.Exit(1)
 
     # Convert user-provided paths to paths relative to home directory
@@ -98,7 +94,7 @@ def track(
             relative = path.relative_to(env.home)
             home_relative_files.append(str(relative))
         except ValueError:
-            typer.echo(f"File must be under home directory: {f}", err=True)
+            error(f"File must be under home directory: {f}")
             continue
 
     if not home_relative_files:
@@ -114,49 +110,44 @@ def track(
         secrets_found = scanner.scan_files(home_relative_files, env.home)
 
         if secrets_found:
-            typer.echo(
-                f"✗ Blocked: {len(secrets_found)} file(s) appear to "
-                "contain secrets:\n",
-                err=True,
+            error(
+                f"Blocked: {len(secrets_found)} file(s) appear to "
+                "contain secrets:"
             )
+            plain_err("")
             for match in secrets_found:
-                typer.echo(f"  {match.file}", err=True)
-                typer.echo(f"    └─ {match.reason}", err=True)
+                plain_err(f"  {match.file}")
+                plain_err(f"    └─ {match.reason}")
                 if match.line:
-                    typer.echo(f"       (line {match.line})", err=True)
+                    plain_err(f"       (line {match.line})")
 
-            typer.echo(
-                "\nSecrets should not be tracked in dotfiles.", err=True
-            )
-            typer.echo(
-                "To override: freckle track --force <files>",
-                err=True,
-            )
+            plain_err("\nSecrets should not be tracked in dotfiles.")
+            plain_err("To override: freckle track --force <files>")
             raise typer.Exit(1)
 
     result = dotfiles.add_files(home_relative_files)
 
     if result["added"]:
-        typer.echo(f"✓ Now tracking {len(result['added'])} file(s):")
+        success(f"Now tracking {len(result['added'])} file(s):")
         for f in result["added"]:
-            typer.echo(f"    + {f}")
+            console.print(f"    [green]+[/green] {f}")
 
         # Auto-save
         pushed = _auto_save(dotfiles, result["added"], "Track")
         if pushed:
-            typer.echo("✓ Synced to cloud")
+            success("Synced to cloud")
         else:
-            typer.echo("✓ Saved locally")
-            typer.echo("  (Run 'freckle save' to sync when online)")
+            success("Saved locally")
+            muted("  (Run 'freckle save' to sync when online)")
 
     if result["skipped"]:
-        typer.echo(f"\n⚠ Skipped {len(result['skipped'])} file(s):")
+        warning(f"Skipped {len(result['skipped'])} file(s):")
         for f in result["skipped"]:
             file_path = env.home / f
             if not file_path.exists():
-                typer.echo(f"    - {f} (file not found)")
+                muted(f"    - {f} (file not found)")
             else:
-                typer.echo(f"    - {f} (failed to add)")
+                muted(f"    - {f} (failed to add)")
 
     if not result["added"]:
         raise typer.Exit(1)
@@ -179,25 +170,20 @@ def untrack(
     """
 
     if not files:
-        typer.echo("Usage: freckle untrack <file> [file2] ...")
+        plain("Usage: freckle untrack <file> [file2] ...")
         raise typer.Exit(1)
 
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo(
-            "Dotfiles not configured. Run 'freckle init' first.", err=True
-        )
+        error("Dotfiles not configured. Run 'freckle init' first.")
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo(
-            "Dotfiles repository not found. Run 'freckle init' first.",
-            err=True,
-        )
+        error("Dotfiles repository not found. Run 'freckle init' first.")
         raise typer.Exit(1)
 
     # Convert user-provided paths to paths relative to home directory
@@ -222,7 +208,7 @@ def untrack(
             relative = path.relative_to(env.home)
             home_relative_files.append(str(relative))
         except ValueError:
-            typer.echo(f"File must be under home directory: {f}", err=True)
+            error(f"File must be under home directory: {f}")
             continue
 
     if not home_relative_files:
@@ -245,29 +231,27 @@ def untrack(
 
     if removed:
         if delete:
-            typer.echo(
-                f"✓ Stopped tracking and deleted {len(removed)} file(s):"
-            )
+            success(f"Stopped tracking and deleted {len(removed)} file(s):")
         else:
-            typer.echo(f"✓ Stopped tracking {len(removed)} file(s):")
+            success(f"Stopped tracking {len(removed)} file(s):")
         for f in removed:
             if delete:
-                typer.echo(f"    - {f} (deleted)")
+                console.print(f"    [red]-[/red] {f} (deleted)")
             else:
-                typer.echo(f"    - {f} (kept in ~/)")
+                console.print(f"    [dim]-[/dim] {f} (kept in ~/)")
 
         # Auto-save
         pushed = _auto_save(dotfiles, removed, "Untrack")
         if pushed:
-            typer.echo("✓ Synced to cloud")
+            success("Synced to cloud")
         else:
-            typer.echo("✓ Saved locally")
-            typer.echo("  (Run 'freckle save' to sync when online)")
+            success("Saved locally")
+            muted("  (Run 'freckle save' to sync when online)")
 
     if skipped:
-        typer.echo(f"\n⚠ Failed to untrack {len(skipped)} file(s):")
+        warning(f"Failed to untrack {len(skipped)} file(s):")
         for f, err in skipped:
-            typer.echo(f"    - {f}: {err}")
+            muted(f"    - {f}: {err}")
 
     if not removed:
         raise typer.Exit(1)
@@ -305,17 +289,17 @@ def propagate(
     profiles = config.get_profiles()
 
     if not profiles:
-        typer.echo("No profiles configured.")
+        plain("No profiles configured.")
         return
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("Dotfiles not configured.", err=True)
+        error("Dotfiles not configured.")
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
     if not dotfiles_dir.exists():
-        typer.echo("Dotfiles repository not found.", err=True)
+        error("Dotfiles repository not found.")
         raise typer.Exit(1)
 
     # Normalize file path to be relative to home
@@ -334,7 +318,7 @@ def propagate(
     try:
         relative_path = str(file_path.relative_to(env.home))
     except ValueError:
-        typer.echo(f"File must be under home directory: {file}", err=True)
+        error(f"File must be under home directory: {file}")
         raise typer.Exit(1)
 
     # Get current branch
@@ -342,7 +326,7 @@ def propagate(
         result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
         current_branch = result.stdout.strip()
     except subprocess.CalledProcessError:
-        typer.echo("Failed to get current branch.", err=True)
+        error("Failed to get current branch.")
         raise typer.Exit(1)
 
     # Get file content from current branch
@@ -351,9 +335,7 @@ def propagate(
         result = dotfiles._git.run("show", git_path)
         file_content = result.stdout
     except subprocess.CalledProcessError:
-        typer.echo(
-            f"File not found in current branch: {relative_path}", err=True
-        )
+        error(f"File not found in current branch: {relative_path}")
         raise typer.Exit(1)
 
     # Determine target branches
@@ -362,9 +344,7 @@ def propagate(
         branches_to_update = []
         for branch in to:
             if branch not in profiles:
-                typer.echo(
-                    f"Warning: '{branch}' is not a profile branch", err=True
-                )
+                warning(f"'{branch}' is not a profile branch")
             if branch != current_branch:
                 branches_to_update.append(branch)
     else:
@@ -374,27 +354,27 @@ def propagate(
         ]
 
     if not branches_to_update:
-        typer.echo("No other branches to update.")
+        plain("No other branches to update.")
         return
 
     n = len(branches_to_update)
-    typer.echo(
+    plain(
         f"Propagating {relative_path} from '{current_branch}' "
         f"to {n} branch(es):"
     )
     for branch in branches_to_update:
-        typer.echo(f"  - {branch}")
+        muted(f"  - {branch}")
 
     if dry_run:
-        typer.echo("\n--- Dry run, no changes made ---")
+        plain("\n--- Dry run, no changes made ---")
         return
 
     if not force:
         if not typer.confirm("\nProceed?"):
-            typer.echo("Cancelled.")
+            plain("Cancelled.")
             return
 
-    typer.echo("")
+    plain("")
 
     # Check for uncommitted changes
     try:
@@ -413,12 +393,12 @@ def propagate(
 
     stashed = False
     if has_changes:
-        typer.echo("Stashing local changes...")
+        plain("Stashing local changes...")
         try:
             dotfiles._git.run("stash", "push", "-m", "freckle propagate")
             stashed = True
         except subprocess.CalledProcessError:
-            typer.echo("Failed to stash changes.", err=True)
+            error("Failed to stash changes.")
             raise typer.Exit(1)
 
     updated = []
@@ -443,44 +423,42 @@ def propagate(
                 )
 
                 updated.append(branch)
-                typer.echo(f"  ✓ {branch}")
+                success(branch, prefix="  ✓")
 
-            except subprocess.CalledProcessError as e:
-                failed.append((branch, str(e)))
-                typer.echo(f"  ✗ {branch} - failed")
+            except subprocess.CalledProcessError:
+                failed.append(branch)
+                error(f"{branch} - failed", prefix="  ✗")
 
     finally:
         # Return to original branch
         try:
             dotfiles._git.run("checkout", current_branch)
         except subprocess.CalledProcessError:
-            typer.echo(
-                f"Warning: failed to return to {current_branch}", err=True
-            )
+            warning(f"Failed to return to {current_branch}")
 
         # Restore stashed changes
         if stashed:
             try:
                 dotfiles._git.run("stash", "pop")
             except subprocess.CalledProcessError:
-                typer.echo("Warning: failed to restore stashed changes")
+                warning("Failed to restore stashed changes")
 
-    typer.echo("")
+    plain("")
 
     if updated:
-        typer.echo(f"✓ Updated {len(updated)} branch(es).")
+        success(f"Updated {len(updated)} branch(es).")
 
         if push:
-            typer.echo("\nPushing changes...")
+            plain("\nPushing changes...")
             for branch in updated:
                 try:
                     dotfiles._git.run("push", "origin", branch)
-                    typer.echo(f"  ✓ Pushed {branch}")
+                    success(f"Pushed {branch}", prefix="  ✓")
                 except subprocess.CalledProcessError:
-                    typer.echo(f"  ✗ Failed to push {branch}")
+                    error(f"Failed to push {branch}", prefix="  ✗")
         else:
-            typer.echo("\nTo sync changes, run: freckle save")
+            muted("\nTo sync changes, run: freckle save")
 
     if failed:
-        typer.echo(f"\n✗ Failed to update {len(failed)} branch(es).")
+        error(f"Failed to update {len(failed)} branch(es).")
         raise typer.Exit(1)

@@ -17,6 +17,15 @@ from .helpers import (
     get_dotfiles_manager,
     is_git_available,
 )
+from .output import (
+    console,
+    error,
+    info,
+    muted,
+    plain,
+    success,
+    warning,
+)
 
 
 def register(app: typer.Typer) -> None:
@@ -44,64 +53,64 @@ def doctor(
     issues = []
     warnings = []
 
-    typer.echo("Running freckle health check...\n")
+    plain("Running freckle health check...\n")
 
     # Check freckle version
-    typer.echo("Freckle:")
+    plain("Freckle:")
     version_warnings = _check_version(verbose)
     warnings.extend(version_warnings)
 
-    typer.echo("")
+    plain("")
 
     # Check prerequisites
-    typer.echo("Prerequisites:")
+    plain("Prerequisites:")
     prereq_issues = _check_prerequisites(verbose)
     issues.extend(prereq_issues)
 
-    typer.echo("")
+    plain("")
 
     # Check config
-    typer.echo("Config:")
+    plain("Config:")
     config_issues, config_warnings = _check_config(verbose)
     issues.extend(config_issues)
     warnings.extend(config_warnings)
 
-    typer.echo("")
+    plain("")
 
     # Check dotfiles
-    typer.echo("Dotfiles:")
+    plain("Dotfiles:")
     df_issues, df_warnings = _check_dotfiles(verbose)
     issues.extend(df_issues)
     warnings.extend(df_warnings)
 
-    typer.echo("")
+    plain("")
 
     # Check tools
-    typer.echo("Tools:")
+    plain("Tools:")
     tool_issues, tool_warnings = _check_tools(verbose)
     issues.extend(tool_issues)
     warnings.extend(tool_warnings)
 
-    typer.echo("")
+    plain("")
 
     # Summary
     if issues or warnings:
-        typer.echo("─" * 40)
+        plain("─" * 40)
         if warnings:
-            typer.echo(f"Warnings: {len(warnings)}")
+            console.print(f"[yellow]Warnings: {len(warnings)}[/yellow]")
             for w in warnings:
-                typer.echo(f"  ⚠ {w}")
+                warning(w, prefix="  ⚠")
         if issues:
-            typer.echo(f"Issues: {len(issues)}")
+            console.print(f"[red]Issues: {len(issues)}[/red]")
             for i in issues:
-                typer.echo(f"  ✗ {i}")
+                error(i, prefix="  ✗")
 
-        typer.echo("")
-        typer.echo("Suggestions:")
+        plain("")
+        plain("Suggestions:")
         _print_suggestions(issues, warnings)
         raise typer.Exit(1 if issues else 0)
     else:
-        typer.echo("✓ All checks passed!")
+        success("All checks passed!")
 
 
 def _get_latest_version() -> Optional[str]:
@@ -120,19 +129,19 @@ def _check_version(verbose: bool) -> list[str]:
     warnings = []
 
     current = get_version()
-    typer.echo(f"  Current version: {current}")
+    plain(f"  Current version: {current}")
 
     latest = _get_latest_version()
     if latest:
         if latest != current:
-            typer.echo(f"  ⚠ New version available: {latest}")
+            warning(f"New version available: {latest}", prefix="  ⚠")
             msg = f"Freckle {latest} available (you have {current})"
             warnings.append(msg)
         else:
-            typer.echo("  ✓ Up to date")
+            success("Up to date", prefix="  ✓")
     else:
         if verbose:
-            typer.echo("  ⚠ Could not check for updates")
+            warning("Could not check for updates", prefix="  ⚠")
 
     return warnings
 
@@ -142,9 +151,9 @@ def _check_prerequisites(verbose: bool) -> list[str]:
     issues = []
 
     if is_git_available():
-        typer.echo("  ✓ git is installed")
+        success("git is installed", prefix="  ✓")
     else:
-        typer.echo("  ✗ git is not installed")
+        error("git is not installed", prefix="  ✗")
         issues.append("git is not installed")
 
     return issues
@@ -156,17 +165,17 @@ def _check_config(verbose: bool) -> tuple[list[str], list[str]]:
     warnings = []
 
     if not CONFIG_PATH.exists():
-        typer.echo("  ✗ No config file found")
+        error("No config file found", prefix="  ✗")
         issues.append(f"Missing {CONFIG_PATH}")
         return issues, warnings
 
-    typer.echo(f"  ✓ Config file: {CONFIG_PATH}")
+    success(f"Config file: {CONFIG_PATH}", prefix="  ✓")
 
     try:
         config = Config(CONFIG_PATH)
-        typer.echo("  ✓ Valid YAML syntax")
+        success("Valid YAML syntax", prefix="  ✓")
     except Exception as e:
-        typer.echo(f"  ✗ Invalid YAML: {e}")
+        error(f"Invalid YAML: {e}", prefix="  ✗")
         issues.append(f"Config parse error: {e}")
         return issues, warnings
 
@@ -175,16 +184,16 @@ def _check_config(verbose: bool) -> tuple[list[str], list[str]]:
     unknown_keys = set(config.data.keys()) - known_keys
     if unknown_keys:
         for key in unknown_keys:
-            typer.echo(f"  ⚠ Unknown key: '{key}'")
+            warning(f"Unknown key: '{key}'", prefix="  ⚠")
             warnings.append(f"Unknown config key: '{key}'")
 
     # Check profiles
     profiles = config.get_profiles()
     if profiles:
-        typer.echo(f"  ✓ Profiles configured: {len(profiles)}")
+        success(f"Profiles configured: {len(profiles)}", prefix="  ✓")
         if verbose:
             for name in profiles:
-                typer.echo(f"      - {name}")
+                muted(f"      - {name}")
 
     return issues, warnings
 
@@ -197,22 +206,22 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
     try:
         config = get_config()
     except Exception:
-        typer.echo("  ✗ Could not load config")
+        error("Could not load config", prefix="  ✗")
         issues.append("Config load failed")
         return issues, warnings
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo("  ✗ Repository not initialized")
+        error("Repository not initialized", prefix="  ✗")
         issues.append("Dotfiles repo not found")
         return issues, warnings
 
-    typer.echo(f"  ✓ Repository: {dotfiles_dir}")
+    success(f"Repository: {dotfiles_dir}", prefix="  ✓")
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo("  ✗ Could not create dotfiles manager")
+        error("Could not create dotfiles manager", prefix="  ✗")
         issues.append("Dotfiles manager init failed")
         return issues, warnings
 
@@ -220,18 +229,18 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
     try:
         result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
         branch = result.stdout.strip()
-        typer.echo(f"  ✓ Branch: {branch}")
+        success(f"Branch: {branch}", prefix="  ✓")
     except subprocess.CalledProcessError:
-        typer.echo("  ⚠ Could not determine branch")
+        warning("Could not determine branch", prefix="  ⚠")
         warnings.append("Could not determine current branch")
         branch = None
 
     # Check remote status
     try:
         dotfiles._git.run("fetch", "--dry-run")
-        typer.echo("  ✓ Remote accessible")
+        success("Remote accessible", prefix="  ✓")
     except subprocess.CalledProcessError:
-        typer.echo("  ⚠ Could not reach remote")
+        warning("Could not reach remote", prefix="  ⚠")
         warnings.append("Remote not accessible")
 
     # Check for local changes (only tracked files, ignore untracked)
@@ -246,15 +255,15 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
         ]
         if tracked_changes:
             num_changes = len(tracked_changes)
-            typer.echo(f"  ⚠ {num_changes} modified file(s)")
+            warning(f"{num_changes} modified file(s)", prefix="  ⚠")
             warnings.append(f"{num_changes} uncommitted changes")
             if verbose:
                 for line in tracked_changes[:5]:
-                    typer.echo(f"      {line}")
+                    muted(f"      {line}")
                 if num_changes > 5:
-                    typer.echo(f"      ... and {num_changes - 5} more")
+                    muted(f"      ... and {num_changes - 5} more")
         else:
-            typer.echo("  ✓ Working tree clean")
+            success("Working tree clean", prefix="  ✓")
     except subprocess.CalledProcessError:
         pass
 
@@ -267,13 +276,13 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
             )
             ahead, behind = result.stdout.strip().split()
             if int(ahead) > 0:
-                typer.echo(f"  ⚠ {ahead} commit(s) ahead of remote")
+                warning(f"{ahead} commit(s) ahead of remote", prefix="  ⚠")
                 warnings.append(f"{ahead} unpushed commits")
             if int(behind) > 0:
-                typer.echo(f"  ⚠ {behind} commit(s) behind remote")
+                warning(f"{behind} commit(s) behind remote", prefix="  ⚠")
                 warnings.append(f"{behind} commits behind remote")
             if int(ahead) == 0 and int(behind) == 0:
-                typer.echo("  ✓ Up to date with remote")
+                success("Up to date with remote", prefix="  ✓")
         except subprocess.CalledProcessError:
             pass
 
@@ -324,15 +333,16 @@ def _check_config_alignment(
             mismatched.append(profile_name)
 
     if mismatched:
-        typer.echo(f"  ⚠ Config differs on {len(mismatched)} branch(es)")
+        n = len(mismatched)
+        warning(f"Config differs on {n} branch(es)", prefix="  ⚠")
         warnings.append(
             f"freckle config differs on branches: {', '.join(mismatched)}"
         )
         if verbose:
             for name in mismatched:
-                typer.echo(f"      - {name}")
+                muted(f"      - {name}")
     else:
-        typer.echo("  ✓ Config aligned across branches")
+        success("Config aligned across branches", prefix="  ✓")
 
     return warnings
 
@@ -345,7 +355,7 @@ def _check_tools(verbose: bool) -> tuple[list[str], list[str]]:
     try:
         config = get_config()
     except Exception:
-        typer.echo("  ✗ Could not load config")
+        error("Could not load config", prefix="  ✗")
         issues.append("Config load failed")
         return issues, warnings
 
@@ -353,7 +363,7 @@ def _check_tools(verbose: bool) -> tuple[list[str], list[str]]:
     all_tools = registry.list_tools()
 
     if not all_tools:
-        typer.echo("  No tools configured")
+        plain("  No tools configured")
         return issues, warnings
 
     # Filter by active profile's modules
@@ -373,7 +383,7 @@ def _check_tools(verbose: bool) -> tuple[list[str], list[str]]:
         tools = all_tools
 
     if not tools:
-        typer.echo("  No tools for current profile")
+        plain("  No tools for current profile")
         return issues, warnings
 
     installed = 0
@@ -386,21 +396,21 @@ def _check_tools(verbose: bool) -> tuple[list[str], list[str]]:
                 version = tool.get_version() or "installed"
                 if len(version) > 30:
                     version = version[:27] + "..."
-                typer.echo(f"  ✓ {tool.name}: {version}")
+                success(f"{tool.name}: {version}", prefix="  ✓")
         else:
             not_installed.append(tool.name)
             if verbose:
-                typer.echo(f"  ✗ {tool.name}: not installed")
+                error(f"{tool.name}: not installed", prefix="  ✗")
 
     if not verbose:
         if installed > 0:
-            typer.echo(f"  ✓ {installed} tool(s) installed")
+            success(f"{installed} tool(s) installed", prefix="  ✓")
         if not_installed:
-            typer.echo(f"  ✗ {len(not_installed)} tool(s) missing")
+            error(f"{len(not_installed)} tool(s) missing", prefix="  ✗")
             for name in not_installed[:3]:
-                typer.echo(f"      - {name}")
+                muted(f"      - {name}")
             if len(not_installed) > 3:
-                typer.echo(f"      - ... and {len(not_installed) - 3} more")
+                muted(f"      - ... and {len(not_installed) - 3} more")
 
     if not_installed:
         warnings.append(
@@ -441,4 +451,4 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
 
     # Dedupe and print
     for suggestion in dict.fromkeys(suggestions):
-        typer.echo(f"  → {suggestion}")
+        info(f"  → {suggestion}")

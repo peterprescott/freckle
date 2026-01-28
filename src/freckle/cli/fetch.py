@@ -3,6 +3,7 @@
 import typer
 
 from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .output import error, muted, plain, success, warning
 
 
 def register(app: typer.Typer) -> None:
@@ -32,56 +33,50 @@ def fetch(
 
     dotfiles = get_dotfiles_manager(config)
     if not dotfiles:
-        typer.echo(
-            "No dotfiles repository configured. Run 'freckle init' first.",
-            err=True,
-        )
+        error("No dotfiles repository configured. Run 'freckle init' first.")
         raise typer.Exit(1)
 
     dotfiles_dir = get_dotfiles_dir(config)
 
     if not dotfiles_dir.exists():
-        typer.echo(
-            "Dotfiles repository not found. Run 'freckle init' first.",
-            err=True,
-        )
+        error("Dotfiles repository not found. Run 'freckle init' first.")
         raise typer.Exit(1)
 
     report = dotfiles.get_detailed_status()
 
     # Check for local changes
     if report["has_local_changes"] and not force:
-        typer.echo("You have unsaved local changes:")
+        warning("You have unsaved local changes:")
         for f in report["changed_files"]:
-            typer.echo(f"    - {f}")
-        typer.echo("\nOptions:")
-        typer.echo("  1. Save your changes first: freckle save")
-        typer.echo("  2. Discard and fetch anyway: freckle fetch --force")
+            muted(f"    - {f}")
+        plain("\nOptions:")
+        plain("  1. Save your changes first: freckle save")
+        plain("  2. Discard and fetch anyway: freckle fetch --force")
         raise typer.Exit(1)
 
     # Check if there's anything to fetch
     if report.get("fetch_failed"):
-        typer.echo("⚠ Could not connect to cloud (offline?)")
-        typer.echo("  Try again when you have internet access.")
+        warning("Could not connect to cloud (offline?)")
+        muted("  Try again when you have internet access.")
         raise typer.Exit(1)
 
     if not report.get("is_behind", False):
-        typer.echo("✓ Already up-to-date with cloud.")
+        success("Already up-to-date with cloud.")
         return
 
     behind_count = report.get("behind_count", 0)
 
     if dry_run:
-        typer.echo("\n--- DRY RUN (no changes will be made) ---\n")
-        typer.echo(f"Would fetch {behind_count} change(s) from cloud.")
+        plain("\n--- DRY RUN (no changes will be made) ---\n")
+        plain(f"Would fetch {behind_count} change(s) from cloud.")
         if report["has_local_changes"]:
-            typer.echo("Would discard local changes to:")
+            plain("Would discard local changes to:")
             for f in report["changed_files"]:
-                typer.echo(f"  - {f}")
-        typer.echo("\n--- Dry Run Complete ---")
+                muted(f"  - {f}")
+        plain("\n--- Dry Run Complete ---")
         return
 
-    typer.echo(f"Fetching {behind_count} change(s) from cloud...")
+    plain(f"Fetching {behind_count} change(s) from cloud...")
 
     # Backup local files before overwriting (safety net)
     if report["has_local_changes"]:
@@ -94,10 +89,10 @@ def fetch(
             home=env.home,
         )
         if point:
-            typer.echo(
+            muted(
                 f"  (backed up {len(point.files)} files - "
                 "use 'freckle restore --list' to recover)"
             )
 
     dotfiles.force_checkout()
-    typer.echo("✓ Fetched latest from cloud.")
+    success("Fetched latest from cloud.")

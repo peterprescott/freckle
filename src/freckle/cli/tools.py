@@ -8,6 +8,7 @@ import typer
 
 from ..tools_registry import get_tools_from_config
 from .helpers import env, get_config, get_dotfiles_manager
+from .output import console, error, muted, plain, success, warning
 from .profile.helpers import get_current_branch
 
 
@@ -58,36 +59,36 @@ def tools_list(tool_name: Optional[str] = None):
     all_tools, active_modules = _get_profile_tools(registry)
 
     if not all_tools:
-        typer.echo("No tools configured in .freckle.yaml")
-        typer.echo("")
-        typer.echo("Add tools to your config like:")
-        typer.echo("")
-        typer.echo("  tools:")
-        typer.echo("    starship:")
-        typer.echo("      description: Cross-shell prompt")
-        typer.echo("      install:")
-        typer.echo("        brew: starship")
-        typer.echo("        cargo: starship")
-        typer.echo("      verify: starship --version")
+        plain("No tools configured in .freckle.yaml")
+        plain("")
+        plain("Add tools to your config like:")
+        plain("")
+        muted("  tools:")
+        muted("    starship:")
+        muted("      description: Cross-shell prompt")
+        muted("      install:")
+        muted("        brew: starship")
+        muted("        cargo: starship")
+        muted("      verify: starship --version")
         return
 
     # Filter to specific tool if requested
     if tool_name:
         tool = registry.get_tool(tool_name)
         if not tool:
-            typer.echo(f"Tool '{tool_name}' not found in config.", err=True)
-            typer.echo("")
-            typer.echo("Available tools:")
+            error(f"Tool '{tool_name}' not found in config.")
+            plain("")
+            plain("Available tools:")
             for t in all_tools:
-                typer.echo(f"  - {t.name}")
+                muted(f"  - {t.name}")
             raise typer.Exit(1)
         all_tools = [tool]
 
     # Get available package managers
     available_pms = registry.get_available_managers()
 
-    typer.echo("Configured tools:")
-    typer.echo("")
+    plain("Configured tools:")
+    plain("")
 
     installed_count = 0
     not_installed = []
@@ -98,7 +99,7 @@ def tools_list(tool_name: Optional[str] = None):
             # Truncate long versions
             if len(version) > 40:
                 version = version[:37] + "..."
-            typer.echo(f"  ✓ {tool.name:15} {version}")
+            console.print(f"  [green]✓[/green] {tool.name:15} {version}")
             installed_count += 1
         else:
             # Show which package managers could install this
@@ -108,19 +109,23 @@ def tools_list(tool_name: Optional[str] = None):
             ]
             if installable_via:
                 via = ", ".join(installable_via)
-                typer.echo(f"  ✗ {tool.name:15} not installed (via: {via})")
+                console.print(
+                    f"  [red]✗[/red] {tool.name:15} not installed (via: {via})"
+                )
             else:
-                typer.echo(f"  ✗ {tool.name:15} not installed (no method)")
+                console.print(
+                    f"  [red]✗[/red] {tool.name:15} not installed (no method)"
+                )
             not_installed.append(tool.name)
 
-    typer.echo("")
-    typer.echo(f"Installed: {installed_count}/{len(all_tools)}")
+    plain("")
+    plain(f"Installed: {installed_count}/{len(all_tools)}")
 
     if not_installed:
-        typer.echo("")
-        typer.echo("To install missing tools:")
+        plain("")
+        plain("To install missing tools:")
         for name in not_installed:
-            typer.echo(f"  freckle tools install {name}")
+            muted(f"  freckle tools install {name}")
 
 
 @tools_app.command(name="install")
@@ -159,17 +164,17 @@ def tools_install(
         return
 
     if not tool_name:
-        typer.echo("Error: provide a tool name or use --all", err=True)
+        error("Provide a tool name or use --all")
         raise typer.Exit(1)
 
     tool = registry.get_tool(tool_name)
 
     if not tool:
-        typer.echo(f"Tool '{tool_name}' not found in config.", err=True)
-        typer.echo("")
-        typer.echo("Available tools:")
+        error(f"Tool '{tool_name}' not found in config.")
+        plain("")
+        plain("Available tools:")
         for t in registry.list_tools():
-            typer.echo(f"  - {t.name}")
+            muted(f"  - {t.name}")
         raise typer.Exit(1)
 
     _install_single_tool(registry, tool, force)
@@ -179,54 +184,52 @@ def _install_single_tool(registry, tool, force: bool) -> bool:
     """Install a single tool. Returns True on success."""
     if tool.is_installed():
         version = tool.get_version() or "unknown"
-        typer.echo(f"{tool.name} is already installed ({version})")
+        plain(f"{tool.name} is already installed ({version})")
         return True
 
-    typer.echo(f"Installing {tool.name}...")
+    plain(f"Installing {tool.name}...")
     if tool.description:
-        typer.echo(f"  {tool.description}")
-    typer.echo("")
+        muted(f"  {tool.description}")
+    plain("")
 
     # Show available install methods
     available_pms = registry.get_available_managers()
     for pm, package in tool.install.items():
         if pm in available_pms:
-            typer.echo(f"  Available: {pm} ({package})")
+            muted(f"  Available: {pm} ({package})")
         elif pm == "script":
-            typer.echo(f"  Available: curated script ({package})")
+            muted(f"  Available: curated script ({package})")
 
-    typer.echo("")
+    plain("")
 
     # Handle script confirmation
     if "script" in tool.install and not force:
         # Check if we might need to use script
         has_pm = any(pm in available_pms for pm in tool.install.keys())
         if not has_pm:
-            typer.echo(
-                "This tool requires a curated script installation."
-            )
+            warning("This tool requires a curated script installation.")
             if not typer.confirm("Proceed with script installation?"):
-                typer.echo("Cancelled.")
+                plain("Cancelled.")
                 return False
 
             # Set env var for script confirmation
             os.environ["FRECKLE_CONFIRM_SCRIPTS"] = "1"
 
-    success = registry.install_tool(tool, confirm_script=force)
+    install_success = registry.install_tool(tool, confirm_script=force)
 
-    if success:
-        typer.echo("")
-        typer.echo(f"✓ {tool.name} installed successfully")
+    if install_success:
+        plain("")
+        success(f"{tool.name} installed successfully")
 
         # Verify installation
         if tool.is_installed():
             version = tool.get_version()
             if version:
-                typer.echo(f"  Version: {version}")
+                muted(f"  Version: {version}")
         return True
     else:
-        typer.echo("")
-        typer.echo(f"✗ Failed to install {tool.name}", err=True)
+        plain("")
+        error(f"Failed to install {tool.name}")
         return False
 
 
@@ -276,22 +279,22 @@ def tools_config(
     tool = registry.get_tool(tool_name)
 
     if not tool:
-        typer.echo(f"Tool '{tool_name}' not found in config.", err=True)
-        typer.echo("")
-        typer.echo("Available tools:")
+        error(f"Tool '{tool_name}' not found in config.")
+        plain("")
+        plain("Available tools:")
         for t in registry.list_tools():
-            typer.echo(f"  - {t.name}")
+            muted(f"  - {t.name}")
         raise typer.Exit(1)
 
     if not tool.config_files:
-        typer.echo(f"No config files defined for '{tool_name}'.")
-        typer.echo("")
-        typer.echo("Add config files in .freckle.yaml:")
-        typer.echo("")
-        typer.echo("  tools:")
-        typer.echo(f"    {tool_name}:")
-        typer.echo("      config:")
-        typer.echo(f"      - .config/{tool_name}/config")
+        plain(f"No config files defined for '{tool_name}'.")
+        plain("")
+        plain("Add config files in .freckle.yaml:")
+        plain("")
+        muted("  tools:")
+        muted(f"    {tool_name}:")
+        muted("      config:")
+        muted(f"      - .config/{tool_name}/config")
         raise typer.Exit(1)
 
     # Resolve paths relative to home
@@ -301,25 +304,27 @@ def tools_config(
         config_paths.append(path)
 
     if list_only:
-        typer.echo(f"Config files for {tool_name}:")
+        plain(f"Config files for {tool_name}:")
         for path in config_paths:
-            exists = "✓" if path.exists() else "✗"
-            typer.echo(f"  {exists} {path}")
+            if path.exists():
+                console.print(f"  [green]✓[/green] {path}")
+            else:
+                console.print(f"  [red]✗[/red] {path}")
         return
 
     # Filter to existing files
     existing = [p for p in config_paths if p.exists()]
 
     if not existing:
-        typer.echo(f"Config files for '{tool_name}' don't exist yet:")
+        plain(f"Config files for '{tool_name}' don't exist yet:")
         for path in config_paths:
-            typer.echo(f"  - {path}")
-        typer.echo("")
+            muted(f"  - {path}")
+        plain("")
         if typer.confirm("Create them?"):
             for path in config_paths:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
-                typer.echo(f"  Created {path}")
+                success(f"Created {path}", prefix="  ✓")
             existing = config_paths
         else:
             raise typer.Exit(1)
@@ -327,13 +332,13 @@ def tools_config(
     # Open in editor
     editor = os.environ.get("EDITOR", "vim")
 
-    typer.echo(f"Opening {len(existing)} file(s) in {editor}...")
+    plain(f"Opening {len(existing)} file(s) in {editor}...")
 
     try:
         subprocess.run([editor] + [str(p) for p in existing])
     except FileNotFoundError:
-        typer.echo(f"Editor '{editor}' not found.", err=True)
-        typer.echo("Set $EDITOR or install vim.")
+        error(f"Editor '{editor}' not found.")
+        muted("Set $EDITOR or install vim.")
         raise typer.Exit(1)
 
 
@@ -344,42 +349,42 @@ def _install_all_tools(registry, force: bool):
     if not profile_tools:
         if active_modules:
             modules_str = ", ".join(active_modules)
-            typer.echo(f"No tools match profile modules: {modules_str}")
+            plain(f"No tools match profile modules: {modules_str}")
         else:
-            typer.echo("No tools configured in .freckle.yaml")
+            plain("No tools configured in .freckle.yaml")
         return
 
     # Find missing tools
     missing = [t for t in profile_tools if not t.is_installed()]
 
     if not missing:
-        typer.echo("All configured tools are already installed.")
-        typer.echo("")
+        plain("All configured tools are already installed.")
+        plain("")
         for tool in profile_tools:
             version = tool.get_version() or "installed"
             if len(version) > 40:
                 version = version[:37] + "..."
-            typer.echo(f"  ✓ {tool.name:15} {version}")
+            console.print(f"  [green]✓[/green] {tool.name:15} {version}")
         return
 
-    typer.echo(f"Installing {len(missing)} missing tool(s)...")
-    typer.echo("")
+    plain(f"Installing {len(missing)} missing tool(s)...")
+    plain("")
 
     succeeded = 0
     failed = []
 
     for tool in missing:
-        typer.echo(f"{'─' * 40}")
+        plain("─" * 40)
         if _install_single_tool(registry, tool, force):
             succeeded += 1
         else:
             failed.append(tool.name)
-        typer.echo("")
+        plain("")
 
-    typer.echo(f"{'─' * 40}")
-    typer.echo("")
-    typer.echo(f"Installed: {succeeded}/{len(missing)}")
+    plain("─" * 40)
+    plain("")
+    plain(f"Installed: {succeeded}/{len(missing)}")
 
     if failed:
-        typer.echo(f"Failed: {', '.join(failed)}")
+        error(f"Failed: {', '.join(failed)}")
         raise typer.Exit(1)

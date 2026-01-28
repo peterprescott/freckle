@@ -6,6 +6,7 @@ from typing import Optional
 import typer
 
 from ..utils import get_version
+from .output import console, error, muted, plain, success, warning
 
 # Create version sub-app
 version_app = typer.Typer(
@@ -86,19 +87,14 @@ def version_callback(ctx: typer.Context):
 def show_version():
     """Show current and latest version information."""
     current = get_version()
-    typer.echo(f"freckle version {current}")
+    plain(f"freckle version {current}")
 
     # Check for latest version
     latest = get_latest_version_from_pypi()
     if latest and latest != current:
         if is_version_lower(current, latest):
-            typer.echo(
-                typer.style(
-                    f"\nUpdate available: {latest}",
-                    fg=typer.colors.YELLOW,
-                )
-            )
-            typer.echo("Run 'freckle version upgrade' to update.")
+            warning(f"Update available: {latest}")
+            muted("Run 'freckle version upgrade' to update.")
 
 
 @version_app.command(name="upgrade")
@@ -115,25 +111,20 @@ def version_upgrade(
         freckle version upgrade
     """
     current = get_version()
-    typer.echo(f"Current version: {current}")
+    plain(f"Current version: {current}")
 
     # Check latest version first
-    typer.echo("Checking for updates...")
+    plain("Checking for updates...")
     latest = get_latest_version_from_pypi()
 
     if latest:
-        typer.echo(f"Latest version:  {latest}")
+        plain(f"Latest version:  {latest}")
 
         if not force and not is_version_lower(current, latest):
-            typer.echo(
-                typer.style(
-                    "\n✓ Already on the latest version",
-                    fg=typer.colors.GREEN,
-                )
-            )
+            success("Already on the latest version")
             return
     else:
-        typer.echo("Could not check latest version, proceeding...")
+        plain("Could not check latest version, proceeding...")
 
     # Check if uv is available
     try:
@@ -143,14 +134,11 @@ def version_upgrade(
             capture_output=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
-        typer.echo(
-            "Error: uv not found. Please upgrade manually with:",
-            err=True,
-        )
-        typer.echo("  uv tool upgrade freckle", err=True)
+        error("uv not found. Please upgrade manually with:")
+        muted("  uv tool upgrade freckle")
         raise typer.Exit(1)
 
-    typer.echo("\nUpgrading freckle...")
+    plain("\nUpgrading freckle...")
 
     try:
         result = subprocess.run(
@@ -164,27 +152,18 @@ def version_upgrade(
             new_version = get_version()
 
             if "already" in result.stdout.lower():
-                typer.echo(
-                    typer.style(
-                        "✓ Already on the latest version",
-                        fg=typer.colors.GREEN,
-                    )
-                )
+                success("Already on the latest version")
             else:
-                typer.echo(result.stdout.strip())
-                typer.echo(
-                    typer.style(
-                        f"\n✓ Upgraded to version {new_version}",
-                        fg=typer.colors.GREEN,
-                        bold=True,
-                    )
+                plain(result.stdout.strip())
+                console.print(
+                    f"\n[bold green]✓ Upgraded to {new_version}[/bold green]"
                 )
         else:
-            typer.echo(f"Upgrade failed: {result.stderr.strip()}", err=True)
+            error(f"Upgrade failed: {result.stderr.strip()}")
             raise typer.Exit(1)
 
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Upgrade failed: {e}", err=True)
+        error(f"Upgrade failed: {e}")
         raise typer.Exit(1)
 
 
@@ -196,30 +175,21 @@ def version_check():
         freckle version check
     """
     current = get_version()
-    typer.echo(f"Current version: {current}")
+    plain(f"Current version: {current}")
 
-    typer.echo("Checking for updates...")
+    plain("Checking for updates...")
     latest = get_latest_version_from_pypi()
 
     if latest is None:
-        typer.echo("Could not check latest version (offline?)", err=True)
+        error("Could not check latest version (offline?)")
         raise typer.Exit(1)
 
-    typer.echo(f"Latest version:  {latest}")
+    plain(f"Latest version:  {latest}")
 
     if is_version_lower(current, latest):
-        typer.echo(
-            typer.style(
-                f"\n↑ Update available: {current} → {latest}",
-                fg=typer.colors.YELLOW,
-                bold=True,
-            )
+        console.print(
+            f"\n[bold yellow]↑ Update: {current} → {latest}[/bold yellow]"
         )
-        typer.echo("Run 'freckle version upgrade' to update.")
+        muted("Run 'freckle version upgrade' to update.")
     else:
-        typer.echo(
-            typer.style(
-                "\n✓ You are on the latest version",
-                fg=typer.colors.GREEN,
-            )
-        )
+        success("You are on the latest version")
