@@ -5,11 +5,10 @@ from typing import List, Optional
 
 import typer
 
-from freckle.secrets import SecretScanner
-
 from .helpers import (
     env,
     get_config,
+    get_secret_scanner,
     normalize_to_home_relative,
     require_dotfiles_ready,
 )
@@ -88,11 +87,7 @@ def track(
 
     # Check for secrets unless --force is used
     if not force:
-        secrets_config = config.get("secrets", {})
-        scanner = SecretScanner(
-            extra_block=secrets_config.get("block", []),
-            extra_allow=secrets_config.get("allow", []),
-        )
+        scanner = get_secret_scanner(config)
         secrets_found = scanner.scan_files(home_relative_files, env.home)
 
         if secrets_found:
