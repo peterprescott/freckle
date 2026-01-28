@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/peterprescott/freckle/compare/v0.14.0...v0.15.0) (2026-01-28)
+
+
+### Features
+
+* support freckle history freckle ([#49](https://github.com/peterprescott/freckle/issues/49)) ([481ab27](https://github.com/peterprescott/freckle/commit/481ab27bc9c39fdda78896f22c507af599e58d21))
+
 ## [0.14.0](https://github.com/peterprescott/freckle/compare/v0.13.0...v0.14.0) (2026-01-28)
 
 
