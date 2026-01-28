@@ -12,6 +12,7 @@ from . import (
     history,
     init,
     profile,
+    push,
     restore,
     save,
     schedule,
@@ -45,6 +46,7 @@ def main_callback(
 # Register all commands
 init.register(app)
 save.register(app)
+push.register(app)
 fetch.register(app)
 files.register(app)
 status.register(app)
