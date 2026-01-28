@@ -1,6 +1,7 @@
 """Profile operations: list, show, switch, diff."""
 
 import subprocess
+from typing import List
 
 import typer
 
@@ -11,13 +12,45 @@ from ..helpers import (
     get_dotfiles_manager,
     get_subprocess_error,
 )
-from ..output import console, error, muted, plain, success
+from ..output import console, error, muted, plain, success, warning
 from .helpers import get_current_branch
 
 
+def _get_local_branches(dotfiles) -> List[str]:
+    """Get all local branches in the dotfiles repo."""
+    try:
+        result = dotfiles._git.run("branch", "--list")
+        branches = [
+            b.strip().lstrip("* ")
+            for b in result.stdout.split("\n")
+            if b.strip()
+        ]
+        return branches
+    except subprocess.CalledProcessError:
+        return []
+
+
 def profile_list(config, profiles):
-    """List all profiles."""
-    if not profiles:
+    """List all profiles.
+
+    Shows profiles from config AND branches (branches are authoritative).
+    Branches without config entries are shown as implicit profiles.
+    """
+    dotfiles = get_dotfiles_manager(config)
+    current_branch = get_current_branch(config=config)
+
+    # Get all local branches (authoritative)
+    local_branches = _get_local_branches(dotfiles) if dotfiles else []
+
+    # Merge: config profiles + implicit profiles from branches
+    all_profiles = dict(profiles)
+    implicit_branches = []
+    for branch in local_branches:
+        if branch not in all_profiles:
+            implicit_branches.append(branch)
+            all_profiles[branch] = {"_implicit": True, "modules": []}
+
+    if not all_profiles:
         plain("No profiles configured.")
         muted(f"\nTo create a profile, add to {CONFIG_FILENAME}:")
         muted("  profiles:")
@@ -26,11 +59,10 @@ def profile_list(config, profiles):
         muted("      modules: [zsh, nvim]")
         return
 
-    current_branch = get_current_branch(config=config)
-
     plain("Available profiles:\n")
-    for name, profile in profiles.items():
+    for name, profile in all_profiles.items():
         branch = name  # Profile name = branch name
+        is_implicit = profile.get("_implicit", False)
         desc = profile.get("description", "")
         includes = profile.get("include", [])
         excludes = profile.get("exclude", [])
@@ -39,9 +71,23 @@ def profile_list(config, profiles):
         is_current = current_branch == branch
 
         if is_current:
-            console.print(f"  [green]*[/green] [bold]{name}[/bold]")
+            if is_implicit:
+                console.print(
+                    f"  [green]*[/green] [bold]{name}[/bold] "
+                    "[dim](branch only)[/dim]"
+                )
+            else:
+                console.print(f"  [green]*[/green] [bold]{name}[/bold]")
         else:
-            plain(f"    {name}")
+            if is_implicit:
+                console.print(f"    {name} [dim](branch only)[/dim]")
+            else:
+                plain(f"    {name}")
+
+        if is_implicit:
+            muted("      not in config - run 'freckle doctor' to fix")
+            continue
+
         if desc:
             muted(f"      {desc}")
         if includes:
@@ -108,16 +154,12 @@ def profile_show(config, profiles):
 
 
 def profile_switch(config, name, force):
-    """Switch to a different profile."""
+    """Switch to a different profile.
+
+    Branches are authoritative: if a branch exists, you can switch to it
+    even if it's not defined in the config file.
+    """
     profiles = config.get_profiles()
-
-    if name not in profiles:
-        error(f"Profile not found: {name}")
-        plain("\nAvailable profiles:")
-        for p in profiles:
-            muted(f"  - {p}")
-        raise typer.Exit(1)
-
     target_branch = name  # Profile name = branch name
 
     dotfiles = get_dotfiles_manager(config)
@@ -129,6 +171,31 @@ def profile_switch(config, name, force):
     if not dotfiles_dir.exists():
         error("Dotfiles repository not found.")
         raise typer.Exit(1)
+
+    # Get all local branches (authoritative for profile existence)
+    local_branches = _get_local_branches(dotfiles)
+    is_in_config = name in profiles
+    is_valid_branch = name in local_branches
+
+    if not is_in_config and not is_valid_branch:
+        error(f"Profile not found: {name}")
+        plain("\nAvailable profiles/branches:")
+        # Show config profiles
+        for p in profiles:
+            if p in local_branches:
+                muted(f"  - {p}")
+            else:
+                muted(f"  - {p} (no branch)")
+        # Show branches not in config
+        for b in local_branches:
+            if b not in profiles:
+                muted(f"  - {b} (branch only)")
+        raise typer.Exit(1)
+
+    if not is_in_config and is_valid_branch:
+        # Branch exists but not in config - warn but allow
+        warning(f"Branch '{name}' exists but is not in config")
+        muted("  Run 'freckle doctor' to add it to config")
 
     # Check for local changes (only tracked files, not untracked)
     try:
@@ -177,10 +244,11 @@ def profile_switch(config, name, force):
 
         success(f"Switched to profile '{name}'")
 
-        # Show resolved modules for this profile
-        resolved_modules = config.get_profile_modules(name)
-        if resolved_modules:
-            muted(f"  Modules: {', '.join(resolved_modules)}")
+        # Show resolved modules for this profile (only if in config)
+        if is_in_config:
+            resolved_modules = config.get_profile_modules(name)
+            if resolved_modules:
+                muted(f"  Modules: {', '.join(resolved_modules)}")
 
     except subprocess.CalledProcessError as e:
         error(f"Failed to switch: {get_subprocess_error(e)}")
