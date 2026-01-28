@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/peterprescott/freckle/compare/v0.13.0...v0.14.0) (2026-01-28)
+
+
+### Features
+
+* support .freckle.yml config filename ([#47](https://github.com/peterprescott/freckle/issues/47)) ([8a12bbe](https://github.com/peterprescott/freckle/commit/8a12bbe217b77d706dfaeeb2a24f0304e4568903))
+
 ## [0.13.0](https://github.com/peterprescott/freckle/compare/v0.12.1...v0.13.0) (2026-01-28)
 
 
