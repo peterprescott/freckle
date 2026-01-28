@@ -232,6 +232,66 @@ class TestResolveToRepoPaths:
 
         assert result == []
 
+    def test_freckle_special_case_yaml(self, mocker, tmp_path):
+        """Resolves 'freckle' to .freckle.yaml when it exists."""
+        mock_config = MagicMock()
+        mock_config.data = {"tools": {}}
+
+        # Create .freckle.yaml in tmp_path
+        (tmp_path / ".freckle.yaml").write_text("test: true")
+
+        mocker.patch(
+            "freckle.cli.history.env",
+            MagicMock(home=tmp_path),
+        )
+
+        result = resolve_to_repo_paths(
+            "freckle",
+            mock_config,
+            tmp_path / ".dotfiles",
+        )
+
+        assert result == [".freckle.yaml"]
+
+    def test_freckle_special_case_yml(self, mocker, tmp_path):
+        """Resolves 'freckle' to .freckle.yml when it exists."""
+        mock_config = MagicMock()
+        mock_config.data = {"tools": {}}
+
+        # Create .freckle.yml (not .yaml) in tmp_path
+        (tmp_path / ".freckle.yml").write_text("test: true")
+
+        mocker.patch(
+            "freckle.cli.history.env",
+            MagicMock(home=tmp_path),
+        )
+
+        result = resolve_to_repo_paths(
+            "freckle",
+            mock_config,
+            tmp_path / ".dotfiles",
+        )
+
+        assert result == [".freckle.yml"]
+
+    def test_freckle_special_case_default(self, mocker, tmp_path):
+        """Returns .freckle.yaml when neither config exists."""
+        mock_config = MagicMock()
+        mock_config.data = {"tools": {}}
+
+        mocker.patch(
+            "freckle.cli.history.env",
+            MagicMock(home=tmp_path),
+        )
+
+        result = resolve_to_repo_paths(
+            "freckle",
+            mock_config,
+            tmp_path / ".dotfiles",
+        )
+
+        assert result == [".freckle.yaml"]
+
 
 class TestDisplayCommit:
     """Tests for display_commit function."""

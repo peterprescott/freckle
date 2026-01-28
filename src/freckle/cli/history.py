@@ -282,6 +282,14 @@ def resolve_to_repo_paths(
     Returns:
         List of repo-relative file paths, or empty list if not found
     """
+    # Special case: "freckle" refers to the freckle config itself
+    if tool_or_path == "freckle":
+        # Return whichever config file exists
+        for filename in (".freckle.yaml", ".freckle.yml"):
+            if (env.home / filename).exists():
+                return [filename]
+        return [".freckle.yaml"]  # Default if neither exists
+
     # Direct file path (~ or absolute)
     if tool_or_path.startswith("~") or tool_or_path.startswith("/"):
         expanded = Path(tool_or_path).expanduser()
