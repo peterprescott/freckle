@@ -3,7 +3,7 @@
 import typer
 
 from ..tools_registry import get_tools_from_config
-from .helpers import env, get_config, get_dotfiles_manager
+from .helpers import env, get_config, get_config_path, get_dotfiles_manager
 from .profile.helpers import get_current_branch
 
 
@@ -47,11 +47,12 @@ def status():
         tools = all_tools
 
     # Freckle config status
-    config_path = env.home / ".freckle.yaml"
+    config_path = get_config_path()
+    config_filename = config_path.name
     typer.echo("\nConfiguration:")
     if config_path.exists():
         if dotfiles:
-            file_status = dotfiles.get_file_sync_status(".freckle.yaml")
+            file_status = dotfiles.get_file_sync_status(config_filename)
             status_str = {
                 "up-to-date": "✓ up-to-date",
                 "modified": "⚠ modified locally",
@@ -61,11 +62,11 @@ def status():
                 "not-found": "✓ local only",
                 "error": "⚠ error checking status",
             }.get(file_status, f"status: {file_status}")
-            typer.echo(f"  .freckle.yaml : {status_str}")
+            typer.echo(f"  {config_filename} : {status_str}")
         else:
-            typer.echo("  .freckle.yaml : ✓ exists (dotfiles not configured)")
+            typer.echo(f"  {config_filename} : ✓ exists (no dotfiles repo)")
     else:
-        typer.echo("  .freckle.yaml : ✗ not found (run 'freckle init')")
+        typer.echo(f"  {config_filename} : ✗ not found (run 'freckle init')")
 
     # Collect all config files associated with tools
     tool_config_files = set()
@@ -107,7 +108,8 @@ def status():
         other_tracked = [
             f
             for f in all_tracked
-            if f != ".freckle.yaml" and f not in tool_config_files
+            if f not in (".freckle.yaml", ".freckle.yml")
+            and f not in tool_config_files
         ]
 
         if other_tracked:

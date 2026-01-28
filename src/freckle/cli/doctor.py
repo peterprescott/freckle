@@ -286,22 +286,32 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
     return issues, warnings
 
 
+def _get_config_from_branch(dotfiles, branch: str) -> Optional[str]:
+    """Get freckle config content from a branch, checking both extensions."""
+    for ext in (".freckle.yaml", ".freckle.yml"):
+        try:
+            return dotfiles._git.run("show", f"{branch}:{ext}").stdout
+        except subprocess.CalledProcessError:
+            continue
+    return None
+
+
 def _check_config_alignment(
     config: Config, dotfiles, current_branch: Optional[str], verbose: bool
 ) -> list[str]:
-    """Check that .freckle.yaml is consistent across all profile branches."""
+    """Check that freckle config is consistent across all profile branches."""
     warnings = []
 
     profiles = config.get_profiles()
     if not profiles or len(profiles) < 2:
         return warnings
 
+    if current_branch is None:
+        return warnings
+
     # Get config content from current branch
-    try:
-        current_config = dotfiles._git.run(
-            "show", f"{current_branch}:.freckle.yaml"
-        ).stdout
-    except subprocess.CalledProcessError:
+    current_config = _get_config_from_branch(dotfiles, current_branch)
+    if current_config is None:
         return warnings  # Config not tracked, skip check
 
     mismatched = []
@@ -309,20 +319,14 @@ def _check_config_alignment(
         if profile_name == current_branch:
             continue
 
-        try:
-            branch_config = dotfiles._git.run(
-                "show", f"{profile_name}:.freckle.yaml"
-            ).stdout
-            if branch_config != current_config:
-                mismatched.append(profile_name)
-        except subprocess.CalledProcessError:
-            # Branch doesn't exist or config not tracked there
-            continue
+        branch_config = _get_config_from_branch(dotfiles, profile_name)
+        if branch_config is not None and branch_config != current_config:
+            mismatched.append(profile_name)
 
     if mismatched:
         typer.echo(f"  ⚠ Config differs on {len(mismatched)} branch(es)")
         warnings.append(
-            f".freckle.yaml differs on branches: {', '.join(mismatched)}"
+            f"freckle config differs on branches: {', '.join(mismatched)}"
         )
         if verbose:
             for name in mismatched:
@@ -418,7 +422,7 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
                 "Install git: brew install git (macOS) "
                 "or apt install git (Linux)"
             )
-        elif "Missing" in item and ".freckle.yaml" in item:
+        elif "Missing" in item and ".freckle" in item:
             suggestions.append("Run 'freckle init' to set up configuration")
         elif "Dotfiles repo not found" in item:
             suggestions.append("Run 'freckle sync' to clone your dotfiles")
@@ -430,7 +434,7 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
             suggestions.append("Run 'freckle update' to pull latest changes")
         elif "tools not installed" in item:
             suggestions.append("Run 'freckle tools' to see missing tools")
-        elif ".freckle.yaml differs" in item:
+        elif "freckle config differs" in item:
             suggestions.append(
                 "Run 'freckle config propagate' to sync config to all branches"
             )
