@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/peterprescott/freckle/compare/v0.18.1...v0.18.2) (2026-01-28)
+
+
+### Bug Fixes
+
+* auto-clone dotfiles when config exists but repo not cloned ([#77](https://github.com/peterprescott/freckle/issues/77)) ([89de9d9](https://github.com/peterprescott/freckle/commit/89de9d9d56697fabf74b3f3770cc1585873de6bc))
+
 ## [0.18.1](https://github.com/peterprescott/freckle/compare/v0.18.0...v0.18.1) (2026-01-28)
 
 
