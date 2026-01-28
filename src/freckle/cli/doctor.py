@@ -292,6 +292,12 @@ def _check_dotfiles(verbose: bool) -> tuple[list[str], list[str]]:
     )
     warnings.extend(config_warnings)
 
+    # Check profile/branch alignment
+    profile_warnings = _check_profile_branch_alignment(
+        config, dotfiles, verbose
+    )
+    warnings.extend(profile_warnings)
+
     return issues, warnings
 
 
@@ -343,6 +349,72 @@ def _check_config_alignment(
                 muted(f"      - {name}")
     else:
         success("Config aligned across branches", prefix="  ✓")
+
+    return warnings
+
+
+def _get_local_branches(dotfiles) -> list[str]:
+    """Get all local branches in the dotfiles repo."""
+    try:
+        result = dotfiles._git.run("branch", "--list")
+        branches = [
+            b.strip().lstrip("* ")
+            for b in result.stdout.split("\n")
+            if b.strip()
+        ]
+        return branches
+    except subprocess.CalledProcessError:
+        return []
+
+
+def _check_profile_branch_alignment(
+    config: Config, dotfiles, verbose: bool
+) -> list[str]:
+    """Check that profiles in config match branches in repo.
+
+    Branches are authoritative:
+    - Branch exists but not in config → warning (implicit profile)
+    - Profile in config but no branch → warning (stale config)
+    """
+    warnings = []
+
+    profiles = config.get_profiles()
+    branches = _get_local_branches(dotfiles)
+
+    if not branches:
+        return warnings
+
+    # Branches without config entries (implicit profiles)
+    branches_without_config = [b for b in branches if b not in profiles]
+    if branches_without_config:
+        n = len(branches_without_config)
+        warning(f"{n} branch(es) not in config", prefix="  ⚠")
+        warnings.append(
+            f"Branches without config: {', '.join(branches_without_config)}"
+        )
+        if verbose:
+            for name in branches_without_config:
+                muted(f"      - {name} (run: freckle profile create {name})")
+    else:
+        if verbose:
+            success("All branches have config entries", prefix="  ✓")
+
+    # Profiles without branches (stale config)
+    profiles_without_branches = [p for p in profiles if p not in branches]
+    if profiles_without_branches:
+        n = len(profiles_without_branches)
+        warning(f"{n} profile(s) missing branches", prefix="  ⚠")
+        names = ", ".join(profiles_without_branches)
+        warnings.append(f"Profiles without branches: {names}")
+        if verbose:
+            for name in profiles_without_branches:
+                muted(f"      - {name} (stale - remove from config)")
+    else:
+        if verbose:
+            success("All profiles have branches", prefix="  ✓")
+
+    if not branches_without_config and not profiles_without_branches:
+        success("Profiles and branches aligned", prefix="  ✓")
 
     return warnings
 
@@ -446,7 +518,17 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
             suggestions.append("Run 'freckle tools' to see missing tools")
         elif "freckle config differs" in item:
             suggestions.append(
-                "Run 'freckle config propagate' to sync config to all branches"
+                "Run 'freckle save' to sync config to all branches"
+            )
+        elif "Branches without config" in item:
+            suggestions.append(
+                "Add missing branches to config with "
+                "'freckle profile create <name>'"
+            )
+        elif "Profiles without branches" in item:
+            suggestions.append(
+                "Remove stale profiles from config manually or recreate "
+                "branches"
             )
 
     # Dedupe and print
