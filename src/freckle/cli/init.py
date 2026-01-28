@@ -18,6 +18,64 @@ def register(app: typer.Typer) -> None:
     app.command()(init)
 
 
+def _try_clone_from_existing_config() -> bool:
+    """Check if config exists but dotfiles aren't cloned, and clone if so.
+
+    Returns:
+        True if we handled the situation (cloned or already set up)
+        False if config is incomplete or we should proceed with normal init
+    """
+    try:
+        with open(CONFIG_PATH) as f:
+            config = yaml.safe_load(f)
+    except Exception:
+        return False
+
+    if not config or "dotfiles" not in config:
+        return False
+
+    dotfiles_config = config.get("dotfiles", {})
+    repo_url = dotfiles_config.get("repo_url", "")
+    dotfiles_dir = dotfiles_config.get("dir", ".dotfiles")
+    branch = dotfiles_config.get("branch", "main")
+
+    if not repo_url:
+        return False
+
+    # Resolve dotfiles path
+    dotfiles_path = Path(dotfiles_dir).expanduser()
+    if not dotfiles_path.is_absolute():
+        dotfiles_path = env.home / dotfiles_path
+
+    # Check if dotfiles are already set up
+    if dotfiles_path.exists() and (dotfiles_path / "HEAD").exists():
+        # Already cloned - show helpful message
+        plain("Dotfiles already configured and cloned.")
+        muted(f"  Config: {CONFIG_PATH}")
+        muted(f"  Repo: {dotfiles_path}")
+        plain("\nRun 'freckle status' to see current state.")
+        return True
+
+    # Config exists but dotfiles not cloned - clone them
+    plain("--- freckle Initialization ---\n")
+    plain(f"Found existing config at {CONFIG_PATH}")
+    plain(f"Dotfiles not yet cloned. Cloning from: {repo_url}\n")
+
+    dotfiles = DotfilesManager(repo_url, dotfiles_path, env.home, branch)
+    try:
+        dotfiles.setup()
+        success("Dotfiles cloned and set up!")
+        plain("\nYour dotfiles are now ready.")
+        muted("Run 'freckle status' to see current state.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to clone: {e}")
+        error(f"Could not clone repository: {e}")
+        muted("  Check your repo URL and network connection.")
+        muted("  You can try again with: freckle init")
+        raise typer.Exit(1)
+
+
 def init(
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite existing configuration"
@@ -28,8 +86,13 @@ def init(
     Offers two modes:
     1. Clone an existing dotfiles repository
     2. Create a new dotfiles repository from scratch
+
+    If config already exists but dotfiles aren't cloned, clones them.
     """
     if CONFIG_PATH.exists() and not force:
+        # Config exists - check if we just need to clone dotfiles
+        if _try_clone_from_existing_config():
+            return
         error(f"Config exists at {CONFIG_PATH}. Use --force to overwrite.")
         raise typer.Exit(1)
 

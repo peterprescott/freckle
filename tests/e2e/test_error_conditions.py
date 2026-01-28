@@ -194,24 +194,115 @@ class TestProfileErrors:
 class TestInitErrors:
     """Tests for init command error conditions."""
 
-    def test_init_with_existing_config_fails(self, tmp_path):
-        """Init fails when config already exists (without --force)."""
+    def test_init_with_existing_config_and_dotfiles_shows_message(
+        self, tmp_path
+    ):
+        """Init shows message when config and dotfiles already exist."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
 
         # Create existing config
         config_path = home / ".freckle.yaml"
-        config_path.write_text("dotfiles:\n  repo_url: test\n")
+        config_path.write_text(
+            "dotfiles:\n  repo_url: test\n  dir: .dotfiles\n"
+        )
+
+        # Create fake dotfiles dir (bare repo structure)
+        dotfiles_dir = home / ".dotfiles"
+        dotfiles_dir.mkdir()
+        (dotfiles_dir / "HEAD").write_text("ref: refs/heads/main\n")
 
         result = subprocess.run(
             ["uv", "run", "freckle", "init"],
             env=env,
             capture_output=True,
             text=True,
-            input="n\n",  # Answer no to any prompts
         )
 
-        assert result.returncode != 0
-        stderr_lower = result.stderr.lower()
-        assert "exists" in stderr_lower or "force" in stderr_lower
+        # Should succeed and show already configured message
+        assert result.returncode == 0
+        assert "already" in result.stdout.lower()
+
+    def test_init_with_existing_config_clones_dotfiles(self, tmp_path):
+        """Init clones dotfiles when config exists but not yet cloned."""
+        home = tmp_path / "fake_home"
+        home.mkdir()
+        env = _create_env(home)
+
+        # Create a mock remote repo first
+        remote_repo = tmp_path / "remote.git"
+        subprocess.run(
+            ["git", "init", "--bare", str(remote_repo)],
+            check=True,
+            capture_output=True,
+        )
+
+        # Push initial content to mock remote
+        temp_worktree = tmp_path / "temp_worktree"
+        temp_worktree.mkdir()
+        subprocess.run(
+            ["git", "init"], cwd=temp_worktree, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=temp_worktree,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=temp_worktree,
+            check=True,
+            capture_output=True,
+        )
+        (temp_worktree / ".zshrc").write_text("# test zshrc")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=temp_worktree,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=temp_worktree,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "remote", "add", "origin", str(remote_repo)],
+            cwd=temp_worktree,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "origin", "HEAD:main"],
+            cwd=temp_worktree,
+            check=True,
+            capture_output=True,
+        )
+
+        # Create config pointing to the valid remote
+        config_path = home / ".freckle.yaml"
+        config_path.write_text(
+            f"dotfiles:\n"
+            f"  repo_url: {remote_repo}\n"
+            f"  dir: .dotfiles\n"
+            f"  branch: main\n"
+        )
+
+        # Dotfiles dir doesn't exist yet
+        assert not (home / ".dotfiles").exists()
+
+        result = subprocess.run(
+            ["uv", "run", "freckle", "init"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        # Should succeed and clone
+        assert result.returncode == 0, f"Failed: {result.stderr}"
+        assert "cloned" in result.stdout.lower()
+        assert (home / ".dotfiles").exists()
+        assert (home / ".zshrc").exists()
