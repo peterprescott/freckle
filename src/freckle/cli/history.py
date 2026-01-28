@@ -17,9 +17,9 @@ def register(app: typer.Typer) -> None:
 
 
 def history(
-    tool_or_path: str = typer.Argument(
-        ...,
-        help="Tool name (e.g., 'nvim') or file path (e.g., '~/.zshrc')",
+    tool_or_path: Optional[str] = typer.Argument(
+        None,
+        help="Tool name (e.g., 'nvim') or file path. Omit to show all commits.",
     ),
     limit: int = typer.Option(
         20,
@@ -33,12 +33,20 @@ def history(
         "-f",
         help="Show files changed in each commit",
     ),
+    oneline: bool = typer.Option(
+        False,
+        "--oneline",
+        help="Compact one-line format (for general history)",
+    ),
 ):
-    """Show git commit history for a dotfile.
+    """Show git commit history for your dotfiles.
 
-    View the history of changes to a specific dotfile or tool configuration.
+    Without arguments, shows the general commit history of your dotfiles repo.
+    With a tool/path argument, shows history for that specific file.
 
     Examples:
+        freckle history                       # All recent commits
+        freckle history --oneline             # Compact format
         freckle history nvim                  # History for nvim config
         freckle history ~/.zshrc              # History for zshrc
         freckle history tmux --limit 5        # Last 5 commits for tmux
@@ -51,6 +59,11 @@ def history(
         typer.echo("Dotfiles directory not found.", err=True)
         typer.echo("Run 'freckle init' first to set up your dotfiles.")
         raise typer.Exit(1)
+
+    # If no tool specified, show general commit history
+    if tool_or_path is None:
+        show_general_history(dotfiles_dir, limit, oneline)
+        return
 
     # Resolve tool_or_path to actual file paths
     file_paths = resolve_to_repo_paths(tool_or_path, config, dotfiles_dir)
@@ -81,6 +94,86 @@ def history(
 
     if len(commits) == limit:
         typer.echo(f"\n[Showing {limit} commits. Use --limit to see more]")
+
+
+def show_general_history(dotfiles_dir: Path, limit: int, oneline: bool) -> None:
+    """Show general commit history for the dotfiles repo."""
+    try:
+        if oneline:
+            format_str = "%h %s"
+        else:
+            format_str = "%h|%aI|%an|%s"
+
+        cmd = [
+            "git",
+            "--git-dir",
+            str(dotfiles_dir),
+            "log",
+            f"--format={format_str}",
+            f"-n{limit}",
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            typer.echo("No commits yet.")
+            return
+
+        if not result.stdout.strip():
+            typer.echo("No commits yet.")
+            return
+
+        typer.echo(f"Recent commits (last {limit}):\n")
+
+        if oneline:
+            # Simple oneline format
+            for line in result.stdout.strip().split("\n"):
+                if line:
+                    parts = line.split(" ", 1)
+                    if len(parts) == 2:
+                        typer.echo(
+                            typer.style(parts[0], fg=typer.colors.YELLOW)
+                            + " "
+                            + parts[1]
+                        )
+                    else:
+                        typer.echo(line)
+        else:
+            # Detailed format with relative dates
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+
+                parts = line.split("|", 3)
+                if len(parts) < 4:
+                    continue
+
+                commit_hash, date_str, author, subject = parts
+
+                # Parse date
+                try:
+                    date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    date_display = format_relative_date(date)
+                except ValueError:
+                    date_display = date_str[:10]
+
+                typer.echo(
+                    typer.style(commit_hash, fg=typer.colors.YELLOW, bold=True)
+                    + " - "
+                    + typer.style(date_display, fg=typer.colors.GREEN)
+                    + " - "
+                    + subject
+                )
+
+    except subprocess.TimeoutExpired:
+        typer.echo("Timeout fetching history.", err=True)
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
 
 
 def diff(
