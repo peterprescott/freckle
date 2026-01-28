@@ -3,7 +3,7 @@
 These tests verify that freckle commands work correctly regardless of
 the current working directory, testing the fixes for:
 - v0.2.1: resolve dotfiles path relative to home directory
-- v0.2.2: freckle add accepts paths relative to cwd
+- v0.2.2: freckle track accepts paths relative to cwd
 - v0.2.3: run git commands from work_tree directory
 """
 
@@ -84,8 +84,8 @@ modules:
     (home / ".freckle.yaml").write_text(config_content)
 
 
-def test_freckle_sync_from_subdir(tmp_path):
-    """Test 'freckle sync' works from a subdirectory of home."""
+def test_freckle_status_from_subdir(tmp_path):
+    """Test 'freckle status' works from a subdirectory of home."""
     bare_repo = _create_bare_repo_with_files(
         tmp_path, {".zshrc": "# zsh config from repo"}
     )
@@ -94,8 +94,17 @@ def test_freckle_sync_from_subdir(tmp_path):
     home.mkdir()
     subdir = home / "projects" / "myapp"
     subdir.mkdir(parents=True)
+    dotfiles_dir = home / ".dotfiles"
 
     _create_freckle_config(home, bare_repo)
+
+    # Set up dotfiles first (init now clones automatically)
+    from freckle.dotfiles import DotfilesManager
+
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, home, branch="main"
+    )
+    manager.setup()
 
     env = os.environ.copy()
     env["HOME"] = str(home)
@@ -105,14 +114,16 @@ def test_freckle_sync_from_subdir(tmp_path):
         os.chdir(subdir)
 
         result = subprocess.run(
-            ["python", "-m", "freckle", "sync"],
+            ["python", "-m", "freckle", "status"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30,
         )
 
-        assert result.returncode == 0, f"freckle sync failed: {result.stderr}"
+        assert result.returncode == 0, (
+            f"freckle status failed: {result.stderr}"
+        )
         assert (home / ".zshrc").exists()
         assert (home / ".zshrc").read_text() == "# zsh config from repo"
     finally:
@@ -164,15 +175,15 @@ def test_freckle_status_from_tmp(tmp_path):
         os.chdir(original_cwd)
 
 
-def test_freckle_add_relative_path_from_subdir(tmp_path):
-    """Test 'freckle add' with a path relative to cwd (not home)."""
+def test_freckle_track_relative_path_from_subdir(tmp_path):
+    """Test 'freckle track' with a path relative to cwd (not home)."""
     bare_repo = _create_bare_repo_with_files(tmp_path, {".zshrc": "# zsh"})
 
     home = tmp_path / "home"
     home.mkdir()
     dotfiles_dir = home / ".dotfiles"
 
-    # Create the file we want to add
+    # Create the file we want to track
     config_dir = home / ".config" / "starship"
     config_dir.mkdir(parents=True)
     (config_dir / "starship.toml").write_text("# starship config")
@@ -204,7 +215,7 @@ def test_freckle_add_relative_path_from_subdir(tmp_path):
                 "python",
                 "-m",
                 "freckle",
-                "add",
+                "track",
                 "../.config/starship/starship.toml",
             ],
             env=env,
@@ -213,21 +224,23 @@ def test_freckle_add_relative_path_from_subdir(tmp_path):
             timeout=30,
         )
 
-        assert result.returncode == 0, f"freckle add failed: {result.stderr}"
-        assert "Staged" in result.stdout or "staged" in result.stdout.lower()
+        assert result.returncode == 0, (
+            f"freckle track failed: {result.stderr}"
+        )
+        assert "tracking" in result.stdout.lower()
     finally:
         os.chdir(original_cwd)
 
 
-def test_freckle_add_absolute_path(tmp_path):
-    """Test 'freckle add' with an absolute path."""
+def test_freckle_track_absolute_path(tmp_path):
+    """Test 'freckle track' with an absolute path."""
     bare_repo = _create_bare_repo_with_files(tmp_path, {".zshrc": "# zsh"})
 
     home = tmp_path / "home"
     home.mkdir()
     dotfiles_dir = home / ".dotfiles"
 
-    # Create the file we want to add
+    # Create the file we want to track
     gitconfig = home / ".gitconfig"
     gitconfig.write_text("[user]\nname = Test")
 
@@ -250,28 +263,30 @@ def test_freckle_add_absolute_path(tmp_path):
         os.chdir(tmp_path)
 
         result = subprocess.run(
-            ["python", "-m", "freckle", "add", str(gitconfig)],
+            ["python", "-m", "freckle", "track", str(gitconfig)],
             env=env,
             capture_output=True,
             text=True,
             timeout=30,
         )
 
-        assert result.returncode == 0, f"freckle add failed: {result.stderr}"
-        assert "Staged" in result.stdout or "staged" in result.stdout.lower()
+        assert result.returncode == 0, (
+            f"freckle track failed: {result.stderr}"
+        )
+        assert "tracking" in result.stdout.lower()
     finally:
         os.chdir(original_cwd)
 
 
-def test_freckle_add_tilde_path(tmp_path):
-    """Test 'freckle add' with a ~ prefixed path."""
+def test_freckle_track_tilde_path(tmp_path):
+    """Test 'freckle track' with a ~ prefixed path."""
     bare_repo = _create_bare_repo_with_files(tmp_path, {".zshrc": "# zsh"})
 
     home = tmp_path / "home"
     home.mkdir()
     dotfiles_dir = home / ".dotfiles"
 
-    # Create the file we want to add
+    # Create the file we want to track
     bashrc = home / ".bashrc"
     bashrc.write_text("# bashrc")
 
@@ -294,15 +309,17 @@ def test_freckle_add_tilde_path(tmp_path):
 
         # This uses ~ which should expand to the fake home
         result = subprocess.run(
-            ["python", "-m", "freckle", "add", "~/.bashrc"],
+            ["python", "-m", "freckle", "track", "~/.bashrc"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30,
         )
 
-        assert result.returncode == 0, f"freckle add failed: {result.stderr}"
-        assert "Staged" in result.stdout or "staged" in result.stdout.lower()
+        assert result.returncode == 0, (
+            f"freckle track failed: {result.stderr}"
+        )
+        assert "tracking" in result.stdout.lower()
     finally:
         os.chdir(original_cwd)
 
@@ -317,9 +334,18 @@ def test_relative_dotfiles_dir_config(tmp_path):
 
     home = tmp_path / "home"
     home.mkdir()
+    dotfiles_dir = home / ".dotfiles"
 
     # Use relative path in config (the problematic case before v0.2.1)
     _create_freckle_config(home, bare_repo, dotfiles_dir=".dotfiles")
+
+    # Set up dotfiles directly (init now clones automatically)
+    from freckle.dotfiles import DotfilesManager
+
+    manager = DotfilesManager(
+        str(bare_repo), dotfiles_dir, home, branch="main"
+    )
+    manager.setup()
 
     env = os.environ.copy()
     env["HOME"] = str(home)
@@ -332,16 +358,18 @@ def test_relative_dotfiles_dir_config(tmp_path):
     try:
         os.chdir(subdir)
 
-        # This should create ~/.dotfiles, not ~/projects/.dotfiles
+        # Run status to verify setup works from subdir
         result = subprocess.run(
-            ["python", "-m", "freckle", "sync"],
+            ["python", "-m", "freckle", "status"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30,
         )
 
-        assert result.returncode == 0, f"freckle sync failed: {result.stderr}"
+        assert result.returncode == 0, (
+            f"freckle status failed: {result.stderr}"
+        )
 
         # Dotfiles should be at ~/.dotfiles, not ~/projects/.dotfiles
         assert (home / ".dotfiles").exists(), ".dotfiles should be in home"

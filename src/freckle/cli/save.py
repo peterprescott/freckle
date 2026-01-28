@@ -1,4 +1,4 @@
-"""Backup command for committing and pushing dotfiles changes."""
+"""Save command for committing and pushing dotfiles changes."""
 
 import subprocess
 from typing import List, Optional
@@ -16,12 +16,12 @@ from .helpers import (
 
 
 def register(app: typer.Typer) -> None:
-    """Register backup command with the app."""
-    app.command()(backup)
+    """Register save command with the app."""
+    app.command()(save)
 
 
-def _auto_propagate_config(config, dotfiles, no_push: bool, quiet: bool):
-    """Auto-propagate config to other profile branches after backup."""
+def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
+    """Auto-propagate config to other profile branches after save."""
     profiles = config.get_profiles()
     if len(profiles) <= 1:
         return  # No other branches to sync
@@ -84,8 +84,8 @@ def _auto_propagate_config(config, dotfiles, no_push: bool, quiet: bool):
     except subprocess.CalledProcessError:
         pass
 
-    # Push updated branches
-    if updated and not no_push:
+    # Push updated branches if online
+    if updated and not offline:
         try:
             dotfiles._git.run_bare(
                 "push", "origin", *updated, check=True, timeout=60
@@ -94,7 +94,7 @@ def _auto_propagate_config(config, dotfiles, no_push: bool, quiet: bool):
                 typer.echo(f"  Pushed {len(updated)} branch(es)")
         except subprocess.CalledProcessError:
             if not quiet:
-                typer.echo("  ⚠ Could not push synced branches")
+                typer.echo("  ⚠ Could not push synced branches (offline?)")
 
 
 def _build_commit_message(
@@ -112,15 +112,18 @@ def _build_commit_message(
     return "\n".join(lines)
 
 
-def do_backup(
+def do_save(
     message: Optional[str] = None,
-    no_push: bool = False,
     quiet: bool = False,
     scheduled: bool = False,
     dry_run: bool = False,
     skip_secret_check: bool = False,
 ) -> bool:
-    """Internal backup logic. Returns True on success."""
+    """Internal save logic. Returns True on success.
+
+    Saves changes locally first, then tries to sync to remote.
+    Does not fail if remote sync fails (offline-friendly).
+    """
     config = get_config()
 
     dotfiles = get_dotfiles_manager(config)
@@ -137,7 +140,7 @@ def do_backup(
     if not dotfiles_dir.exists():
         if not quiet:
             typer.echo(
-                "Dotfiles repository not found. Run 'freckle sync' first.",
+                "Dotfiles repository not found. Run 'freckle init' first.",
                 err=True,
             )
         return False
@@ -146,7 +149,7 @@ def do_backup(
 
     if not report["has_local_changes"] and not report.get("is_ahead", False):
         if not quiet:
-            typer.echo("✓ Nothing to backup - already up-to-date.")
+            typer.echo("✓ Nothing to save - already up-to-date.")
         return True
 
     changed_files = report.get("changed_files", [])
@@ -163,8 +166,8 @@ def do_backup(
         if secrets_found:
             if not quiet:
                 typer.echo(
-                    f"✗ Refusing to commit. Found potential secrets "
-                    f"in {len(secrets_found)} file(s):\n",
+                    f"✗ Found potential secrets in {len(secrets_found)} "
+                    "file(s):\n",
                     err=True,
                 )
                 for match in secrets_found:
@@ -174,12 +177,11 @@ def do_backup(
                         typer.echo(f"       (line {match.line})", err=True)
 
                 typer.echo(
-                    "\nRemove these files with: "
-                    "freckle remove <file> [file2] ...",
+                    "\nTo untrack: freckle untrack <file>",
                     err=True,
                 )
                 typer.echo(
-                    "Or to backup anyway: freckle backup --skip-secret-check",
+                    "To save anyway: freckle save --skip-secret-check",
                     err=True,
                 )
             return False
@@ -188,86 +190,71 @@ def do_backup(
     if dry_run:
         typer.echo("\n--- DRY RUN (no changes will be made) ---\n")
         if report["has_local_changes"]:
-            typer.echo("Would commit the following files:")
+            typer.echo("Would save the following files:")
             for f in changed_files:
                 typer.echo(f"  - {f}")
         if report.get("is_ahead", False):
             ahead = report.get("ahead_count", 0)
-            typer.echo(f"\nWould push {ahead} commit(s) to remote.")
-        elif report["has_local_changes"] and not no_push:
-            typer.echo("\nWould push 1 new commit to remote.")
-        if no_push:
-            typer.echo("\n(--no-push: would not push to remote)")
+            typer.echo(f"\nWould sync {ahead} change(s) to cloud.")
+        elif report["has_local_changes"]:
+            typer.echo("\nWould sync to cloud.")
         typer.echo("\n--- Dry Run Complete ---")
         return True
 
     if report["has_local_changes"] and not quiet:
-        typer.echo("Backing up changed file(s):")
+        typer.echo("Saving changed file(s):")
         for f in changed_files:
             typer.echo(f"  - {f}")
-
-    if report.get("is_ahead", False) and not quiet:
-        typer.echo(
-            f"Pushing {report.get('ahead_count', 0)} unpushed commit(s)..."
-        )
 
     # Build commit message
     if message:
         commit_msg = message
     else:
-        prefix = "Scheduled backup" if scheduled else "Backup"
+        prefix = "Scheduled save" if scheduled else "Save"
         commit_msg = _build_commit_message(
             prefix, changed_files, env.os_info["pretty_name"]
         )
 
+    # First, commit locally (this always works)
     if report["has_local_changes"]:
-        if no_push:
-            # Commit only - use git directly
-            try:
-                dotfiles._git.run("add", "-A")
-                dotfiles._git.run("commit", "-m", commit_msg)
-                result = {"success": True, "committed": True, "pushed": False}
-            except Exception as e:
-                result = {"success": False, "error": str(e)}
+        try:
+            dotfiles._git.run("add", "-A")
+            dotfiles._git.run("commit", "-m", commit_msg)
+            if not quiet:
+                typer.echo("✓ Saved locally")
+        except Exception as e:
+            if not quiet:
+                typer.echo(f"✗ Failed to save: {e}", err=True)
+            return False
+
+    # Then, try to push (may fail if offline)
+    offline = False
+    try:
+        result = dotfiles.push()
+        if result.get("success"):
+            if not quiet:
+                typer.echo("✓ Synced to cloud")
         else:
-            result = dotfiles.commit_and_push(commit_msg)
-    else:
-        # Just push existing commits
-        result = dotfiles.push() if not no_push else {"success": True}
-
-    if result["success"]:
+            offline = True
+            if not quiet:
+                typer.echo("⚠ Could not sync to cloud (offline?)")
+                typer.echo("  Run 'freckle save' again when online")
+    except Exception:
+        offline = True
         if not quiet:
-            if no_push:
-                typer.echo("✓ Changes committed locally.")
-            else:
-                typer.echo("✓ Backed up successfully.")
+            typer.echo("⚠ Could not sync to cloud (offline?)")
+            typer.echo("  Run 'freckle save' again when online")
 
-        # Auto-propagate config if it was changed
-        if CONFIG_FILENAME in changed_files:
-            _auto_propagate_config(config, dotfiles, no_push, quiet)
+    # Auto-propagate config if it was changed
+    if CONFIG_FILENAME in changed_files:
+        _auto_propagate_config(config, dotfiles, offline, quiet)
 
-        return True
-    elif result.get("committed") and not result.get("pushed"):
-        if not quiet:
-            typer.echo(
-                f"⚠ Committed locally but push failed: {result['error']}"
-            )
-        return True  # Partial success
-    else:
-        if not quiet:
-            typer.echo(
-                f"✗ Backup failed: {result.get('error', 'Unknown error')}",
-                err=True,
-            )
-        return False
+    return True
 
 
-def backup(
+def save(
     message: Optional[str] = typer.Option(
-        None, "-m", "--message", help="Custom commit message"
-    ),
-    no_push: bool = typer.Option(
-        False, "--no-push", help="Commit locally but don't push"
+        None, "-m", "--message", help="Custom message for this save"
     ),
     quiet: bool = typer.Option(
         False, "--quiet", "-q", help="Suppress output (for scripts/cron)"
@@ -278,22 +265,24 @@ def backup(
     skip_secret_check: bool = typer.Option(
         False,
         "--skip-secret-check",
-        help="Backup even if secrets are detected (not recommended)",
+        help="Save even if secrets are detected (not recommended)",
     ),
     scheduled: bool = typer.Option(
-        False, "--scheduled", hidden=True, help="Mark as scheduled backup"
+        False, "--scheduled", hidden=True, help="Mark as scheduled save"
     ),
 ):
-    """Commit and push local changes to remote.
+    """Save local changes to your dotfiles.
 
-    Commits any uncommitted changes in your dotfiles and pushes them
-    to the remote repository. The commit message includes a list of
-    changed files for easy reference.
+    Saves any changes you've made to your dotfiles. Works offline - changes
+    are saved locally first, then synced to the cloud when possible.
+
+    Examples:
+        freckle save                    # Save all changes
+        freckle save -m "Updated zshrc" # With custom message
     """
-    success = do_backup(
+    success = do_save(
         message=message,
         skip_secret_check=skip_secret_check,
-        no_push=no_push,
         quiet=quiet,
         scheduled=scheduled,
         dry_run=dry_run,

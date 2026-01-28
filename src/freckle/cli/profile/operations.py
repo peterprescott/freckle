@@ -117,7 +117,7 @@ def profile_switch(config, name, force):
 
     if has_changes and not force:
         typer.echo("You have uncommitted changes.")
-        typer.echo("Use --force to discard them, or run 'freckle backup'.")
+        typer.echo("Use --force to discard them, or run 'freckle save'.")
         raise typer.Exit(1)
 
     # Switch branch

@@ -1,4 +1,4 @@
-"""Schedule command for automatic backups."""
+"""Schedule command for automatic saves."""
 
 import shutil
 import subprocess
@@ -11,9 +11,9 @@ import typer
 from .helpers import env
 
 LAUNCHD_PLIST_PATH = (
-    Path.home() / "Library/LaunchAgents/com.freckle.backup.plist"
+    Path.home() / "Library/LaunchAgents/com.freckle.save.plist"
 )
-CRON_MARKER = "# freckle-backup"
+CRON_MARKER = "# freckle-save"
 
 
 def register(app: typer.Typer) -> None:
@@ -31,7 +31,7 @@ def _get_freckle_path() -> str:
 
 
 def _create_launchd_plist(hour: int, minute: int, daily: bool = True) -> str:
-    """Create a launchd plist for scheduled backups."""
+    """Create a launchd plist for scheduled saves."""
     freckle_path = _get_freckle_path()
 
     # Handle python -m freckle case
@@ -41,14 +41,14 @@ def _create_launchd_plist(hour: int, minute: int, daily: bool = True) -> str:
         <string>{parts[0]}</string>
         <string>-m</string>
         <string>freckle</string>
-        <string>backup</string>
+        <string>save</string>
         <string>--quiet</string>
         <string>--scheduled</string>
     </array>"""
     else:
         program_args = f"""<array>
         <string>{freckle_path}</string>
-        <string>backup</string>
+        <string>save</string>
         <string>--quiet</string>
         <string>--scheduled</string>
     </array>"""
@@ -78,14 +78,14 @@ def _create_launchd_plist(hour: int, minute: int, daily: bool = True) -> str:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.freckle.backup</string>
+    <string>com.freckle.save</string>
     <key>ProgramArguments</key>
     {program_args}
     {interval}
     <key>StandardOutPath</key>
-    <string>/tmp/freckle-backup.log</string>
+    <string>/tmp/freckle-save.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/freckle-backup.log</string>
+    <string>/tmp/freckle-save.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>
@@ -94,7 +94,7 @@ def _create_launchd_plist(hour: int, minute: int, daily: bool = True) -> str:
 
 
 def _install_launchd(hour: int, minute: int, daily: bool = True) -> bool:
-    """Install launchd plist for macOS."""
+    """Install launchd plist for macOS scheduled saves."""
     # Create LaunchAgents directory if needed
     LAUNCHD_PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -138,7 +138,7 @@ def _get_launchd_status() -> Optional[dict]:
 
     # Check if loaded
     result = subprocess.run(
-        ["launchctl", "list", "com.freckle.backup"],
+        ["launchctl", "list", "com.freckle.save"],
         capture_output=True,
         text=True,
     )
@@ -172,7 +172,7 @@ def _get_launchd_status() -> Optional[dict]:
 
 
 def _install_cron(hour: int, minute: int, daily: bool = True) -> bool:
-    """Install cron job for Linux."""
+    """Install cron job for Linux scheduled saves."""
     freckle_path = _get_freckle_path()
 
     if daily:
@@ -181,7 +181,7 @@ def _install_cron(hour: int, minute: int, daily: bool = True) -> bool:
         cron_schedule = f"{minute} {hour} * * 0"  # Sunday
 
     cron_line = (
-        f"{cron_schedule} {freckle_path} backup "
+        f"{cron_schedule} {freckle_path} save "
         f"--quiet --scheduled {CRON_MARKER}"
     )
 
@@ -258,13 +258,13 @@ def schedule(
         0, "--minute", "-M", help="Minute to run (0-59)"
     ),
 ):
-    """Set up automatic scheduled backups.
+    """Set up automatic scheduled saves.
 
     Examples:
-        freckle schedule daily          # Backup daily at 9:00 AM
-        freckle schedule weekly         # Backup weekly (Sunday) at 9:00 AM
-        freckle schedule daily -H 14    # Backup daily at 2:00 PM
-        freckle schedule off            # Disable scheduled backups
+        freckle schedule daily          # Save daily at 9:00 AM
+        freckle schedule weekly         # Save weekly (Sunday) at 9:00 AM
+        freckle schedule daily -H 14    # Save daily at 2:00 PM
+        freckle schedule off            # Disable scheduled saves
         freckle schedule                # Show current schedule status
 
     On macOS, uses launchd (~/Library/LaunchAgents/).
@@ -281,7 +281,7 @@ def schedule(
             status = _get_cron_status()
 
         if status:
-            typer.echo("\n--- Scheduled Backup Status ---")
+            typer.echo("\n--- Scheduled Save Status ---")
             typer.echo("  Enabled : Yes")
             typer.echo(f"  Schedule: {status['schedule']}")
             if is_mac and "loaded" in status:
@@ -290,9 +290,9 @@ def schedule(
                 )
             if "path" in status:
                 typer.echo(f"  Path    : {status['path']}")
-            typer.echo("\nLog file: /tmp/freckle-backup.log")
+            typer.echo("\nLog file: /tmp/freckle-save.log")
         else:
-            typer.echo("\nNo scheduled backup configured.")
+            typer.echo("\nNo scheduled save configured.")
             typer.echo(
                 "Run 'freckle schedule daily' or "
                 "'freckle schedule weekly' to enable."
@@ -307,9 +307,9 @@ def schedule(
             success = _uninstall_cron()
 
         if success:
-            typer.echo("✓ Scheduled backups disabled.")
+            typer.echo("✓ Scheduled saves disabled.")
         else:
-            typer.echo("✗ Failed to disable scheduled backups.", err=True)
+            typer.echo("✗ Failed to disable scheduled saves.", err=True)
             raise typer.Exit(1)
         return
 
@@ -331,11 +331,11 @@ def schedule(
     if success:
         schedule_desc = "daily" if daily else "weekly (Sunday)"
         typer.echo(
-            f"✓ Scheduled {schedule_desc} backup at {hour:02d}:{minute:02d}"
+            f"✓ Scheduled {schedule_desc} save at {hour:02d}:{minute:02d}"
         )
-        typer.echo("  Log file: /tmp/freckle-backup.log")
+        typer.echo("  Log file: /tmp/freckle-save.log")
         if is_mac:
             typer.echo(f"  Config  : {LAUNCHD_PLIST_PATH}")
     else:
-        typer.echo("✗ Failed to set up scheduled backup.", err=True)
+        typer.echo("✗ Failed to set up scheduled save.", err=True)
         raise typer.Exit(1)

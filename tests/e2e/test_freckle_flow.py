@@ -87,9 +87,8 @@ def test_full_freckle_flow(tmp_path):
     """
     E2E test that simulates a full user workflow:
     1. Create a mock remote dotfiles repo
-    2. Run freckle init
-    3. Run freckle sync
-    4. Verify files are correctly placed and configured
+    2. Run freckle init (which now clones automatically)
+    3. Verify files are correctly placed and configured
     """
     home = tmp_path / "fake_home"
     home.mkdir()
@@ -133,9 +132,7 @@ def test_full_freckle_flow(tmp_path):
         ["git", "push", "origin", "HEAD:main"], cwd=temp_worktree, check=True
     )
 
-    # 2. Run freckle init
-    # Use CLI directly - 'freckle' should be in path if installed.
-    # Alternatively, we can use 'uv run freckle'
+    # 2. Run freckle init (which now clones automatically)
     # Input: y (clone existing), repo URL, branch, dotfiles dir
     init_input = f"y\n{remote_repo}\nmain\n{home}/.dotfiles\n"
     subprocess.run(
@@ -148,10 +145,7 @@ def test_full_freckle_flow(tmp_path):
 
     assert (home / ".freckle.yaml").exists()
 
-    # 3. Run freckle sync (dotfiles only)
-    subprocess.run(["uv", "run", "freckle", "sync"], env=env, check=True)
-
-    # 4. Verify dotfiles results
+    # 3. Verify dotfiles results (init now clones automatically)
     assert (home / ".zshrc").exists()
     assert (home / ".zshrc").read_text() == "# mock zshrc"
     assert (home / ".tmux.conf").exists()
@@ -159,7 +153,7 @@ def test_full_freckle_flow(tmp_path):
     assert (home / ".dotfiles").exists()
     assert (home / ".dotfiles").is_dir()
 
-    # 5. Run freckle tools to list configured tools
+    # 4. Run freckle tools to list configured tools
     result = subprocess.run(
         ["uv", "run", "freckle", "tools"],
         env=env,
@@ -199,7 +193,7 @@ def test_full_flow_from_subdirectory(tmp_path):
         # Change to the subdirectory BEFORE running any freckle commands
         os.chdir(subdir)
 
-        # Run freckle init from ~/projects/myapp
+        # Run freckle init from ~/projects/myapp (now clones automatically)
         init_input = f"y\n{remote_repo}\nmain\n.dotfiles\n"
         result = subprocess.run(
             ["python", "-m", "freckle", "init"],
@@ -211,16 +205,6 @@ def test_full_flow_from_subdirectory(tmp_path):
         )
         assert result.returncode == 0, f"init failed: {result.stderr}"
         assert (home / ".freckle.yaml").exists()
-
-        # Run freckle sync from ~/projects/myapp
-        result = subprocess.run(
-            ["python", "-m", "freckle", "sync"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        assert result.returncode == 0, f"run failed: {result.stderr}"
 
         # Verify dotfiles were checked out to ~ (not ~/projects/myapp)
         assert (home / ".zshrc").exists()
@@ -246,14 +230,14 @@ def test_full_flow_from_subdirectory(tmp_path):
         os.chdir(original_cwd)
 
 
-def test_add_and_backup_from_different_directories(tmp_path):
+def test_track_and_save_from_different_directories(tmp_path):
     """
-    E2E test for the add -> backup workflow from various directories.
+    E2E test for the track -> save workflow from various directories.
 
     Tests:
-    1. freckle add from a subdirectory with relative paths
-    2. freckle add from /tmp with absolute paths
-    3. freckle backup from a subdirectory
+    1. freckle track from a subdirectory with relative paths
+    2. freckle track from /tmp with absolute paths
+    3. freckle save from a subdirectory
     """
     home = tmp_path / "fake_home"
     home.mkdir()
@@ -276,37 +260,30 @@ def test_add_and_backup_from_different_directories(tmp_path):
             check=True,
             timeout=30,
         )
-        subprocess.run(
-            ["python", "-m", "freckle", "sync"],
-            env=env,
-            capture_output=True,
-            check=True,
-            timeout=60,
-        )
 
-        # Create files to add
+        # Create files to track
         (home / ".gitconfig").write_text("[user]\nname = Test")
         config_dir = home / ".config" / "starship"
         config_dir.mkdir(parents=True)
         (config_dir / "starship.toml").write_text("# starship config")
 
-        # --- Test 1: Add from subdirectory with relative path ---
+        # --- Test 1: Track from subdirectory with relative path ---
         subdir = home / "code"
         subdir.mkdir()
         os.chdir(subdir)
 
-        # Add ../.gitconfig (relative to ~/code)
+        # Track ../.gitconfig (relative to ~/code)
         result = subprocess.run(
-            ["python", "-m", "freckle", "add", "../.gitconfig"],
+            ["python", "-m", "freckle", "track", "../.gitconfig"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30,
         )
-        assert result.returncode == 0, f"add failed: {result.stderr}"
-        assert "Staged" in result.stdout
+        assert result.returncode == 0, f"track failed: {result.stderr}"
+        assert "tracking" in result.stdout.lower()
 
-        # --- Test 2: Add from /tmp with absolute path ---
+        # --- Test 2: Track from /tmp with absolute path ---
         os.chdir(tmp_path)
 
         result = subprocess.run(
@@ -314,7 +291,7 @@ def test_add_and_backup_from_different_directories(tmp_path):
                 "python",
                 "-m",
                 "freckle",
-                "add",
+                "track",
                 str(home / ".config/starship/starship.toml"),
             ],
             env=env,
@@ -322,21 +299,23 @@ def test_add_and_backup_from_different_directories(tmp_path):
             text=True,
             timeout=30,
         )
-        assert result.returncode == 0, f"add absolute failed: {result.stderr}"
-        assert "Staged" in result.stdout
+        assert result.returncode == 0, (
+            f"track absolute failed: {result.stderr}"
+        )
+        assert "tracking" in result.stdout.lower()
 
-        # --- Test 3: Backup from subdirectory ---
+        # --- Test 3: Modify a tracked file and save from subdirectory ---
         os.chdir(subdir)
+        (home / ".gitconfig").write_text("[user]\nname = Updated")
 
         result = subprocess.run(
-            ["python", "-m", "freckle", "backup"],
+            ["python", "-m", "freckle", "save"],
             env=env,
             capture_output=True,
             text=True,
             timeout=60,
         )
-        assert result.returncode == 0, f"backup failed: {result.stderr}"
-        # Should mention backup success or no changes (if already committed)
+        assert result.returncode == 0, f"save failed: {result.stderr}"
 
     finally:
         os.chdir(original_cwd)
@@ -435,7 +414,7 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
     env = _create_env(home)
     remote_repo = _setup_mock_remote(tmp_path, {".zshrc": "# zshrc"})
 
-    # Set up freckle
+    # Set up freckle (init now clones automatically)
     original_cwd = os.getcwd()
     try:
         os.chdir(home)
@@ -449,13 +428,6 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
             capture_output=True,
             check=True,
             timeout=30,
-        )
-        subprocess.run(
-            ["python", "-m", "freckle", "sync"],
-            env=env,
-            capture_output=True,
-            check=True,
-            timeout=60,
         )
 
         # Modify a file to create local changes

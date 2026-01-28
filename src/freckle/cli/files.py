@@ -1,4 +1,4 @@
-"""Add, remove, and propagate file commands for freckle CLI."""
+"""Track, untrack, and propagate file commands for freckle CLI."""
 
 import subprocess
 from pathlib import Path
@@ -13,35 +13,57 @@ from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
 
 def register(app: typer.Typer) -> None:
     """Register file commands with the app."""
-    app.command()(add)
-    app.command()(remove)
+    app.command()(track)
+    app.command()(untrack)
     app.command()(propagate)
 
 
-def add(
+def _auto_save(dotfiles, files: List[str], action: str) -> bool:
+    """Auto-commit and push after track/untrack. Returns True if pushed."""
+    # Build commit message
+    if len(files) == 1:
+        msg = f"{action} {files[0]}"
+    else:
+        msg = f"{action} {len(files)} file(s)"
+
+    # Commit
+    try:
+        dotfiles._git.run("commit", "-m", msg)
+    except subprocess.CalledProcessError:
+        return False  # Nothing to commit
+
+    # Try to push (don't fail if offline)
+    try:
+        result = dotfiles.push()
+        return result.get("success", False)
+    except Exception:
+        return False
+
+
+def track(
     files: List[str] = typer.Argument(
-        ..., help="Files to add to dotfiles tracking"
+        ..., help="Files to start tracking"
     ),
     force: bool = typer.Option(
         False,
         "--force",
         "-f",
-        help="Add files even if they appear to contain secrets",
+        help="Track files even if they appear to contain secrets",
     ),
 ):
-    """Add files to be tracked in your dotfiles repository.
+    """Start tracking files in your dotfiles.
+
+    Adds files to your dotfiles repository and saves them to the cloud.
 
     Examples:
-        freckle add .freckle.yaml
-        freckle add .vimrc .bashrc
-        freckle add .config/starship.toml
-        freckle add ~/.config/nvim/init.lua
-
-    After adding, run 'freckle backup' to commit and push.
+        freckle track .zshrc
+        freckle track .vimrc .bashrc
+        freckle track .config/starship.toml
+        freckle track ~/.config/nvim/init.lua
     """
 
     if not files:
-        typer.echo("Usage: freckle add <file> [file2] [file3] ...")
+        typer.echo("Usage: freckle track <file> [file2] [file3] ...")
         raise typer.Exit(1)
 
     config = get_config()
@@ -57,7 +79,7 @@ def add(
 
     if not dotfiles_dir.exists():
         typer.echo(
-            "Dotfiles repository not found. Run 'freckle sync' first.",
+            "Dotfiles repository not found. Run 'freckle init' first.",
             err=True,
         )
         raise typer.Exit(1)
@@ -107,7 +129,7 @@ def add(
                 "\nSecrets should not be tracked in dotfiles.", err=True
             )
             typer.echo(
-                "To override (not recommended): freckle add --force <files>",
+                "To override: freckle track --force <files>",
                 err=True,
             )
             raise typer.Exit(1)
@@ -115,9 +137,17 @@ def add(
     result = dotfiles.add_files(home_relative_files)
 
     if result["added"]:
-        typer.echo(f"✓ Staged {len(result['added'])} file(s) for tracking:")
+        typer.echo(f"✓ Now tracking {len(result['added'])} file(s):")
         for f in result["added"]:
             typer.echo(f"    + {f}")
+
+        # Auto-save
+        pushed = _auto_save(dotfiles, result["added"], "Track")
+        if pushed:
+            typer.echo("✓ Synced to cloud")
+        else:
+            typer.echo("✓ Saved locally")
+            typer.echo("  (Run 'freckle save' to sync when online)")
 
     if result["skipped"]:
         typer.echo(f"\n⚠ Skipped {len(result['skipped'])} file(s):")
@@ -128,32 +158,28 @@ def add(
             else:
                 typer.echo(f"    - {f} (failed to add)")
 
-    if result["added"]:
-        typer.echo("\nTo commit and push, run: freckle backup")
-    else:
+    if not result["added"]:
         raise typer.Exit(1)
 
 
-def remove(
+def untrack(
     files: List[str] = typer.Argument(..., help="Files to stop tracking"),
     delete: bool = typer.Option(
         False, "--delete", help="Also delete the file from home directory"
     ),
 ):
-    """Stop tracking files in your dotfiles repository.
+    """Stop tracking files in your dotfiles.
 
     By default, the file is kept in your home directory but removed from
-    git tracking. Use --delete to also remove the file.
+    tracking. Use --delete to also remove the file.
 
     Examples:
-        freckle remove .bashrc              # Stop tracking, keep file
-        freckle remove .old-config --delete # Stop tracking and delete
-
-    After removing, run 'freckle backup' to commit and push.
+        freckle untrack .bashrc              # Stop tracking, keep file
+        freckle untrack .old-config --delete # Stop tracking and delete
     """
 
     if not files:
-        typer.echo("Usage: freckle remove <file> [file2] ...")
+        typer.echo("Usage: freckle untrack <file> [file2] ...")
         raise typer.Exit(1)
 
     config = get_config()
@@ -169,7 +195,7 @@ def remove(
 
     if not dotfiles_dir.exists():
         typer.echo(
-            "Dotfiles repository not found. Run 'freckle sync' first.",
+            "Dotfiles repository not found. Run 'freckle init' first.",
             err=True,
         )
         raise typer.Exit(1)
@@ -230,14 +256,20 @@ def remove(
             else:
                 typer.echo(f"    - {f} (kept in ~/)")
 
+        # Auto-save
+        pushed = _auto_save(dotfiles, removed, "Untrack")
+        if pushed:
+            typer.echo("✓ Synced to cloud")
+        else:
+            typer.echo("✓ Saved locally")
+            typer.echo("  (Run 'freckle save' to sync when online)")
+
     if skipped:
-        typer.echo(f"\n⚠ Failed to remove {len(skipped)} file(s):")
+        typer.echo(f"\n⚠ Failed to untrack {len(skipped)} file(s):")
         for f, err in skipped:
             typer.echo(f"    - {f}: {err}")
 
-    if removed:
-        typer.echo("\nTo commit this change, run: freckle backup")
-    else:
+    if not removed:
         raise typer.Exit(1)
 
 
@@ -447,8 +479,7 @@ def propagate(
                 except subprocess.CalledProcessError:
                     typer.echo(f"  ✗ Failed to push {branch}")
         else:
-            typer.echo("\nTo push changes:")
-            typer.echo(f"  git push origin {' '.join(updated)}")
+            typer.echo("\nTo sync changes, run: freckle save")
 
     if failed:
         typer.echo(f"\n✗ Failed to update {len(failed)} branch(es).")

@@ -162,7 +162,7 @@ def profile_create(config, name, from_profile, description):
         except subprocess.CalledProcessError:
             typer.echo(
                 f"⚠ Could not push to origin/{name}. "
-                "Run 'freckle backup' to push later."
+                "Run 'freckle save' to push later."
             )
 
         typer.echo(f"\n✓ Profile '{name}' created")

@@ -12,15 +12,15 @@ class TestLaunchdPlist:
     """Tests for launchd plist generation."""
 
     def test_create_daily_plist(self):
-        """Test creating a daily backup plist."""
+        """Test creating a daily save plist."""
         plist_str = _create_launchd_plist(hour=9, minute=0, daily=True)
 
         # Parse the plist to validate structure
         plist = plistlib.loads(plist_str.encode())
 
-        assert plist["Label"] == "com.freckle.backup"
+        assert plist["Label"] == "com.freckle.save"
         assert "ProgramArguments" in plist
-        assert "backup" in plist["ProgramArguments"]
+        assert "save" in plist["ProgramArguments"]
         assert "--quiet" in plist["ProgramArguments"]
         assert "--scheduled" in plist["ProgramArguments"]
 
@@ -31,12 +31,12 @@ class TestLaunchdPlist:
         assert "Weekday" not in interval
 
     def test_create_weekly_plist(self):
-        """Test creating a weekly backup plist."""
+        """Test creating a weekly save plist."""
         plist_str = _create_launchd_plist(hour=14, minute=30, daily=False)
 
         plist = plistlib.loads(plist_str.encode())
 
-        assert plist["Label"] == "com.freckle.backup"
+        assert plist["Label"] == "com.freckle.save"
 
         interval = plist["StartCalendarInterval"]
         assert interval["Hour"] == 14
@@ -49,8 +49,8 @@ class TestLaunchdPlist:
         plist_str = _create_launchd_plist(hour=9, minute=0, daily=True)
         plist = plistlib.loads(plist_str.encode())
 
-        assert plist["StandardOutPath"] == "/tmp/freckle-backup.log"
-        assert plist["StandardErrorPath"] == "/tmp/freckle-backup.log"
+        assert plist["StandardOutPath"] == "/tmp/freckle-save.log"
+        assert plist["StandardErrorPath"] == "/tmp/freckle-save.log"
 
     def test_plist_run_at_load_false(self):
         """Test that RunAtLoad is false (don't run on login)."""
@@ -74,7 +74,7 @@ class TestCronLine:
 
     def test_cron_marker_defined(self):
         """Test that cron marker is defined for identification."""
-        assert CRON_MARKER == "# freckle-backup"
+        assert CRON_MARKER == "# freckle-save"
 
     def test_cron_daily_format(self):
         """Test daily cron schedule format."""
@@ -141,7 +141,7 @@ class TestScheduleStatusParsing:
 
     def test_parse_cron_line_daily(self):
         """Test parsing daily schedule from cron line."""
-        cron_line = "0 9 * * * /usr/local/bin/freckle backup # freckle-backup"
+        cron_line = "0 9 * * * /usr/local/bin/freckle save # freckle-save"
         parts = cron_line.split()
         minute, hour, dom, month, dow = parts[:5]
 
@@ -155,7 +155,7 @@ class TestScheduleStatusParsing:
     def test_parse_cron_line_weekly(self):
         """Test parsing weekly schedule from cron line."""
         cron_line = (
-            "30 14 * * 0 /usr/local/bin/freckle backup # freckle-backup"
+            "30 14 * * 0 /usr/local/bin/freckle save # freckle-save"
         )
         parts = cron_line.split()
         minute, hour, dom, month, dow = parts[:5]

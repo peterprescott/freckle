@@ -228,7 +228,7 @@ def status():
                         f"    The local '{effective_branch}' branch "
                         "has no remote counterpart."
                     )
-                    typer.echo("    To push it: freckle backup")
+                    typer.echo("    To push it: freckle save")
                 else:
                     remote = report.get("remote_commit", "N/A")
                     typer.echo(f"  Remote Commit: {remote}")
