@@ -78,7 +78,7 @@ def _setup_mock_remote(tmp_path: Path, files: dict, branch: str = "main"):
 
 
 def _init_freckle(home: Path, remote_repo: Path, env: dict):
-    """Initialize freckle with a remote repo (init now clones automatically)."""
+    """Initialize freckle with a remote repo (auto-clones)."""
     init_input = f"y\n{remote_repo}\nmain\n.dotfiles\n"
     subprocess.run(
         ["uv", "run", "freckle", "init"],
