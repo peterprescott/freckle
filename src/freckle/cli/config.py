@@ -1,14 +1,18 @@
 """Config management commands for freckle CLI."""
 
 import os
+import platform
 import shutil
 import subprocess
+from pathlib import Path
+from typing import List
 
 import typer
 
 from .helpers import (
     CONFIG_FILENAME,
     CONFIG_PATH,
+    env,
     get_config,
     get_dotfiles_dir,
     get_dotfiles_manager,
@@ -46,34 +50,131 @@ def config_edit():
         typer.echo("Run 'freckle init' to create one.")
         raise typer.Exit(1)
 
+    open_in_editor([CONFIG_PATH])
+
+
+def open_in_editor(files: List[Path]) -> None:
+    """Open one or more files in the user's editor."""
+    if not files:
+        typer.echo("No files to open.")
+        raise typer.Exit(1)
+
+    # Convert to strings
+    file_args = [str(f) for f in files]
+
     # Try $EDITOR or $VISUAL first
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
 
     if editor:
         try:
-            subprocess.run([editor, str(CONFIG_PATH)], check=True)
+            subprocess.run([editor, *file_args], check=True)
             return
         except (subprocess.CalledProcessError, FileNotFoundError):
             pass  # Fall through to platform defaults
 
     # Platform-specific fallbacks
-    import platform
     is_mac = platform.system() == "Darwin"
 
     if is_mac:
         # -W waits for the app to close, -t opens in default text editor
-        subprocess.run(["open", "-W", "-t", str(CONFIG_PATH)], check=True)
+        subprocess.run(["open", "-W", "-t", *file_args], check=True)
     else:
         if shutil.which("xdg-open"):
-            subprocess.run(["xdg-open", str(CONFIG_PATH)], check=True)
+            # xdg-open only handles one file at a time
+            for f in file_args:
+                subprocess.run(["xdg-open", f], check=True)
         elif shutil.which("nano"):
-            subprocess.run(["nano", str(CONFIG_PATH)], check=True)
+            subprocess.run(["nano", *file_args], check=True)
         elif shutil.which("vi"):
-            subprocess.run(["vi", str(CONFIG_PATH)], check=True)
+            subprocess.run(["vi", *file_args], check=True)
         else:
-            typer.echo("Could not find an editor. Config file is at:")
-            typer.echo(f"  {CONFIG_PATH}")
+            typer.echo("Could not find an editor. Files are at:")
+            for f in file_args:
+                typer.echo(f"  {f}")
             raise typer.Exit(1)
+
+
+def get_tool_config_files(tool_name: str) -> List[Path]:
+    """Get the config file paths for a tool from .freckle.yaml."""
+    config = get_config()
+    tools_config = config.data.get("tools", {})
+
+    # Special case: "freckle" refers to the freckle config itself
+    if tool_name == "freckle":
+        return [CONFIG_PATH] if CONFIG_PATH.exists() else []
+
+    if tool_name not in tools_config:
+        return []
+
+    tool_data = tools_config[tool_name]
+    config_files = tool_data.get("config", [])
+
+    if not config_files:
+        return []
+
+    # Expand paths and check existence
+    result = []
+    for cfg in config_files:
+        path = Path(cfg).expanduser()
+        if not path.is_absolute():
+            path = env.home / cfg
+        result.append(path)
+
+    return result
+
+
+@config_app.command(name="open")
+def config_open(
+    tool_name: str = typer.Argument(
+        ...,
+        help="Tool name to open config for (e.g., 'nvim', 'zsh', 'tmux')",
+    ),
+):
+    """Open a tool's config file(s) in your editor.
+
+    Looks up the tool's config files from .freckle.yaml and opens them.
+
+    Examples:
+        freckle config open nvim    # Open nvim config
+        freckle config open zsh     # Open zsh config (.zshrc etc)
+        freckle config open freckle # Open the freckle config itself
+    """
+    files = get_tool_config_files(tool_name)
+
+    if not files:
+        typer.echo(f"No config files found for tool: {tool_name}", err=True)
+        typer.echo("\nEither the tool is not defined in .freckle.yaml,")
+        typer.echo("or it has no 'config' section.")
+        typer.echo("\nTo add config files, edit .freckle.yaml:")
+        typer.echo("  tools:")
+        typer.echo(f"    {tool_name}:")
+        typer.echo("      config:")
+        typer.echo(f"        - ~/.config/{tool_name}/config")
+        raise typer.Exit(1)
+
+    # Filter to existing files
+    existing = [f for f in files if f.exists()]
+    missing = [f for f in files if not f.exists()]
+
+    if missing:
+        for f in missing:
+            msg = f"Note: {f} does not exist"
+            typer.echo(typer.style(msg, fg=typer.colors.YELLOW))
+
+    if not existing:
+        typer.echo("None of the config files exist yet.", err=True)
+        typer.echo("\nExpected files:")
+        for f in files:
+            typer.echo(f"  {f}")
+        raise typer.Exit(1)
+
+    # Open existing files
+    if len(existing) == 1:
+        typer.echo(f"Opening {existing[0]}")
+    else:
+        typer.echo(f"Opening {len(existing)} config file(s) for {tool_name}")
+
+    open_in_editor(existing)
 
 
 @config_app.command(name="check")
