@@ -425,13 +425,13 @@ def _print_suggestions(issues: list[str], warnings: list[str]) -> None:
         elif "Missing" in item and ".freckle" in item:
             suggestions.append("Run 'freckle init' to set up configuration")
         elif "Dotfiles repo not found" in item:
-            suggestions.append("Run 'freckle sync' to clone your dotfiles")
+            suggestions.append("Run 'freckle init' to set up your dotfiles")
         elif "uncommitted changes" in item:
-            suggestions.append("Run 'freckle backup' to save local changes")
+            suggestions.append("Run 'freckle save' to save local changes")
         elif "unpushed commits" in item:
-            suggestions.append("Run 'freckle git push' to push changes")
+            suggestions.append("Run 'freckle save' to sync changes")
         elif "behind remote" in item:
-            suggestions.append("Run 'freckle update' to pull latest changes")
+            suggestions.append("Run 'freckle fetch' to get latest changes")
         elif "tools not installed" in item:
             suggestions.append("Run 'freckle tools' to see missing tools")
         elif "freckle config differs" in item:

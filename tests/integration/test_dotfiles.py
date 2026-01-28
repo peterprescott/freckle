@@ -228,7 +228,7 @@ def test_not_initialized_status(tmp_path):
 def test_add_files_from_different_cwd(tmp_path):
     """Test add_files works regardless of current working directory.
 
-    This tests the fix for the bug where `freckle add` from ~/github
+    This tests the fix for the bug where `freckle track` from ~/github
     would fail because git looked for files relative to cwd.
     """
     # Create a bare repo

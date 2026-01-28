@@ -78,7 +78,7 @@ def _setup_mock_remote(tmp_path: Path, files: dict, branch: str = "main"):
 
 
 def _init_freckle(home: Path, remote_repo: Path, env: dict):
-    """Initialize freckle with a remote repo."""
+    """Initialize freckle with a remote repo (auto-clones)."""
     init_input = f"y\n{remote_repo}\nmain\n.dotfiles\n"
     subprocess.run(
         ["uv", "run", "freckle", "init"],
@@ -88,13 +88,6 @@ def _init_freckle(home: Path, remote_repo: Path, env: dict):
         capture_output=True,
         check=True,
         timeout=30,
-    )
-    subprocess.run(
-        ["uv", "run", "freckle", "sync"],
-        env=env,
-        capture_output=True,
-        check=True,
-        timeout=60,
     )
 
 
@@ -236,11 +229,11 @@ class TestChangesCommand:
         assert result.returncode != 0
 
 
-class TestRemoveCommand:
-    """Tests for the remove command."""
+class TestUntrackCommand:
+    """Tests for the untrack command."""
 
-    def test_remove_stops_tracking(self, tmp_path):
-        """Remove stops tracking a file but keeps it."""
+    def test_untrack_stops_tracking(self, tmp_path):
+        """Untrack stops tracking a file but keeps it."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -252,7 +245,7 @@ class TestRemoveCommand:
         assert (home / ".zshrc").exists()
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "remove", ".zshrc"],
+            ["uv", "run", "freckle", "untrack", ".zshrc"],
             env=env,
             capture_output=True,
             text=True,
@@ -263,14 +256,14 @@ class TestRemoveCommand:
         # File should still exist
         assert (home / ".zshrc").exists()
 
-    def test_remove_without_init_fails(self, tmp_path):
-        """Remove fails when not initialized."""
+    def test_untrack_without_init_fails(self, tmp_path):
+        """Untrack fails when not initialized."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "remove", ".zshrc"],
+            ["uv", "run", "freckle", "untrack", ".zshrc"],
             env=env,
             capture_output=True,
             text=True,
@@ -279,11 +272,11 @@ class TestRemoveCommand:
         assert result.returncode != 0
 
 
-class TestUpdateCommand:
-    """Tests for the update command."""
+class TestFetchCommand:
+    """Tests for the fetch command."""
 
-    def test_update_already_up_to_date(self, tmp_path):
-        """Update shows up-to-date message when no changes."""
+    def test_fetch_already_up_to_date(self, tmp_path):
+        """Fetch shows up-to-date message when no changes."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -292,7 +285,7 @@ class TestUpdateCommand:
         _init_freckle(home, remote, env)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "update"],
+            ["uv", "run", "freckle", "fetch"],
             env=env,
             capture_output=True,
             text=True,
@@ -301,8 +294,8 @@ class TestUpdateCommand:
         assert result.returncode == 0
         assert "up-to-date" in result.stdout.lower()
 
-    def test_update_with_local_changes_fails(self, tmp_path):
-        """Update fails with local changes without --force."""
+    def test_fetch_with_local_changes_prompts(self, tmp_path):
+        """Fetch prompts when there are unsaved local changes."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -314,23 +307,24 @@ class TestUpdateCommand:
         (home / ".zshrc").write_text("# modified")
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "update"],
+            ["uv", "run", "freckle", "fetch"],
             env=env,
             capture_output=True,
             text=True,
         )
 
         assert result.returncode != 0
-        assert "local changes" in result.stdout.lower()
+        out = result.stdout.lower()
+        assert "unsaved" in out or "local changes" in out
 
-    def test_update_without_init_fails(self, tmp_path):
-        """Update fails when not initialized."""
+    def test_fetch_without_init_fails(self, tmp_path):
+        """Fetch fails when not initialized."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "update"],
+            ["uv", "run", "freckle", "fetch"],
             env=env,
             capture_output=True,
             text=True,

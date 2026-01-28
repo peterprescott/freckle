@@ -20,7 +20,7 @@ conflict resolution, automatic backups, and cross-platform package management.
 - **Declarative Tools**: Define tools in config with automatic package manager
   selection (brew, apt, cargo, pip, npm) and curated script support.
 - **Platform Aware**: Supports Debian-based Linux (`apt`) and macOS (`brew`).
-- **Scheduled Backups**: Automatic daily/weekly backups via launchd or cron.
+- **Scheduled Saves**: Automatic daily/weekly saves via launchd or cron.
 - **Health Checks**: `freckle doctor` diagnoses common issues.
 
 ## Installation
@@ -52,17 +52,17 @@ pip install freckle
 ## Quick Start
 
 ```bash
-# Initialize (interactive setup)
+# Initialize (interactive setup - clones existing or creates new repo)
 freckle init
 
 # Check status of dotfiles
-freckle sync
+freckle status
 
-# Commit and push local changes
-freckle backup
+# Save local changes
+freckle save
 
-# Pull remote changes
-freckle update
+# Fetch remote changes
+freckle fetch
 
 # Run health checks
 freckle doctor
@@ -73,28 +73,28 @@ freckle doctor
 ### Core Commands
 
 ```bash
-freckle init              # Interactive setup wizard
-freckle sync              # Check dotfiles status, clone on first run
-freckle backup            # Commit and push local changes
-freckle update            # Pull and apply remote changes
+freckle init              # Interactive setup wizard (clones or creates repo)
 freckle status            # Show detailed status of dotfiles and tools
+freckle save              # Save local changes (works offline)
+freckle fetch             # Fetch and apply remote changes
 freckle doctor            # Run health checks and diagnostics
 ```
 
 ### File Management
 
 ```bash
-freckle add <file>        # Track a new file in dotfiles
-freckle remove <file>     # Stop tracking a file
+freckle track <file>      # Start tracking a file (auto-saves)
+freckle untrack <file>    # Stop tracking a file (auto-saves)
 freckle config            # Open config file in your editor
+freckle config open nvim  # Open a tool's config files
 ```
 
-Secret detection is built-in. Adding private keys or tokens will be blocked:
+Secret detection is built-in. Tracking private keys or tokens will be blocked:
 
 ```bash
-$ freckle add .ssh/id_rsa
+$ freckle track .ssh/id_rsa
 ✗ Blocked: .ssh/id_rsa appears to contain a private key.
-  To override: freckle add --force .ssh/id_rsa
+  To override: freckle track --force .ssh/id_rsa
 ```
 
 ### Profile Management
@@ -149,13 +149,13 @@ freckle changes                   # Show uncommitted local changes
 freckle diff abc123 def456 nvim   # Compare tool between commits
 ```
 
-### Scheduled Backups
+### Scheduled Saves
 
 ```bash
 freckle schedule          # Show current schedule status
-freckle schedule daily    # Enable daily backups at 9am
-freckle schedule weekly   # Enable weekly backups (Sundays)
-freckle schedule off      # Disable scheduled backups
+freckle schedule daily    # Enable daily saves at 9am
+freckle schedule weekly   # Enable weekly saves (Sundays)
+freckle schedule off      # Disable scheduled saves
 ```
 
 ## Shell Completion
@@ -176,13 +176,13 @@ After installation, restart your shell or source your shell config.
 
 ```bash
 freckle --verbose ...     # Enable debug logging
-freckle sync --dry-run    # Preview what would happen
-freckle backup --dry-run  # See what would be committed
+freckle save --dry-run    # See what would be saved
+freckle fetch --dry-run   # Preview what would change
 ```
 
 ## Configuration
 
-Freckle stores its configuration in `~/.freckle.yaml`.
+Freckle stores its configuration in `~/.freckle.yaml` (or `~/.freckle.yml`).
 
 ### Example
 

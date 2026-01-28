@@ -4,20 +4,19 @@ import typer
 
 from ..utils import setup_logging
 from . import (
-    backup,
     config,
     doctor,
+    fetch,
     files,
     git,
     history,
     init,
     profile,
     restore,
+    save,
     schedule,
     status,
-    sync,
     tools,
-    update,
     version,
 )
 
@@ -45,9 +44,8 @@ def main_callback(
 
 # Register all commands
 init.register(app)
-sync.register(app)
-backup.register(app)
-update.register(app)
+save.register(app)
+fetch.register(app)
 files.register(app)
 status.register(app)
 git.register(app)

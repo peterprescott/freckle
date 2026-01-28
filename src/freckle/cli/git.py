@@ -42,7 +42,7 @@ def changes(
 
     if not dotfiles_dir.exists():
         typer.echo(
-            "Dotfiles repository not found. Run 'freckle sync' first.",
+            "Dotfiles repository not found. Run 'freckle init' first.",
             err=True,
         )
         raise typer.Exit(1)

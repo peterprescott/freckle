@@ -110,10 +110,24 @@ def _init_clone_existing() -> None:
         yaml.dump(config_data, f, default_flow_style=False)
 
     logger.info(f"Created configuration at {CONFIG_PATH}")
-    typer.echo(
-        "\n✓ Configuration saved! "
-        "Run 'freckle sync' to clone and set up your dotfiles."
-    )
+
+    # Clone the repository now
+    typer.echo("\nCloning your dotfiles...")
+    dotfiles_path = Path(dotfiles_dir).expanduser()
+    if not dotfiles_path.is_absolute():
+        dotfiles_path = env.home / dotfiles_path
+
+    dotfiles = DotfilesManager(repo_url, dotfiles_path, env.home, branch)
+    try:
+        dotfiles.setup()
+        typer.echo("✓ Dotfiles cloned and set up!")
+        typer.echo("\nYour dotfiles are now ready. Next steps:")
+        typer.echo("  - Edit your config files as needed")
+        typer.echo("  - Run 'freckle save' to save changes to the cloud")
+    except Exception as e:
+        logger.error(f"Failed to clone: {e}")
+        typer.echo(f"\n⚠ Could not clone repository: {e}")
+        typer.echo("  You can try again later with: freckle fetch")
 
 
 def _init_create_new() -> None:
@@ -297,7 +311,7 @@ def _init_create_new() -> None:
         typer.echo(
             "\nNo existing files to track. You can add files later with:"
         )
-        typer.echo("  freckle add <file>")
+        typer.echo("  freckle track <file>")
 
     # Create the repo
     dotfiles = DotfilesManager(repo_url or "", dotfiles_path, env.home, branch)
@@ -320,7 +334,7 @@ def _init_create_new() -> None:
 
     if repo_url:
         typer.echo("\nNext steps:")
-        typer.echo("  1. Run 'freckle backup' to push your dotfiles")
+        typer.echo("  1. Run 'freckle save' to save dotfiles to the cloud")
         typer.echo(
             "  2. On other machines, run 'freckle init' and choose option 1"
         )
