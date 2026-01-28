@@ -100,13 +100,24 @@ $ freckle track .ssh/id_rsa
 ### Profile Management
 
 Profiles let you maintain different configurations for different machines.
-Each profile is a git branch:
+Each profile corresponds to a git branch (profile name = branch name):
 
 ```bash
 freckle profile list              # List all profiles
+freckle profile show              # Show current profile details
 freckle profile switch <name>     # Switch to a profile
 freckle profile create <name>     # Create a new profile
 freckle profile delete <name>     # Delete a profile
+```
+
+Create profiles with inheritance to reduce duplication:
+
+```bash
+# Create profile inheriting from 'main' with additional modules
+freckle profile create mac --include main --modules karabiner,homebrew
+
+# Create server profile excluding desktop tools
+freckle profile create server --include main --exclude nvim,tmux --modules docker
 ```
 
 Keep configuration in sync across profiles:
@@ -189,21 +200,40 @@ Freckle stores its configuration in `~/.freckle.yaml` (or `~/.freckle.yml`).
 ```yaml
 dotfiles:
   repo_url: "https://github.com/{local_user}/dotfiles.git"
-  branch: "main"
   dir: "~/.dotfiles"
 
 profiles:
-  default:
-    tools:
+  # Base profile - common tools for all machines
+  # Profile name = git branch name (e.g., 'main' branch)
+  main:
+    description: "Base configuration"
+    modules:
       - git
       - zsh
       - tmux
       - nvim
 
-  work:
-    tools:
-      - git
-      - zsh
+  # macOS profile inherits everything from main, adds mac-specific tools
+  mac:
+    description: "macOS workstation"
+    include: [main]
+    modules:
+      - karabiner
+      - homebrew
+
+  # Linux profile inherits from main, adds linux-specific tools
+  linux:
+    description: "Linux workstation"
+    include: [main]
+    modules:
+      - keyd
+
+  # Server profile inherits from main but excludes desktop tools
+  server:
+    description: "Headless server"
+    include: [main]
+    exclude: [nvim, tmux]
+    modules:
       - docker
 
 tools:
@@ -225,6 +255,37 @@ tools:
   docker:
     brew: docker
     apt: docker.io
+  karabiner:
+    brew: karabiner-elements
+    config_files:
+      - ~/.config/karabiner/
+  keyd:
+    apt: keyd
+    config_files:
+      - /etc/keyd/
+```
+
+### Profile Inheritance
+
+Profiles can inherit modules from other profiles using `include`, and exclude
+specific modules using `exclude`:
+
+- **`include`**: List of profiles to inherit modules from
+- **`exclude`**: List of modules to remove from inherited set
+- **`modules`**: Additional modules specific to this profile
+
+Resolution: `(inherited - excluded) ∪ own_modules`
+
+```yaml
+profiles:
+  main:
+    modules: [git, zsh, nvim, tmux]
+
+  server:
+    include: [main]
+    exclude: [nvim, tmux]
+    modules: [docker]
+    # Resolved: {git, zsh, docker}
 ```
 
 ### Variables
