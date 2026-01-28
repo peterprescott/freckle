@@ -91,3 +91,52 @@ def get_subprocess_error(e: subprocess.CalledProcessError) -> str:
 def is_git_available() -> bool:
     """Check if git is installed and accessible."""
     return shutil.which("git") is not None
+
+
+def normalize_to_home_relative(
+    path_str: str,
+    prefer_existing: bool = True,
+    home: Optional[Path] = None,
+) -> Optional[str]:
+    """Convert a path string to a home-relative path.
+
+    Handles various path formats:
+    - ~/file -> file
+    - /absolute/path -> path (if under home)
+    - ./relative/file -> relative/file (resolved from cwd)
+    - relative/file -> relative/file (resolved from cwd or home)
+
+    Args:
+        path_str: The path string to normalize (can be absolute, relative,
+            or tilde-prefixed)
+        prefer_existing: If True and path is relative, check cwd first,
+            then home. If False, always resolve relative to cwd.
+        home: Home directory to use. Defaults to env.home.
+
+    Returns:
+        Home-relative path string, or None if path is outside home directory.
+    """
+    home_dir = home or env.home
+    path = Path(path_str).expanduser()
+
+    if not path.is_absolute():
+        if prefer_existing:
+            # Try cwd first, then home
+            cwd_path = Path.cwd() / path
+            home_path = home_dir / path
+
+            if cwd_path.exists():
+                path = cwd_path.resolve()
+            elif home_path.exists():
+                path = home_path.resolve()
+            else:
+                # Default to home if neither exists
+                path = home_path.resolve()
+        else:
+            # Always resolve from cwd
+            path = (Path.cwd() / path).resolve()
+
+    try:
+        return str(path.relative_to(home_dir))
+    except ValueError:
+        return None

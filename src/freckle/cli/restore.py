@@ -10,7 +10,12 @@ import typer
 from freckle.backup import BackupManager
 from freckle.dotfiles import GitHistoryService
 
-from .helpers import env, get_config, get_dotfiles_dir
+from .helpers import (
+    env,
+    get_config,
+    get_dotfiles_dir,
+    normalize_to_home_relative,
+)
 from .history import resolve_to_repo_paths
 from .output import (
     console,
@@ -299,12 +304,8 @@ def restore_from_commit(
         # Use explicitly specified files
         files_to_restore = []
         for f in explicit_files:
-            expanded = Path(f).expanduser()
-            try:
-                relative = expanded.relative_to(env.home)
-                files_to_restore.append(str(relative))
-            except ValueError:
-                files_to_restore.append(f)
+            relative = normalize_to_home_relative(f, prefer_existing=True)
+            files_to_restore.append(relative if relative else f)
     elif tool_or_path:
         # Resolve tool name or path to repo-relative paths
         files_to_restore = resolve_to_repo_paths(
