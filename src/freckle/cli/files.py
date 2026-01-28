@@ -6,9 +6,13 @@ from typing import List, Optional
 
 import typer
 
-from freckle.secrets import SecretScanner
-
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import (
+    env,
+    get_config,
+    get_dotfiles_dir,
+    get_dotfiles_manager,
+    get_secret_scanner,
+)
 from .output import console, error, muted, plain, plain_err, success, warning
 
 
@@ -102,11 +106,7 @@ def track(
 
     # Check for secrets unless --force is used
     if not force:
-        secrets_config = config.get("secrets", {})
-        scanner = SecretScanner(
-            extra_block=secrets_config.get("block", []),
-            extra_allow=secrets_config.get("allow", []),
-        )
+        scanner = get_secret_scanner(config)
         secrets_found = scanner.scan_files(home_relative_files, env.home)
 
         if secrets_found:

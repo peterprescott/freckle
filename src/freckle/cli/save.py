@@ -5,13 +5,13 @@ from typing import List, Optional
 
 import typer
 
-from ..secrets import SecretScanner
 from .helpers import (
     CONFIG_FILENAME,
     env,
     get_config,
     get_dotfiles_dir,
     get_dotfiles_manager,
+    get_secret_scanner,
 )
 from .output import (
     error,
@@ -158,11 +158,7 @@ def do_save(
 
     # Check for secrets in changed files
     if changed_files and not skip_secret_check:
-        secrets_config = config.get("secrets", {})
-        scanner = SecretScanner(
-            extra_block=secrets_config.get("block", []),
-            extra_allow=secrets_config.get("allow", []),
-        )
+        scanner = get_secret_scanner(config)
         secrets_found = scanner.scan_files(changed_files, env.home)
 
         if secrets_found:
