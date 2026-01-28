@@ -19,7 +19,6 @@ from .output import (
     plain,
     plain_err,
     success,
-    warning,
 )
 
 
@@ -250,21 +249,7 @@ def do_save(
 
         if not quiet:
             success(f"Saved {len(ordered_files)} file(s) locally")
-
-    # Then, try to push (may fail if offline)
-    try:
-        result = dotfiles.push()
-        if result.get("success"):
-            if not quiet:
-                success("Synced to cloud")
-        else:
-            if not quiet:
-                warning("Could not sync to cloud (offline?)")
-                muted("  Run 'freckle save' again when online")
-    except Exception:
-        if not quiet:
-            warning("Could not sync to cloud (offline?)")
-            muted("  Run 'freckle save' again when online")
+            muted("  Run 'freckle push' to sync to cloud")
 
     # Sync config to all local branches if it was changed
     if config_changed:
@@ -294,12 +279,16 @@ def save(
 ):
     """Save local changes to your dotfiles.
 
-    Saves any changes you've made to your dotfiles. Works offline - changes
-    are saved locally first, then synced to the cloud when possible.
+    Commits changes locally with single-file commits. Each changed file
+    gets its own commit. If config is changed, it's synced to all local
+    branches.
+
+    Note: This does NOT push to remote. Use 'freckle push' to sync to cloud.
 
     Examples:
-        freckle save                    # Save all changes
-        freckle save -m "Updated zshrc" # With custom message
+        freckle save                    # Save all changes locally
+        freckle save -m "add fzf"       # With message for each commit
+        freckle save && freckle push    # Save and push to cloud
     """
     result = do_save(
         message=message,
