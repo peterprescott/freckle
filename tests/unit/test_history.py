@@ -2,9 +2,7 @@
 
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from freckle.cli.history import (
     display_commit,

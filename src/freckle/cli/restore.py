@@ -72,14 +72,14 @@ def restore(
        before sync or force-checkout operations.
 
     Examples:
-        freckle restore abc123f nvim            # Restore nvim from commit
-        freckle restore abc123f ~/.zshrc        # Restore specific file from commit
-        freckle restore abc123f --all           # Restore all files in commit
-        freckle restore abc123f nvim --dry-run  # Preview changes
+        freckle restore abc123f nvim        # Restore nvim from commit
+        freckle restore abc123f ~/.zshrc    # Restore file from commit
+        freckle restore abc123f --all       # All files in commit
+        freckle restore abc123f --dry-run   # Preview changes
 
-        freckle restore --list                  # List backup restore points
-        freckle restore 2026-01-25              # Restore from backup date
-        freckle restore 2026-01-25 -f .zshrc    # Restore specific file from backup
+        freckle restore --list              # List backup restore points
+        freckle restore 2026-01-25          # Restore from backup date
+        freckle restore 2026-01-25 -f .zshrc  # Specific file from backup
     """
     manager = BackupManager()
 
@@ -123,10 +123,16 @@ def restore(
 
     # Restore requires identifier
     if not identifier:
-        typer.echo("Usage: freckle restore <identifier> [tool_or_path]", err=True)
+        typer.echo(
+            "Usage: freckle restore <identifier> [tool_or_path]", err=True
+        )
         typer.echo("\nExamples:")
-        typer.echo("  freckle restore abc123f nvim       # Restore from git commit")
-        typer.echo("  freckle restore 2026-01-25         # Restore from backup")
+        typer.echo(
+            "  freckle restore abc123f nvim       # Restore from git commit"
+        )
+        typer.echo(
+            "  freckle restore 2026-01-25         # Restore from backup"
+        )
         typer.echo(
             "\nRun 'freckle restore --list' to see backup restore points."
         )
@@ -200,7 +206,9 @@ def get_commit_files(dotfiles_dir: Path, commit_hash: str) -> List[str]:
         )
         if result.returncode != 0:
             return []
-        return [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
+        return [
+            f.strip() for f in result.stdout.strip().split("\n") if f.strip()
+        ]
     except Exception:
         return []
 
@@ -286,7 +294,9 @@ def restore_from_commit(
                 files_to_restore.append(f)
     elif tool_or_path:
         # Resolve tool name or path to repo-relative paths
-        files_to_restore = resolve_to_repo_paths(tool_or_path, config, dotfiles_dir)
+        files_to_restore = resolve_to_repo_paths(
+            tool_or_path, config, dotfiles_dir
+        )
     else:
         typer.echo("Error: Must specify a tool/path or use --all", err=True)
         typer.echo("\nExamples:")
@@ -310,7 +320,9 @@ def restore_from_commit(
             valid_files.append((f, content))
         else:
             typer.echo(
-                typer.style(f"  ⚠ {f} - not found in commit", fg=typer.colors.YELLOW)
+                typer.style(
+                    f"  ⚠ {f} - not found in commit", fg=typer.colors.YELLOW
+                )
             )
 
     if not valid_files:
@@ -340,14 +352,16 @@ def restore_from_commit(
                     typer.echo(
                         typer.style(
                             f"      {current_lines} lines → {new_lines} lines",
-                            dim=True
+                            dim=True,
                         )
                     )
             except Exception:
                 typer.echo("    (could not read current file)")
         else:
             typer.echo(
-                typer.style("    (file does not exist, will be created)", dim=True)
+                typer.style(
+                    "    (file does not exist, will be created)", dim=True
+                )
             )
 
     typer.echo("")
@@ -372,7 +386,7 @@ def restore_from_commit(
             env.home,
         )
         if backup_point:
-            typer.echo(f"\n✓ Backed up current files to:")
+            typer.echo("\n✓ Backed up current files to:")
             typer.echo(f"    {backup_point.path}")
 
     # Perform the restore
@@ -400,7 +414,9 @@ def restore_from_commit(
             typer.echo(f"✗ Failed to restore {file_path}: {e}", err=True)
 
     if restored_count > 0:
-        typer.echo(f"\n✓ Restored {restored_count} file(s) from {commit_hash[:7]}")
+        typer.echo(
+            f"\n✓ Restored {restored_count} file(s) from {commit_hash[:7]}"
+        )
     else:
         typer.echo("\nNo files needed restoration (all up to date).")
 
@@ -441,7 +457,9 @@ def restore_from_backup(
         typer.echo(
             "\nRun 'freckle restore --list' to see available restore points."
         )
-        typer.echo("If this is a git commit, ensure your dotfiles repo exists.")
+        typer.echo(
+            "If this is a git commit, ensure your dotfiles repo exists."
+        )
         raise typer.Exit(1)
 
     # Show what we're about to restore

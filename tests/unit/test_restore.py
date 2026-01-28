@@ -1,9 +1,7 @@
 """Tests for restore command helper functions."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from freckle.cli.restore import (
     get_commit_info,
