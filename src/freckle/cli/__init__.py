@@ -2,7 +2,7 @@
 
 import typer
 
-from ..utils import get_version, setup_logging
+from ..utils import setup_logging
 from . import (
     backup,
     config,
@@ -18,7 +18,7 @@ from . import (
     sync,
     tools,
     update,
-    upgrade,
+    version,
 )
 
 # Create the main app
@@ -58,13 +58,7 @@ restore.register(app)
 schedule.register(app)
 tools.register(app)
 doctor.register(app)
-upgrade.register(app)
-
-
-@app.command()
-def version():
-    """Show the version of freckle."""
-    typer.echo(f"freckle version {get_version()}")
+version.register(app)
 
 
 def main():
