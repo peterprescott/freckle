@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/peterprescott/freckle/compare/v0.18.0...v0.18.1) (2026-01-28)
+
+
+### Bug Fixes
+
+* use git add -u instead of git add -A in save command ([#75](https://github.com/peterprescott/freckle/issues/75)) ([39bfd95](https://github.com/peterprescott/freckle/commit/39bfd9526318df42b2726acbb94667e12f0a2ed9))
+
 ## [0.18.0](https://github.com/peterprescott/freckle/compare/v0.17.0...v0.18.0) (2026-01-28)
 
 
