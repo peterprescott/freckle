@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/peterprescott/freckle/compare/v0.12.1...v0.13.0) (2026-01-28)
+
+
+### Features
+
+* add history, restore, and diff commands for dotfile time-travel ([#45](https://github.com/peterprescott/freckle/issues/45)) ([56b3cc0](https://github.com/peterprescott/freckle/commit/56b3cc01b74610a2628ae6ad218f45bd973c2f66))
+
 ## [0.12.1](https://github.com/peterprescott/freckle/compare/v0.12.0...v0.12.1) (2026-01-27)
 
 
