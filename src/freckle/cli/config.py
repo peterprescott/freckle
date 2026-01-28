@@ -14,8 +14,7 @@ from .helpers import (
     CONFIG_PATH,
     env,
     get_config,
-    get_dotfiles_dir,
-    get_dotfiles_manager,
+    require_dotfiles_ready,
 )
 from .output import console, error, muted, plain, success, warning
 
@@ -191,15 +190,7 @@ def config_check():
         plain("No profiles configured.")
         return
 
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        error("Dotfiles not configured.")
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-    if not dotfiles_dir.exists():
-        error("Dotfiles repository not found.")
-        raise typer.Exit(1)
+    dotfiles, _ = require_dotfiles_ready(config)
 
     # Get current branch
     try:
@@ -284,15 +275,7 @@ def config_propagate(
         plain("No profiles configured.")
         return
 
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        error("Dotfiles not configured.")
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-    if not dotfiles_dir.exists():
-        error("Dotfiles repository not found.")
-        raise typer.Exit(1)
+    dotfiles, _ = require_dotfiles_ready(config)
 
     # Get current branch
     try:

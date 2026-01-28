@@ -8,7 +8,7 @@ import typer
 
 from freckle.secrets import SecretScanner
 
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import env, get_config, require_dotfiles_ready
 from .output import console, error, muted, plain, plain_err, success, warning
 
 
@@ -68,17 +68,7 @@ def track(
         raise typer.Exit(1)
 
     config = get_config()
-
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        error("Dotfiles not configured. Run 'freckle init' first.")
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-
-    if not dotfiles_dir.exists():
-        error("Dotfiles repository not found. Run 'freckle init' first.")
-        raise typer.Exit(1)
+    dotfiles, _ = require_dotfiles_ready(config)
 
     # Convert user-provided paths to paths relative to home directory
     home_relative_files = []
@@ -174,17 +164,7 @@ def untrack(
         raise typer.Exit(1)
 
     config = get_config()
-
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        error("Dotfiles not configured. Run 'freckle init' first.")
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-
-    if not dotfiles_dir.exists():
-        error("Dotfiles repository not found. Run 'freckle init' first.")
-        raise typer.Exit(1)
+    dotfiles, _ = require_dotfiles_ready(config)
 
     # Convert user-provided paths to paths relative to home directory
     home_relative_files = []
@@ -292,15 +272,7 @@ def propagate(
         plain("No profiles configured.")
         return
 
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        error("Dotfiles not configured.")
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-    if not dotfiles_dir.exists():
-        error("Dotfiles repository not found.")
-        raise typer.Exit(1)
+    dotfiles, _ = require_dotfiles_ready(config)
 
     # Normalize file path to be relative to home
     file_path = Path(file).expanduser()
