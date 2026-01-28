@@ -63,7 +63,7 @@ def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
             actual_branch = result.stdout.strip()
             if actual_branch:
                 branch = actual_branch
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             pass  # Fall back to configured branch
 
     return DotfilesManager(repo_url, dotfiles_dir, env.home, branch)

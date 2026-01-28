@@ -2,6 +2,7 @@
 
 import logging
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -341,7 +342,7 @@ class DotfilesManager:
                     return "behind"
 
             return "up-to-date"
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return "error"
 
     def add_files(self, files: List[str]) -> AddFilesResult:

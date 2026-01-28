@@ -168,7 +168,7 @@ class TestGetTrackedFiles:
         repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
 
         with patch.object(repo, "run_bare") as mock_run:
-            mock_run.side_effect = Exception("Git error")
+            mock_run.side_effect = OSError("Git error")
             result = repo.get_tracked_files("main")
 
         assert result == []
@@ -208,7 +208,7 @@ class TestGetCommitInfo:
         repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
 
         with patch.object(repo, "run_bare") as mock_run:
-            mock_run.side_effect = Exception("Git error")
+            mock_run.side_effect = OSError("Git error")
             result = repo.get_commit_info("HEAD")
 
         assert result is None
@@ -250,7 +250,7 @@ class TestGetAheadBehind:
         repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
 
         with patch.object(repo, "run_bare") as mock_run:
-            mock_run.side_effect = Exception("Git error")
+            mock_run.side_effect = OSError("Git error")
             ahead, behind = repo.get_ahead_behind("main", "origin/main")
 
         assert ahead == 0
@@ -299,7 +299,7 @@ class TestBranchExists:
         repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
 
         with patch.object(repo, "run_bare") as mock_run:
-            mock_run.side_effect = Exception("Git error")
+            mock_run.side_effect = OSError("Git error")
             result = repo.branch_exists("main")
 
         assert result is False
@@ -381,7 +381,7 @@ class TestGetHeadBranch:
         repo = BareGitRepo(tmp_path / ".dotfiles", tmp_path)
 
         with patch.object(repo, "run_bare") as mock_run:
-            mock_run.side_effect = Exception("Git error")
+            mock_run.side_effect = OSError("Git error")
             result = repo.get_head_branch()
 
         assert result is None

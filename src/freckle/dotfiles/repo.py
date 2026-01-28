@@ -174,7 +174,7 @@ class BareGitRepo:
             )
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             pass
         return None
 
@@ -184,7 +184,7 @@ class BareGitRepo:
             result = self.run_bare("rev-parse", "--short", ref, check=False)
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             pass
         return None
 
@@ -202,7 +202,7 @@ class BareGitRepo:
                 parts = result.stdout.strip().split()
                 if len(parts) == 2:
                     return int(parts[0]), int(parts[1])
-        except Exception:
+        except (OSError, subprocess.SubprocessError, ValueError):
             pass
         return 0, 0
 
@@ -224,7 +224,7 @@ class BareGitRepo:
                 check=False,
             )
             return result.returncode == 0
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return False
 
     def get_tracked_files(self, branch: str) -> List[str]:

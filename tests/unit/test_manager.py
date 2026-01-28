@@ -372,7 +372,7 @@ class TestGetFileSyncStatus:
             with patch.object(manager._git, "get_tracked_files") as mock_t:
                 mock_t.return_value = [".zshrc"]
                 with patch.object(manager._git, "run") as mock_run:
-                    mock_run.side_effect = Exception("Git error")
+                    mock_run.side_effect = OSError("Git error")
                     result = manager.get_file_sync_status(".zshrc")
 
         assert result == "error"

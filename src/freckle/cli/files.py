@@ -37,7 +37,7 @@ def _auto_save(dotfiles, files: List[str], action: str) -> bool:
     try:
         result = dotfiles.push()
         return result.get("success", False)
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         return False
 
 
