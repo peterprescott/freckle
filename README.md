@@ -104,9 +104,20 @@ Each profile is a git branch:
 
 ```bash
 freckle profile list              # List all profiles
+freckle profile show              # Show current profile details
 freckle profile switch <name>     # Switch to a profile
 freckle profile create <name>     # Create a new profile
 freckle profile delete <name>     # Delete a profile
+```
+
+Profiles can inherit modules from other profiles to reduce duplication:
+
+```bash
+# Create a profile that inherits from 'main' and adds modules
+freckle profile create mac --include main --modules karabiner,homebrew
+
+# Create a server profile that excludes desktop tools
+freckle profile create server --include main --exclude nvim,tmux --modules docker
 ```
 
 Keep configuration in sync across profiles:
@@ -193,17 +204,26 @@ dotfiles:
   dir: "~/.dotfiles"
 
 profiles:
-  default:
-    tools:
+  # Base profile with common tools
+  main:
+    modules:
       - git
       - zsh
       - tmux
       - nvim
 
-  work:
-    tools:
-      - git
-      - zsh
+  # macOS profile inherits from main
+  mac:
+    include: [main]
+    modules:
+      - karabiner
+      - homebrew
+
+  # Server profile excludes desktop tools
+  server:
+    include: [main]
+    exclude: [nvim, tmux]
+    modules:
       - docker
 
 tools:
@@ -225,6 +245,28 @@ tools:
   docker:
     brew: docker
     apt: docker.io
+```
+
+### Profile Inheritance
+
+Profiles support inheritance to reduce duplication:
+
+- **`include`**: List of profiles to inherit modules from
+- **`exclude`**: List of modules to remove from inherited set
+- **`modules`**: Additional modules specific to this profile
+
+Resolution order: inherited modules → minus excluded → plus own modules.
+
+```yaml
+profiles:
+  main:
+    modules: [git, zsh, nvim, tmux]
+
+  server:
+    include: [main]
+    exclude: [nvim, tmux]
+    modules: [docker]
+    # Resolved: git, zsh, docker
 ```
 
 ### Variables

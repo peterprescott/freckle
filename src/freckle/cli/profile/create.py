@@ -1,6 +1,7 @@
 """Profile creation functionality."""
 
 import subprocess
+from typing import List, Optional
 
 import typer
 import yaml
@@ -16,7 +17,13 @@ from ..output import error, muted, plain, success, warning
 from .helpers import get_current_branch
 
 
-def add_profile_to_config(name: str, description: str, modules: list):
+def add_profile_to_config(
+    name: str,
+    description: str,
+    modules: List[str],
+    include: Optional[List[str]] = None,
+    exclude: Optional[List[str]] = None,
+):
     """Add a new profile to the config file."""
     # Read current config
     with open(CONFIG_PATH, "r") as f:
@@ -26,10 +33,15 @@ def add_profile_to_config(name: str, description: str, modules: list):
     if "profiles" not in data:
         data["profiles"] = {}
 
-    # Add new profile
-    new_profile = {"modules": modules}
+    # Add new profile - order keys for readability
+    new_profile = {}
     if description:
         new_profile["description"] = description
+    if include:
+        new_profile["include"] = include
+    if exclude:
+        new_profile["exclude"] = exclude
+    new_profile["modules"] = modules
 
     data["profiles"][name] = new_profile
 
@@ -38,8 +50,26 @@ def add_profile_to_config(name: str, description: str, modules: list):
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
-def profile_create(config, name, from_profile, description):
-    """Create a new profile."""
+def profile_create(
+    config,
+    name,
+    from_profile,
+    description,
+    include=None,
+    exclude=None,
+    modules=None,
+):
+    """Create a new profile.
+
+    Args:
+        config: The freckle Config object
+        name: Name for the new profile
+        from_profile: Optional profile to copy settings from
+        description: Optional description for the profile
+        include: Optional list of profiles to inherit from
+        exclude: Optional list of modules to exclude from inherited
+        modules: Optional list of modules (overrides from_profile modules)
+    """
     profiles = config.get_profiles()
 
     if name in profiles:
@@ -68,22 +98,45 @@ def profile_create(config, name, from_profile, description):
     except subprocess.CalledProcessError:
         pass  # OK, branch doesn't exist
 
+    # Validate include references
+    if include:
+        for inc in include:
+            if inc not in profiles:
+                error(f"Cannot include unknown profile: {inc}")
+                raise typer.Exit(1)
+            if inc == name:
+                error("Profile cannot include itself")
+                raise typer.Exit(1)
+
     # Determine source profile and branch
     if from_profile:
         if from_profile not in profiles:
             error(f"Source profile not found: {from_profile}")
             raise typer.Exit(1)
         source_branch = from_profile  # Profile name = branch name
-        source_modules = profiles[from_profile].get("modules", [])
+        source_profile = profiles[from_profile]
+        # Copy include/exclude/modules from source if not explicitly provided
+        if include is None:
+            include = source_profile.get("include", [])
+        if exclude is None:
+            exclude = source_profile.get("exclude", [])
+        if modules is None:
+            modules = source_profile.get("modules", [])
     else:
         # Use current branch/profile
         current = get_current_branch(config=config, dotfiles=dotfiles)
         current = current or "main"
         source_branch = current
-        if current in profiles:
-            source_modules = profiles[current].get("modules", [])
-        else:
-            source_modules = []
+        if modules is None:
+            if current in profiles:
+                modules = profiles[current].get("modules", [])
+            else:
+                modules = []
+
+    # Default to empty lists if still None
+    include = include or []
+    exclude = exclude or []
+    modules = modules or []
 
     plain(f"Creating profile '{name}' from '{source_branch}'...")
 
@@ -91,7 +144,7 @@ def profile_create(config, name, from_profile, description):
 
     try:
         # Step 1: Update config on current branch
-        add_profile_to_config(name, description, source_modules)
+        add_profile_to_config(name, description, modules, include, exclude)
         success(f"Added profile to {CONFIG_FILENAME}")
 
         # Step 2: Commit the config change
