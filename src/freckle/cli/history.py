@@ -7,7 +7,13 @@ from typing import List, Optional
 
 import typer
 
+from ..dotfiles import GitHistoryService
 from .helpers import env, get_config, get_dotfiles_dir
+
+
+def get_history_service(dotfiles_dir: Path) -> GitHistoryService:
+    """Create a GitHistoryService for the dotfiles repo."""
+    return GitHistoryService(dotfiles_dir, env.home)
 
 
 def register(app: typer.Typer) -> None:
@@ -218,12 +224,15 @@ def diff(
         typer.echo("Dotfiles directory not found.", err=True)
         raise typer.Exit(1)
 
+    # Use the history service for git operations
+    history_svc = get_history_service(dotfiles_dir)
+
     # Validate commits exist
-    if not is_valid_commit(dotfiles_dir, commit1):
+    if not history_svc.is_valid_commit(commit1):
         typer.echo(f"Invalid commit: {commit1}", err=True)
         raise typer.Exit(1)
 
-    if not is_valid_commit(dotfiles_dir, commit2):
+    if not history_svc.is_valid_commit(commit2):
         typer.echo(f"Invalid commit: {commit2}", err=True)
         raise typer.Exit(1)
 
@@ -237,8 +246,8 @@ def diff(
         raise typer.Exit(1)
 
     # Get commit info for display
-    info1 = get_commit_info(dotfiles_dir, commit1)
-    info2 = get_commit_info(dotfiles_dir, commit2)
+    info1 = history_svc.get_commit_subject(commit1)
+    info2 = history_svc.get_commit_subject(commit2)
 
     typer.echo(f"Comparing {tool_or_path}:")
     typer.echo(

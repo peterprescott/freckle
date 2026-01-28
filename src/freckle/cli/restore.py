@@ -8,9 +8,15 @@ from typing import List, Optional
 import typer
 
 from freckle.backup import BackupManager
+from freckle.dotfiles import GitHistoryService
 
 from .helpers import env, get_config, get_dotfiles_dir
 from .history import resolve_to_repo_paths
+
+
+def get_history_service(dotfiles_dir: Path) -> GitHistoryService:
+    """Create a GitHistoryService for the dotfiles repo."""
+    return GitHistoryService(dotfiles_dir, env.home)
 
 
 def register(app: typer.Typer) -> None:
@@ -274,11 +280,13 @@ def restore_from_commit(
     manager: BackupManager,
 ) -> None:
     """Restore files from a git commit."""
+    # Use the history service for git operations
+    history_svc = get_history_service(dotfiles_dir)
 
     # Determine which files to restore
     if all_files:
         # Restore all files changed in the commit
-        files_to_restore = get_commit_files(dotfiles_dir, commit_hash)
+        files_to_restore = history_svc.get_commit_files(commit_hash)
         if not files_to_restore:
             typer.echo(f"No files found in commit {commit_hash}", err=True)
             raise typer.Exit(1)
@@ -305,7 +313,7 @@ def restore_from_commit(
         raise typer.Exit(1)
 
     # Get commit info
-    commit_info = get_commit_info(dotfiles_dir, commit_hash)
+    commit_info = history_svc.get_commit_subject(commit_hash)
 
     typer.echo(f"Restoring from commit {commit_hash}")
     if commit_info:
@@ -315,7 +323,7 @@ def restore_from_commit(
     # Validate files exist in commit
     valid_files = []
     for f in files_to_restore:
-        content = get_file_at_commit(dotfiles_dir, commit_hash, f)
+        content = history_svc.get_file_at_commit(commit_hash, f)
         if content is not None:
             valid_files.append((f, content))
         else:
