@@ -209,7 +209,8 @@ def do_save(
     # First, commit locally (this always works)
     if report["has_local_changes"]:
         try:
-            dotfiles._git.run("add", "-A")
+            # Use -u to only stage tracked files, not all files in $HOME
+            dotfiles._git.run("add", "-u")
             dotfiles._git.run("commit", "-m", commit_msg)
             if not quiet:
                 success("Saved locally")

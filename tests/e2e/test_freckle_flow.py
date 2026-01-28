@@ -457,3 +457,144 @@ def test_status_shows_correct_info_from_anywhere(tmp_path):
 
     finally:
         os.chdir(original_cwd)
+
+
+def test_save_only_commits_tracked_files_not_all_home_files(tmp_path):
+    """
+    E2E test that save only commits tracked files, not all files in $HOME.
+
+    This test catches the critical bug where `git add -A` was used instead
+    of `git add -u`. With the bare repo pattern (work-tree=$HOME), `git add -A`
+    would try to stage EVERY file in the home directory.
+
+    Test setup:
+    1. Create 100 random files in fake $HOME (simulating user's home)
+    2. Track only 2 specific files via freckle track
+    3. Modify a tracked file
+    4. Run freckle save
+    5. Verify ONLY tracked files are in the repo (not the 100 random files)
+    """
+    import uuid
+
+    home = tmp_path / "fake_home"
+    home.mkdir()
+
+    env = _create_env(home)
+
+    # Create 100 random untracked files (simulating user's home directory)
+    for i in range(100):
+        random_name = f"random_{uuid.uuid4().hex[:8]}.txt"
+        (home / random_name).write_text(f"random content {i}")
+
+    # Create nested directories with files (common in real home dirs)
+    (home / "Documents").mkdir()
+    (home / "Documents" / "secret.txt").write_text("secret data")
+    (home / "Downloads").mkdir()
+    (home / "Downloads" / "installer.dmg").write_text("binary data")
+    (home / ".cache").mkdir()
+    (home / ".cache" / "cache_file.db").write_text("cache")
+
+    # Create the files we WILL track
+    zshrc = home / ".zshrc"
+    gitconfig = home / ".gitconfig"
+    zshrc.write_text("# original zshrc")
+    gitconfig.write_text("[user]\nname = Original")
+
+    # Setup mock remote with just .zshrc initially
+    remote_repo = _setup_mock_remote(tmp_path, {".zshrc": "# initial"})
+
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(home)
+
+        # Initialize freckle
+        init_input = f"y\n{remote_repo}\nmain\n.dotfiles\n"
+        result = subprocess.run(
+            ["python", "-m", "freckle", "init"],
+            input=init_input,
+            text=True,
+            env=env,
+            capture_output=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"init failed: {result.stderr}"
+
+        # Track .gitconfig (it wasn't in the initial repo)
+        result = subprocess.run(
+            ["python", "-m", "freckle", "track", ".gitconfig"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"track failed: {result.stderr}"
+
+        # Modify .zshrc (already tracked from remote)
+        zshrc.write_text("# modified zshrc with new content")
+
+        # Run freckle save - THIS IS WHERE THE BUG WAS
+        result = subprocess.run(
+            ["python", "-m", "freckle", "save", "-m", "Test save"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, f"save failed: {result.stderr}"
+
+        # Verify: Check what files are actually tracked in the repo
+        dotfiles_dir = home / ".dotfiles"
+        git_result = subprocess.run(
+            [
+                "git", "--git-dir", str(dotfiles_dir),
+                "--work-tree", str(home),
+                "ls-tree", "-r", "--name-only", "HEAD"
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        tracked_files = set(git_result.stdout.strip().split("\n"))
+
+        # Should contain ONLY these files
+        # Note: .freckle.yaml may or may not be tracked depending on setup
+        expected_min = {".zshrc", ".gitconfig"}
+
+        # The critical assertion: random files should NOT be tracked
+        assert expected_min.issubset(tracked_files), (
+            f"Expected at least {expected_min} to be tracked, "
+            f"but found {tracked_files}."
+        )
+        # And no random files should be tracked
+        unexpected = tracked_files - {".zshrc", ".gitconfig", ".freckle.yaml"}
+        assert not unexpected, (
+            f"Unexpected files tracked: {unexpected}. "
+            f"If this includes random_*.txt files, the bug is back!"
+        )
+
+        # Double-check: ensure none of the random files are tracked
+        random_in_tracked = [f for f in tracked_files if "random_" in f]
+        assert not random_in_tracked, (
+            f"CRITICAL BUG: Random files were committed: {random_in_tracked}. "
+            "This means 'git add -A' was used instead of 'git add -u'!"
+        )
+
+        # Verify there ARE still many untracked files
+        git_result = subprocess.run(
+            [
+                "git", "--git-dir", str(dotfiles_dir),
+                "--work-tree", str(home),
+                "status", "--porcelain"
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        untracked_count = git_result.stdout.count("??")
+        assert untracked_count >= 100, (
+            f"Expected 100+ untracked files, got {untracked_count}. "
+            "The random files should remain untracked."
+        )
+
+    finally:
+        os.chdir(original_cwd)
