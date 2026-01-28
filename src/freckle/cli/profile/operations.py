@@ -32,7 +32,9 @@ def profile_list(config, profiles):
     for name, profile in profiles.items():
         branch = name  # Profile name = branch name
         desc = profile.get("description", "")
-        modules = profile.get("modules", [])
+        includes = profile.get("include", [])
+        excludes = profile.get("exclude", [])
+        own_modules = profile.get("modules", [])
 
         is_current = current_branch == branch
 
@@ -42,8 +44,19 @@ def profile_list(config, profiles):
             plain(f"    {name}")
         if desc:
             muted(f"      {desc}")
-        if modules:
-            muted(f"      modules: {', '.join(modules)}")
+        if includes:
+            muted(f"      includes: {', '.join(includes)}")
+        if excludes:
+            muted(f"      excludes: {', '.join(excludes)}")
+        if own_modules:
+            if includes:
+                muted(f"      own modules: {', '.join(own_modules)}")
+            else:
+                muted(f"      modules: {', '.join(own_modules)}")
+        # Show resolved modules if there's inheritance
+        if includes:
+            resolved = config.get_profile_modules(name)
+            muted(f"      resolved: {', '.join(resolved)}")
         if branch != name:
             muted(f"      branch: {branch}")
 
@@ -70,9 +83,25 @@ def profile_show(config, profiles):
         muted(f"  Branch: {current_branch}")
         if profile.get("description"):
             muted(f"  Description: {profile['description']}")
-        modules = profile.get("modules", [])
-        if modules:
-            muted(f"  Modules: {', '.join(modules)}")
+
+        includes = profile.get("include", [])
+        excludes = profile.get("exclude", [])
+        own_modules = profile.get("modules", [])
+
+        if includes:
+            muted(f"  Includes: {', '.join(includes)}")
+        if excludes:
+            muted(f"  Excludes: {', '.join(excludes)}")
+        if own_modules:
+            if includes:
+                muted(f"  Own modules: {', '.join(own_modules)}")
+            else:
+                muted(f"  Modules: {', '.join(own_modules)}")
+
+        # Show resolved modules if there's inheritance
+        if includes:
+            resolved = config.get_profile_modules(current_profile)
+            muted(f"  Resolved modules: {', '.join(resolved)}")
     else:
         plain(f"Current branch: {current_branch}")
         muted("  (not matching any defined profile)")
@@ -89,7 +118,6 @@ def profile_switch(config, name, force):
             muted(f"  - {p}")
         raise typer.Exit(1)
 
-    profile = profiles[name]
     target_branch = name  # Profile name = branch name
 
     dotfiles = get_dotfiles_manager(config)
@@ -149,10 +177,10 @@ def profile_switch(config, name, force):
 
         success(f"Switched to profile '{name}'")
 
-        # Show modules for this profile
-        modules = profile.get("modules", [])
-        if modules:
-            muted(f"  Modules: {', '.join(modules)}")
+        # Show resolved modules for this profile
+        resolved_modules = config.get_profile_modules(name)
+        if resolved_modules:
+            muted(f"  Modules: {', '.join(resolved_modules)}")
 
     except subprocess.CalledProcessError as e:
         error(f"Failed to switch: {get_subprocess_error(e)}")
