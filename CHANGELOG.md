@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/peterprescott/freckle/compare/v0.16.0...v0.17.0) (2026-01-28)
+
+
+### Features
+
+* add consistent colorized output using Rich ([#58](https://github.com/peterprescott/freckle/issues/58)) ([a05f9dc](https://github.com/peterprescott/freckle/commit/a05f9dc31e6358daa342391ce88577cffde09815))
+
 ## [0.16.0](https://github.com/peterprescott/freckle/compare/v0.15.1...v0.16.0) (2026-01-28)
 
 
