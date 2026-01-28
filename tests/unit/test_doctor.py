@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 from freckle.cli.doctor import (
     _check_config,
-    _check_config_alignment,
     _check_prerequisites,
+    _diff_configs,
     _get_config_from_branch,
     _get_latest_version,
     _print_suggestions,
@@ -164,72 +164,68 @@ class TestGetConfigFromBranch:
         assert content is None
 
 
-class TestCheckConfigAlignment:
-    """Tests for _check_config_alignment function."""
+class TestDiffConfigs:
+    """Tests for _diff_configs function."""
 
-    def test_returns_empty_with_single_profile(self):
-        """Returns no warnings when only one profile exists."""
-        mock_config = MagicMock()
-        mock_config.get_profiles.return_value = {"main": {}}
-        mock_dotfiles = MagicMock()
+    def test_detects_missing_profiles(self):
+        """Detects profiles in current but not in other."""
+        current = "profiles:\n  main: {}\n  work: {}"
+        other = "profiles:\n  main: {}"
 
-        warnings = _check_config_alignment(
-            mock_config, mock_dotfiles, "main", verbose=False
-        )
+        diff = _diff_configs(current, other)
 
-        assert warnings == []
+        assert "work" in diff.missing_profiles
+        assert not diff.extra_profiles
 
-    def test_returns_empty_when_no_current_branch(self):
-        """Returns no warnings when current branch is None."""
-        mock_config = MagicMock()
-        mock_config.get_profiles.return_value = {"main": {}, "work": {}}
-        mock_dotfiles = MagicMock()
+    def test_detects_extra_profiles(self):
+        """Detects profiles in other but not in current."""
+        current = "profiles:\n  main: {}"
+        other = "profiles:\n  main: {}\n  work: {}"
 
-        warnings = _check_config_alignment(
-            mock_config, mock_dotfiles, None, verbose=False
-        )
+        diff = _diff_configs(current, other)
 
-        assert warnings == []
+        assert "work" in diff.extra_profiles
+        assert not diff.missing_profiles
 
-    def test_detects_mismatched_configs(self):
-        """Returns warning when branch configs differ."""
-        mock_config = MagicMock()
-        mock_config.get_profiles.return_value = {"main": {}, "work": {}}
+    def test_detects_missing_tools(self):
+        """Detects tools in current but not in other."""
+        current = "tools:\n  nvim: {}\n  zsh: {}"
+        other = "tools:\n  nvim: {}"
 
-        mock_dotfiles = MagicMock()
+        diff = _diff_configs(current, other)
 
-        def side_effect(cmd, path):
-            result = MagicMock()
-            if "main:" in path:
-                result.stdout = "config: main"
-            else:
-                result.stdout = "config: work"
-            return result
+        assert "zsh" in diff.missing_tools
+        assert not diff.extra_tools
 
-        mock_dotfiles._git.run.side_effect = side_effect
+    def test_detects_extra_tools(self):
+        """Detects tools in other but not in current."""
+        current = "tools:\n  nvim: {}"
+        other = "tools:\n  nvim: {}\n  zsh: {}"
 
-        warnings = _check_config_alignment(
-            mock_config, mock_dotfiles, "main", verbose=False
-        )
+        diff = _diff_configs(current, other)
 
-        assert len(warnings) == 1
-        assert "work" in warnings[0]
+        assert "zsh" in diff.extra_tools
+        assert not diff.missing_tools
 
-    def test_returns_empty_when_configs_match(self):
-        """Returns no warnings when all configs match."""
-        mock_config = MagicMock()
-        mock_config.get_profiles.return_value = {"main": {}, "work": {}}
+    def test_no_differences_when_identical(self):
+        """Returns empty diff when configs are identical."""
+        config = "profiles:\n  main: {}\ntools:\n  nvim: {}"
 
-        mock_dotfiles = MagicMock()
-        mock_result = MagicMock()
-        mock_result.stdout = "config: same"
-        mock_dotfiles._git.run.return_value = mock_result
+        diff = _diff_configs(config, config)
 
-        warnings = _check_config_alignment(
-            mock_config, mock_dotfiles, "main", verbose=False
-        )
+        assert not diff.has_differences()
 
-        assert warnings == []
+    def test_handles_empty_configs(self):
+        """Handles empty or minimal configs gracefully."""
+        diff = _diff_configs("", "profiles:\n  main: {}")
+
+        assert "main" in diff.extra_profiles
+
+    def test_handles_invalid_yaml(self):
+        """Returns empty diff for invalid YAML."""
+        diff = _diff_configs("not: valid: yaml:", "also: invalid: yaml:")
+
+        assert not diff.has_differences()
 
 
 class TestPrintSuggestions:
