@@ -33,7 +33,7 @@ def register(app: typer.Typer) -> None:
 
 
 @config_app.callback(invoke_without_command=True)
-def config_callback(ctx: typer.Context):
+def config_callback(ctx: typer.Context) -> None:
     """Open the freckle configuration file in your editor.
 
     Without subcommands, opens config in $EDITOR.
@@ -44,7 +44,7 @@ def config_callback(ctx: typer.Context):
         config_edit()
 
 
-def config_edit():
+def config_edit() -> None:
     """Open the freckle configuration file in your editor."""
     if not CONFIG_PATH.exists():
         plain(f"Config file not found: {CONFIG_PATH}")
@@ -178,7 +178,7 @@ def config_open(
 
 
 @config_app.command(name="check")
-def config_check():
+def config_check() -> None:
     """Check if config is consistent across all profile branches.
 
     Compares the config file on the current branch to all other profile

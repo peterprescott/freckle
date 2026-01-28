@@ -2,7 +2,7 @@
 
 import os
 import subprocess
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import typer
 
@@ -50,7 +50,7 @@ def tools_callback(
         tools_list(None)
 
 
-def tools_list(tool_name: Optional[str] = None):
+def tools_list(tool_name: Optional[str] = None) -> None:
     """List configured tools and their installation status."""
     config = get_config()
     registry = get_tools_from_config(config)
@@ -233,7 +233,7 @@ def _install_single_tool(registry, tool, force: bool) -> bool:
         return False
 
 
-def _get_profile_tools(registry):
+def _get_profile_tools(registry) -> Tuple[List, List[str]]:
     """Get tools filtered by active profile's modules."""
     config = get_config()
     all_tools = registry.list_tools()
@@ -342,7 +342,7 @@ def tools_config(
         raise typer.Exit(1)
 
 
-def _install_all_tools(registry, force: bool):
+def _install_all_tools(registry, force: bool) -> None:
     """Install all missing tools for the active profile."""
     profile_tools, active_modules = _get_profile_tools(registry)
 

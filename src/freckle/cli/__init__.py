@@ -59,6 +59,6 @@ doctor.register(app)
 version.register(app)
 
 
-def main():
+def main() -> None:
     """Main entry point for the freckle CLI."""
     app()

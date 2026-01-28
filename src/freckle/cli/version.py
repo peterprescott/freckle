@@ -75,7 +75,7 @@ def is_version_lower(current: str, latest: str) -> bool:
 
 
 @version_app.callback(invoke_without_command=True)
-def version_callback(ctx: typer.Context):
+def version_callback(ctx: typer.Context) -> None:
     """Show the current version of freckle.
 
     Use 'freckle version upgrade' to update to the latest version.
@@ -84,7 +84,7 @@ def version_callback(ctx: typer.Context):
         show_version()
 
 
-def show_version():
+def show_version() -> None:
     """Show current and latest version information."""
     current = get_version()
     plain(f"freckle version {current}")
@@ -168,7 +168,7 @@ def version_upgrade(
 
 
 @version_app.command(name="check")
-def version_check():
+def version_check() -> None:
     """Check if a newer version is available.
 
     Example:

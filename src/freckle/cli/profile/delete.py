@@ -15,7 +15,7 @@ from ..output import error, muted, plain, success
 from .helpers import get_current_branch
 
 
-def remove_profile_from_config(name: str):
+def remove_profile_from_config(name: str) -> None:
     """Remove a profile from the config file."""
     # Read current config
     with open(CONFIG_PATH, "r") as f:
@@ -30,7 +30,7 @@ def remove_profile_from_config(name: str):
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
-def profile_delete(config, name, force):
+def profile_delete(config, name, force) -> None:
     """Delete a profile."""
     profiles = config.get_profiles()
 

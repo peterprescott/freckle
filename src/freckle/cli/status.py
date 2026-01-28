@@ -76,7 +76,7 @@ def _format_file_status(file_status: str) -> str:
     return status_map.get(file_status, f"status: {file_status}")
 
 
-def status():
+def status() -> None:
     """Show current setup status and check for updates."""
     config = get_config()
 

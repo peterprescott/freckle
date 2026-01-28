@@ -16,7 +16,7 @@ from ..output import error, muted, plain, success, warning
 from .helpers import get_current_branch
 
 
-def add_profile_to_config(name: str, description: str, modules: list):
+def add_profile_to_config(name: str, description: str, modules: list) -> None:
     """Add a new profile to the config file."""
     # Read current config
     with open(CONFIG_PATH, "r") as f:
@@ -38,7 +38,7 @@ def add_profile_to_config(name: str, description: str, modules: list):
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
-def profile_create(config, name, from_profile, description):
+def profile_create(config, name, from_profile, description) -> None:
     """Create a new profile."""
     profiles = config.get_profiles()
 

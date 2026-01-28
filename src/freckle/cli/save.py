@@ -28,7 +28,9 @@ def register(app: typer.Typer) -> None:
     app.command()(save)
 
 
-def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
+def _auto_propagate_config(
+    config, dotfiles, offline: bool, quiet: bool
+) -> None:
     """Auto-propagate config to other profile branches after save."""
     profiles = config.get_profiles()
     if len(profiles) <= 1:

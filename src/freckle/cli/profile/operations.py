@@ -15,7 +15,7 @@ from ..output import console, error, muted, plain, success
 from .helpers import get_current_branch
 
 
-def profile_list(config, profiles):
+def profile_list(config, profiles) -> None:
     """List all profiles."""
     if not profiles:
         plain("No profiles configured.")
@@ -48,7 +48,7 @@ def profile_list(config, profiles):
             muted(f"      branch: {branch}")
 
 
-def profile_show(config, profiles):
+def profile_show(config, profiles) -> None:
     """Show current profile details."""
     current_branch = get_current_branch(config=config)
 
@@ -78,7 +78,7 @@ def profile_show(config, profiles):
         muted("  (not matching any defined profile)")
 
 
-def profile_switch(config, name, force):
+def profile_switch(config, name, force) -> None:
     """Switch to a different profile."""
     profiles = config.get_profiles()
 
@@ -159,7 +159,7 @@ def profile_switch(config, name, force):
         raise typer.Exit(1)
 
 
-def profile_diff(config, name):
+def profile_diff(config, name) -> None:
     """Show diff between current profile and another."""
     profiles = config.get_profiles()
 
