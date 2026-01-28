@@ -306,6 +306,9 @@ def _check_config_alignment(
     if not profiles or len(profiles) < 2:
         return warnings
 
+    if current_branch is None:
+        return warnings
+
     # Get config content from current branch
     current_config = _get_config_from_branch(dotfiles, current_branch)
     if current_config is None:
