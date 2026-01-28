@@ -4,7 +4,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from ..config import Config
 from ..dotfiles import DotfilesManager
@@ -14,14 +14,33 @@ from ..system import Environment
 env = Environment()
 logger = logging.getLogger(__name__)
 
-# Canonical config path
-CONFIG_FILENAME = ".freckle.yaml"
-CONFIG_PATH = env.home / CONFIG_FILENAME
+# Supported config filenames (in order of preference)
+CONFIG_FILENAMES: List[str] = [".freckle.yaml", ".freckle.yml"]
+
+
+def get_config_path(home: Optional[Path] = None) -> Path:
+    """Find the config file path, checking both .yaml and .yml extensions.
+
+    Returns the first existing config file, or the default (.freckle.yaml)
+    if none exist yet.
+    """
+    home_dir = home or env.home
+    for filename in CONFIG_FILENAMES:
+        path = home_dir / filename
+        if path.exists():
+            return path
+    # Default to .freckle.yaml if none exist
+    return home_dir / CONFIG_FILENAMES[0]
+
+
+# For backward compatibility
+CONFIG_FILENAME = CONFIG_FILENAMES[0]
+CONFIG_PATH = get_config_path()
 
 
 def get_config() -> Config:
-    """Load config from ~/.freckle.yaml."""
-    return Config(CONFIG_PATH, env=env)
+    """Load config from ~/.freckle.yaml or ~/.freckle.yml."""
+    return Config(get_config_path(), env=env)
 
 
 def get_dotfiles_manager(config: Config) -> Optional[DotfilesManager]:
