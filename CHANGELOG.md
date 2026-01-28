@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/peterprescott/freckle/compare/v0.17.0...v0.18.0) (2026-01-28)
+
+
+### Features
+
+* add profile inheritance with include/exclude ([#72](https://github.com/peterprescott/freckle/issues/72)) ([45833cb](https://github.com/peterprescott/freckle/commit/45833cbae50b8ef31dd939c1c174ca23bc5ecea1))
+
+
+### Documentation
+
+* update README config example for profile inheritance ([#74](https://github.com/peterprescott/freckle/issues/74)) ([339411e](https://github.com/peterprescott/freckle/commit/339411e3be48850a1e7ebbabe929d448518701bd))
+
 ## [0.17.0](https://github.com/peterprescott/freckle/compare/v0.16.0...v0.17.0) (2026-01-28)
 
 
