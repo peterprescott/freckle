@@ -272,3 +272,54 @@ class TestDisplayCommit:
         assert "2 file(s) changed" in captured.out
         assert ".zshrc" in captured.out
         assert ".config/nvim/init.lua" in captured.out
+
+
+class TestIsValidCommit:
+    """Tests for is_valid_commit function."""
+
+    def test_valid_commit(self, mocker):
+        """Returns True for valid commit."""
+        from freckle.cli.history import is_valid_commit
+
+        mock_run = mocker.patch("freckle.cli.history.subprocess.run")
+        mock_run.return_value = MagicMock(returncode=0)
+
+        result = is_valid_commit(Path("/test/.dotfiles"), "abc123")
+        assert result is True
+
+    def test_invalid_commit(self, mocker):
+        """Returns False for invalid commit."""
+        from freckle.cli.history import is_valid_commit
+
+        mock_run = mocker.patch("freckle.cli.history.subprocess.run")
+        mock_run.return_value = MagicMock(returncode=1)
+
+        result = is_valid_commit(Path("/test/.dotfiles"), "invalid")
+        assert result is False
+
+
+class TestDisplayColoredDiff:
+    """Tests for display_colored_diff function."""
+
+    def test_displays_additions_in_green(self, capsys):
+        """Additions are displayed."""
+        from freckle.cli.history import display_colored_diff
+
+        diff = "+added line\n context\n-removed line"
+        display_colored_diff(diff)
+
+        captured = capsys.readouterr()
+        assert "added line" in captured.out
+        assert "removed line" in captured.out
+
+    def test_skips_git_headers(self, capsys):
+        """Git headers are skipped."""
+        from freckle.cli.history import display_colored_diff
+
+        diff = "diff --git a/file b/file\nindex 123..456\n+added"
+        display_colored_diff(diff)
+
+        captured = capsys.readouterr()
+        assert "diff --git" not in captured.out
+        assert "index " not in captured.out
+        assert "added" in captured.out
