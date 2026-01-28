@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/peterprescott/freckle/compare/v0.15.0...v0.15.1) (2026-01-28)
+
+
+### Performance Improvements
+
+* parallelize tool verification in freckle status ([#51](https://github.com/peterprescott/freckle/issues/51)) ([2d42c57](https://github.com/peterprescott/freckle/commit/2d42c57832570f9af956e42a835f19b52bdfcc3a))
+
 ## [0.15.0](https://github.com/peterprescott/freckle/compare/v0.14.0...v0.15.0) (2026-01-28)
 
 
