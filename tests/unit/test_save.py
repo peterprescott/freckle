@@ -6,14 +6,17 @@ from pathlib import Path
 class TestSaveGitCommands:
     """Tests to ensure save uses correct git commands."""
 
-    def test_save_uses_git_add_u_not_git_add_A(self):
-        """Ensure save.py uses 'git add -u' not 'git add -A'.
+    def test_save_does_not_use_git_add_A(self):
+        """Ensure save.py does NOT use 'git add -A'.
 
         Using 'git add -A' with a bare repo and work-tree set to $HOME
         would try to add ALL files in the home directory, which is:
         1. Extremely slow (traverses entire home)
         2. Error-prone (permission issues, too many files)
         3. Wrong behavior (we only want tracked files)
+
+        The correct approach is to add files individually by path,
+        which is what single-file commits do.
 
         This test reads the source code to ensure we don't regress.
         """
@@ -23,15 +26,28 @@ class TestSaveGitCommands:
 
         # Should NOT contain 'add", "-A"' or "add', '-A'"
         assert '"add", "-A"' not in content, (
-            "save.py must not use 'git add -A' - use 'git add -u' instead"
+            "save.py must not use 'git add -A'"
         )
         assert "'add', '-A'" not in content, (
-            "save.py must not use 'git add -A' - use 'git add -u' instead"
+            "save.py must not use 'git add -A'"
         )
 
-        # Should contain 'add", "-u"' (the correct command)
-        assert '"add", "-u"' in content, (
-            "save.py should use 'git add -u' to only stage tracked files"
+    def test_save_uses_single_file_commits(self):
+        """Ensure save.py uses single-file commit pattern.
+
+        Single-file commits enable:
+        1. Clean config sync (config commit is isolated)
+        2. Atomic rollback of individual files
+        3. Safe staging (no -A that could add entire $HOME)
+        """
+        src = Path(__file__).parent.parent.parent / "src"
+        save_py = src / "freckle/cli/save.py"
+        content = save_py.read_text()
+
+        # Should have the single-file commit function
+        assert "_commit_files_individually" in content, (
+            "save.py should use _commit_files_individually for single-file "
+            "commits"
         )
 
 

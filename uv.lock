@@ -285,7 +285,7 @@ wheels = [
 
 [[package]]
 name = "freckle"
-version = "0.18.0"
+version = "0.18.2"
 source = { editable = "." }
 dependencies = [
     { name = "pyyaml" },

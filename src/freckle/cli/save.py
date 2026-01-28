@@ -28,12 +28,26 @@ def register(app: typer.Typer) -> None:
     app.command()(save)
 
 
-def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
-    """Auto-propagate config to other profile branches after save."""
-    profiles = config.get_profiles()
-    if len(profiles) <= 1:
-        return  # No other branches to sync
+def _get_local_branches(dotfiles) -> List[str]:
+    """Get all local branches in the dotfiles repo."""
+    try:
+        result = dotfiles._git.run("branch", "--list")
+        branches = [
+            b.strip().lstrip("* ")
+            for b in result.stdout.split("\n")
+            if b.strip()
+        ]
+        return branches
+    except subprocess.CalledProcessError:
+        return []
 
+
+def _sync_config_to_all_branches(dotfiles, quiet: bool):
+    """Sync config to ALL local branches (not just profiles in config).
+
+    This ensures .freckle.yaml is identical across all local branches,
+    making branches authoritative for profile existence.
+    """
     # Get current branch
     try:
         result = dotfiles._git.run("rev-parse", "--abbrev-ref", "HEAD")
@@ -47,18 +61,18 @@ def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
         return
     current_content = config_path.read_text()
 
-    # Find branches to update
-    branches_to_update = [
-        name for name in profiles.keys() if name != current_branch
-    ]
+    # Get ALL local branches (authoritative)
+    all_branches = _get_local_branches(dotfiles)
+    branches_to_update = [b for b in all_branches if b != current_branch]
 
     if not branches_to_update:
         return
 
     if not quiet:
-        plain(f"\nSyncing {CONFIG_FILENAME} to other branches...")
+        plain(f"\nSyncing {CONFIG_FILENAME} to {len(branches_to_update)} "
+              "branch(es)...")
 
-    updated = []
+    synced = []
     for branch in branches_to_update:
         try:
             # Checkout branch
@@ -74,13 +88,13 @@ def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
                     "commit", "-m",
                     f"Sync {CONFIG_FILENAME} from {current_branch}"
                 )
-                updated.append(branch)
+                synced.append(branch)
                 if not quiet:
                     success(branch, prefix="  ✓")
             except subprocess.CalledProcessError:
                 # Already has same content
                 if not quiet:
-                    success(f"{branch} (already synced)", prefix="  ✓")
+                    muted(f"  {branch} (unchanged)")
 
         except subprocess.CalledProcessError:
             if not quiet:
@@ -92,32 +106,51 @@ def _auto_propagate_config(config, dotfiles, offline: bool, quiet: bool):
     except subprocess.CalledProcessError:
         pass
 
-    # Push updated branches if online
-    if updated and not offline:
+    if synced and not quiet:
+        muted(f"  Synced to {len(synced)} branch(es)")
+
+
+def _commit_files_individually(
+    dotfiles,
+    changed_files: List[str],
+    user_message: Optional[str],
+    quiet: bool,
+) -> bool:
+    """Commit each changed file individually.
+
+    This enables clean config sync (config commit is isolated) and
+    atomic rollback of individual files.
+
+    Args:
+        dotfiles: DotfilesManager instance
+        changed_files: List of changed file paths
+        user_message: Optional user-provided message to append
+        quiet: Suppress output
+
+    Returns:
+        True if all commits succeeded
+    """
+    for filepath in changed_files:
         try:
-            dotfiles._git.run_bare(
-                "push", "origin", *updated, check=True, timeout=60
-            )
+            dotfiles._git.run("add", filepath)
+
+            # Build commit message: "Update <file>" or "Update <file> -- msg"
+            if user_message:
+                commit_msg = f"Update {filepath} -- {user_message}"
+            else:
+                commit_msg = f"Update {filepath}"
+
+            dotfiles._git.run("commit", "-m", commit_msg)
+
             if not quiet:
-                muted(f"  Pushed {len(updated)} branch(es)")
-        except subprocess.CalledProcessError:
+                muted(f"  ✓ {filepath}")
+
+        except subprocess.CalledProcessError as e:
             if not quiet:
-                warning("Could not push synced branches", prefix="  ⚠")
+                error(f"Failed to commit {filepath}: {e}")
+            return False
 
-
-def _build_commit_message(
-    prefix: str, changed_files: List[str], platform: str
-) -> str:
-    """Build a descriptive commit message including changed files."""
-    lines = [f"{prefix} from {platform}"]
-
-    if changed_files:
-        lines.append("")
-        lines.append("Changed files:")
-        for f in changed_files:
-            lines.append(f"  - {f}")
-
-    return "\n".join(lines)
+    return True
 
 
 def do_save(
@@ -194,52 +227,48 @@ def do_save(
 
     if report["has_local_changes"] and not quiet:
         plain("Saving changed file(s):")
-        for f in changed_files:
-            muted(f"  - {f}")
 
-    # Build commit message
-    if message:
-        commit_msg = message
-    else:
-        prefix = "Scheduled save" if scheduled else "Save"
-        commit_msg = _build_commit_message(
-            prefix, changed_files, env.os_info["pretty_name"]
+    # Commit each file individually (single-file commit discipline)
+    # This enables clean config sync and atomic rollback
+    config_changed = False
+    if report["has_local_changes"]:
+        # Commit config FIRST (so sync happens with latest config)
+        if CONFIG_FILENAME in changed_files:
+            config_files = [CONFIG_FILENAME]
+            other_files = [f for f in changed_files if f != CONFIG_FILENAME]
+            ordered_files = config_files + other_files
+            config_changed = True
+        else:
+            ordered_files = changed_files
+
+        success_commits = _commit_files_individually(
+            dotfiles, ordered_files, message, quiet
         )
 
-    # First, commit locally (this always works)
-    if report["has_local_changes"]:
-        try:
-            # Use -u to only stage tracked files, not all files in $HOME
-            dotfiles._git.run("add", "-u")
-            dotfiles._git.run("commit", "-m", commit_msg)
-            if not quiet:
-                success("Saved locally")
-        except Exception as e:
-            if not quiet:
-                error(f"Failed to save: {e}")
+        if not success_commits:
             return False
 
+        if not quiet:
+            success(f"Saved {len(ordered_files)} file(s) locally")
+
     # Then, try to push (may fail if offline)
-    offline = False
     try:
         result = dotfiles.push()
         if result.get("success"):
             if not quiet:
                 success("Synced to cloud")
         else:
-            offline = True
             if not quiet:
                 warning("Could not sync to cloud (offline?)")
                 muted("  Run 'freckle save' again when online")
     except Exception:
-        offline = True
         if not quiet:
             warning("Could not sync to cloud (offline?)")
             muted("  Run 'freckle save' again when online")
 
-    # Auto-propagate config if it was changed
-    if CONFIG_FILENAME in changed_files:
-        _auto_propagate_config(config, dotfiles, offline, quiet)
+    # Sync config to all local branches if it was changed
+    if config_changed:
+        _sync_config_to_all_branches(dotfiles, quiet)
 
     return True
 
