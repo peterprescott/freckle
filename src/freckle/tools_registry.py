@@ -89,6 +89,11 @@ PACKAGE_MANAGERS: Dict[str, PackageManager] = {
         check_cmd=["brew", "--version"],
         install_cmd=["brew", "install"],
     ),
+    "brew_cask": PackageManager(
+        name="brew_cask",
+        check_cmd=["brew", "--version"],
+        install_cmd=["brew", "install", "--cask"],
+    ),
     "apt": PackageManager(
         name="apt",
         check_cmd=["apt", "--version"],
@@ -104,6 +109,11 @@ PACKAGE_MANAGERS: Dict[str, PackageManager] = {
         name="pip",
         check_cmd=["pip", "--version"],
         install_cmd=["pip", "install"],
+    ),
+    "uv_tool": PackageManager(
+        name="uv_tool",
+        check_cmd=["uv", "--version"],
+        install_cmd=["uv", "tool", "install"],
     ),
     "npm": PackageManager(
         name="npm",
@@ -226,7 +236,9 @@ class ToolsRegistry:
             True if installation succeeded
         """
         # Order of preference for package managers
-        manager_order = ["brew", "apt", "cargo", "pip", "npm"]
+        manager_order = [
+            "brew", "brew_cask", "apt", "cargo", "uv_tool", "pip", "npm"
+        ]
 
         # Try each configured package manager
         for pm_name in manager_order:

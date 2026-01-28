@@ -4,7 +4,9 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
+
+import typer
 
 from ..config import Config
 from ..dotfiles import DotfilesManager
@@ -91,6 +93,39 @@ def get_subprocess_error(e: subprocess.CalledProcessError) -> str:
 def is_git_available() -> bool:
     """Check if git is installed and accessible."""
     return shutil.which("git") is not None
+
+
+def require_dotfiles_ready(
+    config: Config,
+) -> Tuple[DotfilesManager, Path]:
+    """Ensure dotfiles are configured and initialized.
+
+    Call this at the start of commands that require a working dotfiles
+    repository. Raises typer.Exit(1) with a helpful message if dotfiles
+    are not configured or the repository doesn't exist.
+
+    Args:
+        config: The loaded freckle config.
+
+    Returns:
+        Tuple of (DotfilesManager, dotfiles_dir Path).
+
+    Raises:
+        typer.Exit(1): If dotfiles not configured or repo not found.
+    """
+    from .output import error
+
+    dotfiles = get_dotfiles_manager(config)
+    if not dotfiles:
+        error("Dotfiles not configured. Run 'freckle init' first.")
+        raise typer.Exit(1)
+
+    dotfiles_dir = get_dotfiles_dir(config)
+    if not dotfiles_dir.exists():
+        error("Dotfiles repository not found. Run 'freckle init' first.")
+        raise typer.Exit(1)
+
+    return dotfiles, dotfiles_dir
 
 
 def normalize_to_home_relative(
