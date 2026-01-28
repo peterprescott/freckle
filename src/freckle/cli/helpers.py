@@ -128,6 +128,24 @@ def require_dotfiles_ready(
     return dotfiles, dotfiles_dir
 
 
+def get_secret_scanner(config: Config):
+    """Create a SecretScanner configured from the freckle config.
+
+    Args:
+        config: The freckle config object.
+
+    Returns:
+        A SecretScanner configured with any custom block/allow patterns.
+    """
+    from ..secrets import SecretScanner
+
+    secrets_config = config.get("secrets", {})
+    return SecretScanner(
+        extra_block=secrets_config.get("block", []),
+        extra_allow=secrets_config.get("allow", []),
+    )
+
+
 def normalize_to_home_relative(
     path_str: str,
     prefer_existing: bool = True,
