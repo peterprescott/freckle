@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.19.0](https://github.com/peterprescott/freckle/compare/v0.18.2...v0.19.0) (2026-01-28)
+
+
+### Features
+
+* add push command, remove auto-push from save ([1d858a3](https://github.com/peterprescott/freckle/commit/1d858a31f71281e4ecf772876212741b9104fe91))
+* branches authoritative for profile resolution ([511a23f](https://github.com/peterprescott/freckle/commit/511a23f5a3274782cd719ba97a413128067444bf))
+* doctor checks for profile/branch alignment ([4ea2dc4](https://github.com/peterprescott/freckle/commit/4ea2dc49d162f4167d69fc5046dafc50c80515ed))
+* enhanced doctor with comprehensive branch analysis ([854905c](https://github.com/peterprescott/freckle/commit/854905c57bed8cdbc2c2d66604dd859918d206c2))
+
 ## [0.18.2](https://github.com/peterprescott/freckle/compare/v0.18.1...v0.18.2) (2026-01-28)
 
 
