@@ -6,7 +6,8 @@ from typing import List, Optional
 
 import typer
 
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import env, get_config, require_dotfiles_ready
+from .output import console, error, plain
 
 
 def register(app: typer.Typer) -> None:
@@ -19,7 +20,7 @@ def changes(
         None, help="Specific files to show changes for"
     ),
     staged: bool = typer.Option(False, "--staged", help="Show staged changes"),
-):
+) -> None:
     """Show uncommitted changes in your dotfiles.
 
     Shows local changes that haven't been backed up yet.
@@ -30,22 +31,7 @@ def changes(
         freckle changes --staged     # Show staged changes
     """
     config = get_config()
-
-    dotfiles = get_dotfiles_manager(config)
-    if not dotfiles:
-        typer.echo(
-            "Dotfiles not configured. Run 'freckle init' first.", err=True
-        )
-        raise typer.Exit(1)
-
-    dotfiles_dir = get_dotfiles_dir(config)
-
-    if not dotfiles_dir.exists():
-        typer.echo(
-            "Dotfiles repository not found. Run 'freckle init' first.",
-            err=True,
-        )
-        raise typer.Exit(1)
+    dotfiles, _ = require_dotfiles_ready(config)
 
     try:
         args = ["diff", "--color=always"]
@@ -68,13 +54,13 @@ def changes(
         result = dotfiles._git.run(*args)
 
         if result.stdout.strip():
-            typer.echo("\nChanges not yet backed up:\n")
-            typer.echo(result.stdout)
+            plain("\nChanges not yet backed up:\n")
+            console.print(result.stdout)
         else:
             if staged:
-                typer.echo("No staged changes.")
+                plain("No staged changes.")
             else:
-                typer.echo("No uncommitted changes.")
+                plain("No uncommitted changes.")
     except subprocess.CalledProcessError as e:
-        typer.echo(f"Error: {e.stderr}", err=True)
+        error(f"{e.stderr}")
         raise typer.Exit(1)
