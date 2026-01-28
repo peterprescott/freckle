@@ -1,10 +1,59 @@
 """Status command for freckle CLI."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from typing import List, Optional
+
 import typer
 
-from ..tools_registry import get_tools_from_config
+from ..tools_registry import ToolDefinition, get_tools_from_config
 from .helpers import env, get_config, get_config_path, get_dotfiles_manager
 from .profile.helpers import get_current_branch
+
+
+@dataclass
+class ToolStatus:
+    """Result of checking a tool's installation status."""
+
+    tool: ToolDefinition
+    is_installed: bool
+    version: Optional[str] = None
+
+
+def check_tool_status(tool: ToolDefinition) -> ToolStatus:
+    """Check if a tool is installed and get its version (thread-safe)."""
+    is_installed = tool.is_installed()
+    version = None
+    if is_installed:
+        version = tool.get_version() or "installed"
+        if len(version) > 40:
+            version = version[:37] + "..."
+    return ToolStatus(tool=tool, is_installed=is_installed, version=version)
+
+
+def check_tools_parallel(tools: List[ToolDefinition]) -> List[ToolStatus]:
+    """Check all tools in parallel and return results in original order."""
+    if not tools:
+        return []
+
+    # Use ThreadPoolExecutor for I/O-bound subprocess calls
+    results = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(tools))) as executor:
+        future_to_tool = {
+            executor.submit(check_tool_status, tool): tool for tool in tools
+        }
+        for future in as_completed(future_to_tool):
+            tool = future_to_tool[future]
+            try:
+                results[tool.name] = future.result()
+            except Exception:
+                # If check fails, mark as not installed
+                results[tool.name] = ToolStatus(
+                    tool=tool, is_installed=False, version=None
+                )
+
+    # Return in original order
+    return [results[tool.name] for tool in tools]
 
 
 def register(app: typer.Typer) -> None:
@@ -73,19 +122,20 @@ def status():
 
     if tools:
         typer.echo("\nConfigured Tools:")
-        for tool in tools:
-            if tool.is_installed():
-                version = tool.get_version() or "installed"
-                if len(version) > 40:
-                    version = version[:37] + "..."
-                typer.echo(f"  {tool.name}:")
-                typer.echo(f"    Status : ✓ {version}")
+
+        # Check all tools in parallel for faster status
+        tool_statuses = check_tools_parallel(tools)
+
+        for ts in tool_statuses:
+            if ts.is_installed:
+                typer.echo(f"  {ts.tool.name}:")
+                typer.echo(f"    Status : ✓ {ts.version}")
             else:
-                typer.echo(f"  {tool.name}: ✗ not installed")
+                typer.echo(f"  {ts.tool.name}: ✗ not installed")
                 continue
 
-            if dotfiles and tool.config_files:
-                for cfg in tool.config_files:
+            if dotfiles and ts.tool.config_files:
+                for cfg in ts.tool.config_files:
                     tool_config_files.add(cfg)
                     file_status = dotfiles.get_file_sync_status(cfg)
                     if file_status == "not-found":
