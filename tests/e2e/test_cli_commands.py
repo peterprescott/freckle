@@ -119,11 +119,11 @@ class TestVersionCommand:
         assert "freckle" in result.stdout.lower() or "." in result.stdout
 
 
-class TestLogCommand:
-    """Tests for the log command."""
+class TestHistoryCommand:
+    """Tests for the history command."""
 
-    def test_log_shows_commits(self, tmp_path):
-        """Log command shows commit history."""
+    def test_history_shows_commits(self, tmp_path):
+        """History command shows commit history."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -132,7 +132,7 @@ class TestLogCommand:
         _init_freckle(home, remote, env)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "log"],
+            ["uv", "run", "freckle", "history"],
             env=env,
             capture_output=True,
             text=True,
@@ -141,8 +141,8 @@ class TestLogCommand:
         assert result.returncode == 0
         assert "init" in result.stdout.lower() or "commit" in result.stdout
 
-    def test_log_oneline(self, tmp_path):
-        """Log --oneline shows compact format."""
+    def test_history_oneline(self, tmp_path):
+        """History --oneline shows compact format."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -151,7 +151,7 @@ class TestLogCommand:
         _init_freckle(home, remote, env)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "log", "--oneline"],
+            ["uv", "run", "freckle", "history", "--oneline"],
             env=env,
             capture_output=True,
             text=True,
@@ -159,14 +159,14 @@ class TestLogCommand:
 
         assert result.returncode == 0
 
-    def test_log_without_init_fails(self, tmp_path):
-        """Log fails when not initialized."""
+    def test_history_without_init_fails(self, tmp_path):
+        """History fails when not initialized."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "log"],
+            ["uv", "run", "freckle", "history"],
             env=env,
             capture_output=True,
             text=True,
@@ -175,11 +175,11 @@ class TestLogCommand:
         assert result.returncode != 0
 
 
-class TestDiffCommand:
-    """Tests for the diff command."""
+class TestChangesCommand:
+    """Tests for the changes command."""
 
-    def test_diff_no_changes(self, tmp_path):
-        """Diff shows no changes when clean."""
+    def test_changes_no_changes(self, tmp_path):
+        """Changes shows no changes when clean."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -188,7 +188,7 @@ class TestDiffCommand:
         _init_freckle(home, remote, env)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "diff"],
+            ["uv", "run", "freckle", "changes"],
             env=env,
             capture_output=True,
             text=True,
@@ -197,8 +197,8 @@ class TestDiffCommand:
         assert result.returncode == 0
         assert "no" in result.stdout.lower()
 
-    def test_diff_shows_changes(self, tmp_path):
-        """Diff shows uncommitted changes."""
+    def test_changes_shows_changes(self, tmp_path):
+        """Changes shows uncommitted changes."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
@@ -210,7 +210,7 @@ class TestDiffCommand:
         (home / ".zshrc").write_text("# modified zshrc\nalias ll='ls -la'")
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "diff"],
+            ["uv", "run", "freckle", "changes"],
             env=env,
             capture_output=True,
             text=True,
@@ -220,14 +220,14 @@ class TestDiffCommand:
         # Should show the diff
         assert "modified" in result.stdout or "+" in result.stdout
 
-    def test_diff_without_init_fails(self, tmp_path):
-        """Diff fails when not initialized."""
+    def test_changes_without_init_fails(self, tmp_path):
+        """Changes fails when not initialized."""
         home = tmp_path / "fake_home"
         home.mkdir()
         env = _create_env(home)
 
         result = subprocess.run(
-            ["uv", "run", "freckle", "diff"],
+            ["uv", "run", "freckle", "changes"],
             env=env,
             capture_output=True,
             text=True,

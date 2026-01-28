@@ -19,7 +19,7 @@ def register(app: typer.Typer) -> None:
 def history(
     tool_or_path: Optional[str] = typer.Argument(
         None,
-        help="Tool name (e.g., 'nvim') or file path. Omit to show all commits.",
+        help="Tool name or file path. Omit to show all commits.",
     ),
     limit: int = typer.Option(
         20,
@@ -45,12 +45,12 @@ def history(
     With a tool/path argument, shows history for that specific file.
 
     Examples:
-        freckle history                       # All recent commits
-        freckle history --oneline             # Compact format
-        freckle history nvim                  # History for nvim config
-        freckle history ~/.zshrc              # History for zshrc
-        freckle history tmux --limit 5        # Last 5 commits for tmux
-        freckle history nvim --files          # Show changed files in each commit
+        freckle history                   # All recent commits
+        freckle history --oneline         # Compact format
+        freckle history nvim              # History for nvim config
+        freckle history ~/.zshrc          # History for zshrc
+        freckle history tmux -n 5         # Last 5 commits for tmux
+        freckle history nvim --files      # Show files changed per commit
     """
     config = get_config()
     dotfiles_dir = get_dotfiles_dir(config)
@@ -69,7 +69,9 @@ def history(
     file_paths = resolve_to_repo_paths(tool_or_path, config, dotfiles_dir)
 
     if not file_paths:
-        typer.echo(f"Could not find config files for: {tool_or_path}", err=True)
+        typer.echo(
+            f"Could not find config files for: {tool_or_path}", err=True
+        )
         typer.echo("\nTry using a file path directly, e.g.:")
         typer.echo("  freckle history ~/.config/nvim/init.lua")
         raise typer.Exit(1)
@@ -96,7 +98,9 @@ def history(
         typer.echo(f"\n[Showing {limit} commits. Use --limit to see more]")
 
 
-def show_general_history(dotfiles_dir: Path, limit: int, oneline: bool) -> None:
+def show_general_history(
+    dotfiles_dir: Path, limit: int, oneline: bool
+) -> None:
     """Show general commit history for the dotfiles repo."""
     try:
         if oneline:
@@ -157,7 +161,9 @@ def show_general_history(dotfiles_dir: Path, limit: int, oneline: bool) -> None:
 
                 # Parse date
                 try:
-                    date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    date = datetime.fromisoformat(
+                        date_str.replace("Z", "+00:00")
+                    )
                     date_display = format_relative_date(date)
                 except ValueError:
                     date_display = date_str[:10]
@@ -225,7 +231,9 @@ def diff(
     file_paths = resolve_to_repo_paths(tool_or_path, config, dotfiles_dir)
 
     if not file_paths:
-        typer.echo(f"Could not find config files for: {tool_or_path}", err=True)
+        typer.echo(
+            f"Could not find config files for: {tool_or_path}", err=True
+        )
         raise typer.Exit(1)
 
     # Get commit info for display
@@ -353,7 +361,9 @@ def get_file_history(
             commit_hash, date_str, author, subject = parts
 
             # Get files changed in this commit
-            files_changed = get_commit_files(dotfiles_dir, commit_hash, file_paths)
+            files_changed = get_commit_files(
+                dotfiles_dir, commit_hash, file_paths
+            )
 
             # Parse date
             try:
@@ -362,14 +372,16 @@ def get_file_history(
             except ValueError:
                 date_display = date_str[:10]
 
-            commits.append({
-                "hash": commit_hash,
-                "date": date_display,
-                "date_raw": date_str,
-                "author": author,
-                "subject": subject,
-                "files": files_changed,
-            })
+            commits.append(
+                {
+                    "hash": commit_hash,
+                    "date": date_display,
+                    "date_raw": date_str,
+                    "author": author,
+                    "subject": subject,
+                    "files": files_changed,
+                }
+            )
 
         return commits
 
@@ -416,7 +428,9 @@ def get_commit_files(
         if result.returncode != 0:
             return []
 
-        files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
+        files = [
+            f.strip() for f in result.stdout.strip().split("\n") if f.strip()
+        ]
 
         # Filter if requested
         if filter_paths:
@@ -424,7 +438,9 @@ def get_commit_files(
             filtered = []
             for f in files:
                 for filter_path in filter_paths:
-                    if f == filter_path or f.startswith(filter_path.rstrip("/") + "/"):
+                    if f == filter_path or f.startswith(
+                        filter_path.rstrip("/") + "/"
+                    ):
                         filtered.append(f)
                         break
             return filtered
@@ -480,13 +496,17 @@ def display_commit(
 
     if show_files and commit["files"]:
         typer.echo(
-            typer.style(f"    {len(commit['files'])} file(s) changed:", dim=True)
+            typer.style(
+                f"    {len(commit['files'])} file(s) changed:", dim=True
+            )
         )
         for f in commit["files"][:5]:
             typer.echo(typer.style(f"      {f}", dim=True))
         if len(commit["files"]) > 5:
             typer.echo(
-                typer.style(f"      ... and {len(commit['files']) - 5} more", dim=True)
+                typer.style(
+                    f"      ... and {len(commit['files']) - 5} more", dim=True
+                )
             )
 
     # Show diff preview if we have the dotfiles_dir
@@ -497,7 +517,9 @@ def display_commit(
         if diff_lines:
             for line in diff_lines:
                 if line.startswith("+"):
-                    typer.echo(typer.style(f"    {line}", fg=typer.colors.GREEN))
+                    typer.echo(
+                        typer.style(f"    {line}", fg=typer.colors.GREEN)
+                    )
                 elif line.startswith("-"):
                     typer.echo(typer.style(f"    {line}", fg=typer.colors.RED))
                 else:
