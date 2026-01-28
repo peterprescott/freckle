@@ -126,20 +126,27 @@ freckle tools                     # Show tool installation status
 freckle tools install <name>      # Install a specific tool
 ```
 
-### Backup & Restore
+### History & Restore
 
-Freckle creates restore points before destructive operations:
+View the history of your dotfiles and restore from any point:
 
 ```bash
-freckle restore --list            # List available restore points
-freckle restore <timestamp>       # Restore from a specific point
+freckle history                   # Show recent commits
+freckle history nvim              # History for specific tool
+freckle history ~/.zshrc          # History for specific file
+freckle history --oneline         # Compact format
+
+freckle restore --list            # List backup restore points
+freckle restore <commit> nvim     # Restore tool from git commit
+freckle restore <commit> --all    # Restore all files from commit
+freckle restore <commit> --dry-run  # Preview before restoring
 ```
 
-### Git Convenience
+### Comparing Changes
 
 ```bash
-freckle log               # Show commit history
-freckle diff              # Show uncommitted changes
+freckle changes                   # Show uncommitted local changes
+freckle diff abc123 def456 nvim   # Compare tool between commits
 ```
 
 ### Scheduled Backups

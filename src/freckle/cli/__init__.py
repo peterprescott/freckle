@@ -9,6 +9,7 @@ from . import (
     doctor,
     files,
     git,
+    history,
     init,
     profile,
     restore,
@@ -50,6 +51,7 @@ update.register(app)
 files.register(app)
 status.register(app)
 git.register(app)
+history.register(app)
 profile.register(app)
 config.register(app)
 restore.register(app)
