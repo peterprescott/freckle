@@ -1,14 +1,19 @@
 """Track, untrack, and propagate file commands for freckle CLI."""
 
 import subprocess
-from pathlib import Path
 from typing import List, Optional
 
 import typer
 
 from freckle.secrets import SecretScanner
 
-from .helpers import env, get_config, get_dotfiles_dir, get_dotfiles_manager
+from .helpers import (
+    env,
+    get_config,
+    get_dotfiles_dir,
+    get_dotfiles_manager,
+    normalize_to_home_relative,
+)
 from .output import console, error, muted, plain, plain_err, success, warning
 
 
@@ -83,19 +88,11 @@ def track(
     # Convert user-provided paths to paths relative to home directory
     home_relative_files = []
     for f in files:
-        path = Path(f).expanduser()
-
-        if not path.is_absolute():
-            path = Path.cwd() / path
-
-        path = path.resolve()
-
-        try:
-            relative = path.relative_to(env.home)
-            home_relative_files.append(str(relative))
-        except ValueError:
+        relative = normalize_to_home_relative(f, prefer_existing=False)
+        if relative is None:
             error(f"File must be under home directory: {f}")
             continue
+        home_relative_files.append(relative)
 
     if not home_relative_files:
         raise typer.Exit(1)
@@ -189,27 +186,11 @@ def untrack(
     # Convert user-provided paths to paths relative to home directory
     home_relative_files = []
     for f in files:
-        path = Path(f).expanduser()
-
-        if not path.is_absolute():
-            # Could be relative to cwd or already home-relative
-            cwd_path = Path.cwd() / path
-            home_path = env.home / path
-
-            if cwd_path.exists():
-                path = cwd_path.resolve()
-            elif home_path.exists():
-                path = home_path.resolve()
-            else:
-                # Assume it's home-relative even if file doesn't exist
-                path = home_path.resolve()
-
-        try:
-            relative = path.relative_to(env.home)
-            home_relative_files.append(str(relative))
-        except ValueError:
+        relative = normalize_to_home_relative(f, prefer_existing=True)
+        if relative is None:
             error(f"File must be under home directory: {f}")
             continue
+        home_relative_files.append(relative)
 
     if not home_relative_files:
         raise typer.Exit(1)
@@ -303,21 +284,8 @@ def propagate(
         raise typer.Exit(1)
 
     # Normalize file path to be relative to home
-    file_path = Path(file).expanduser()
-    if not file_path.is_absolute():
-        # Check if it exists relative to cwd or home
-        cwd_path = Path.cwd() / file_path
-        home_path = env.home / file_path
-        if cwd_path.exists():
-            file_path = cwd_path.resolve()
-        elif home_path.exists():
-            file_path = home_path.resolve()
-        else:
-            file_path = home_path.resolve()
-
-    try:
-        relative_path = str(file_path.relative_to(env.home))
-    except ValueError:
+    relative_path = normalize_to_home_relative(file, prefer_existing=True)
+    if relative_path is None:
         error(f"File must be under home directory: {file}")
         raise typer.Exit(1)
 

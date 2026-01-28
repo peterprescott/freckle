@@ -8,7 +8,12 @@ from typing import List, Optional
 import typer
 
 from ..dotfiles import GitHistoryService
-from .helpers import env, get_config, get_dotfiles_dir
+from .helpers import (
+    env,
+    get_config,
+    get_dotfiles_dir,
+    normalize_to_home_relative,
+)
 from .output import console, diff_add, diff_remove, error, info, muted, plain
 
 
@@ -286,19 +291,16 @@ def resolve_to_repo_paths(
                 return [filename]
         return [".freckle.yaml"]  # Default if neither exists
 
-    # Direct file path (~ or absolute)
-    if tool_or_path.startswith("~") or tool_or_path.startswith("/"):
-        expanded = Path(tool_or_path).expanduser()
-        if expanded.is_absolute():
-            try:
-                relative = expanded.relative_to(env.home)
-                return [str(relative)]
-            except ValueError:
-                return [str(expanded)]
-        return [tool_or_path]
-
-    # Relative path starting with dot (like .zshrc)
-    if tool_or_path.startswith("."):
+    # Direct file path (~ or absolute or relative with .)
+    if (
+        tool_or_path.startswith("~")
+        or tool_or_path.startswith("/")
+        or tool_or_path.startswith(".")
+    ):
+        relative = normalize_to_home_relative(tool_or_path, home=env.home)
+        if relative is not None:
+            return [relative]
+        # Outside home - return as-is (unusual case)
         return [tool_or_path]
 
     # Look up tool in freckle config - returns all config files for the tool
