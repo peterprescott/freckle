@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.3](https://github.com/peterprescott/freckle/compare/v0.19.2...v0.19.3) (2026-01-30)
+
+
+### Bug Fixes
+
+* improve version upgrade command reliability ([#86](https://github.com/peterprescott/freckle/issues/86)) ([439db9e](https://github.com/peterprescott/freckle/commit/439db9e1afb74f2334038f92fdea8c2ada8afa3e))
+
 ## [0.19.2](https://github.com/peterprescott/freckle/compare/v0.19.1...v0.19.2) (2026-01-30)
 
 
