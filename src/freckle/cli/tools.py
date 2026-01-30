@@ -2,7 +2,8 @@
 
 import os
 import subprocess
-from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Optional, Tuple
 
 import typer
 
@@ -342,8 +343,24 @@ def tools_config(
         raise typer.Exit(1)
 
 
+def _install_tool_quiet(
+    registry, tool, force: bool
+) -> Tuple[str, bool, Optional[str]]:
+    """Install a tool quietly, returning (name, success, version)."""
+    # Set env var for script confirmation if force is True
+    if force:
+        os.environ["FRECKLE_CONFIRM_SCRIPTS"] = "1"
+
+    try:
+        success = registry.install_tool(tool, confirm_script=force)
+        version = tool.get_version() if success else None
+        return (tool.name, success, version)
+    except Exception:
+        return (tool.name, False, None)
+
+
 def _install_all_tools(registry, force: bool):
-    """Install all missing tools for the active profile."""
+    """Install all missing tools for the active profile in parallel."""
     profile_tools, active_modules = _get_profile_tools(registry)
 
     if not profile_tools:
@@ -367,23 +384,35 @@ def _install_all_tools(registry, force: bool):
             console.print(f"  [green]✓[/green] {tool.name:15} {version}")
         return
 
-    plain(f"Installing {len(missing)} missing tool(s)...")
+    plain(f"Installing {len(missing)} missing tool(s) in parallel...")
     plain("")
 
-    succeeded = 0
+    succeeded = []
     failed = []
 
-    for tool in missing:
-        plain("─" * 40)
-        if _install_single_tool(registry, tool, force):
-            succeeded += 1
-        else:
-            failed.append(tool.name)
-        plain("")
+    # Install tools in parallel
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(
+                _install_tool_quiet, registry, tool, force
+            ): tool
+            for tool in missing
+        }
 
-    plain("─" * 40)
+        for future in as_completed(futures):
+            name, ok, version = future.result()
+            if ok:
+                succeeded.append((name, version))
+                ver_str = version[:37] + "..." if version and len(
+                    version
+                ) > 40 else (version or "installed")
+                console.print(f"  [green]✓[/green] {name:15} {ver_str}")
+            else:
+                failed.append(name)
+                console.print(f"  [red]✗[/red] {name:15} failed")
+
     plain("")
-    plain(f"Installed: {succeeded}/{len(missing)}")
+    plain(f"Installed: {len(succeeded)}/{len(missing)}")
 
     if failed:
         error(f"Failed: {', '.join(failed)}")
