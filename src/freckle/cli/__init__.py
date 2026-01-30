@@ -5,6 +5,7 @@ import typer
 from ..utils import setup_logging
 from . import (
     config,
+    discover,
     doctor,
     fetch,
     files,
@@ -57,6 +58,7 @@ config.register(app)
 restore.register(app)
 schedule.register(app)
 tools.register(app)
+discover.register(app)
 doctor.register(app)
 version.register(app)
 
