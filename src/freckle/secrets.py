@@ -53,10 +53,10 @@ SECRET_CONTENT_PATTERNS: list[tuple[str, str]] = [
     (r"AKIA[0-9A-Z]{16}", "AWS access key"),
     (r"aws_secret_access_key\s*=", "AWS secret key"),
     # Common patterns
-    (r"(?i)api[_-]?key\s*[=:]\s*['\"]?[a-z0-9]{20,}", "API key"),
-    (r"(?i)api[_-]?secret\s*[=:]\s*['\"]?[a-z0-9]{20,}", "API secret"),
-    (r"(?i)password\s*[=:]\s*['\"]?[^\s'\"]{8,}", "password"),
-    (r"(?i)secret\s*[=:]\s*['\"]?[a-z0-9]{20,}", "secret value"),
+    (r"(?i)api[_-]?key[ \t]*[=:][ \t]*['\"]?[a-z0-9]{20,}", "API key"),
+    (r"(?i)api[_-]?secret[ \t]*[=:][ \t]*['\"]?[a-z0-9]{20,}", "API secret"),
+    (r"(?i)password[ \t]*[=:][ \t]*['\"]?[^\s'\"]{8,}", "password"),
+    (r"(?i)secret[ \t]*[=:][ \t]*['\"]?[a-z0-9]{20,}", "secret value"),
     # Tokens
     (r"ghp_[a-zA-Z0-9]{36}", "GitHub personal access token"),
     (r"gho_[a-zA-Z0-9]{36}", "GitHub OAuth token"),
