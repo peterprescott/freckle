@@ -115,6 +115,11 @@ PACKAGE_MANAGERS: Dict[str, PackageManager] = {
         check_cmd=["uv", "--version"],
         install_cmd=["uv", "tool", "install"],
     ),
+    "mise": PackageManager(
+        name="mise",
+        check_cmd=["mise", "--version"],
+        install_cmd=["mise", "use", "-g"],
+    ),
     "npm": PackageManager(
         name="npm",
         check_cmd=["npm", "--version"],
@@ -237,7 +242,8 @@ class ToolsRegistry:
         """
         # Order of preference for package managers
         manager_order = [
-            "brew", "brew_cask", "apt", "cargo", "uv_tool", "pip", "npm"
+            "brew", "brew_cask", "apt", "cargo",
+            "uv_tool", "mise", "pip", "npm",
         ]
 
         # Try each configured package manager
