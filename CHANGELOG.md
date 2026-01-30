@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/peterprescott/freckle/compare/v0.19.1...v0.19.2) (2026-01-30)
+
+
+### Bug Fixes
+
+* prevent secret scanner matching across lines ([#84](https://github.com/peterprescott/freckle/issues/84)) ([d81d042](https://github.com/peterprescott/freckle/commit/d81d042087ab8a5a3411349cd4c040e8f57361a4))
+
 ## [0.19.1](https://github.com/peterprescott/freckle/compare/v0.19.0...v0.19.1) (2026-01-30)
 
 
