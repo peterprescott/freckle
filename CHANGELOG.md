@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/peterprescott/freckle/compare/v0.19.0...v0.19.1) (2026-01-30)
+
+
+### Bug Fixes
+
+* install tools in parallel with --all flag ([#82](https://github.com/peterprescott/freckle/issues/82)) ([c83eac0](https://github.com/peterprescott/freckle/commit/c83eac0a2a54b4f650897549c846daf828d56552))
+
 ## [0.19.0](https://github.com/peterprescott/freckle/compare/v0.18.2...v0.19.0) (2026-01-28)
 
 
