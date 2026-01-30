@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/peterprescott/freckle/compare/v0.19.3...v0.20.0) (2026-01-30)
+
+
+### Features
+
+* add simple file restore to HEAD ([#88](https://github.com/peterprescott/freckle/issues/88)) ([e26a994](https://github.com/peterprescott/freckle/commit/e26a994297da270aafe466e05c03cba31587c04b))
+
 ## [0.19.3](https://github.com/peterprescott/freckle/compare/v0.19.2...v0.19.3) (2026-01-30)
 
 
