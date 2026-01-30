@@ -23,39 +23,17 @@ def register(app: typer.Typer) -> None:
 
 def get_latest_version_from_pypi() -> Optional[str]:
     """Get the latest version of freckle from PyPI."""
-    try:
-        result = subprocess.run(
-            ["uv", "pip", "show", "freckle", "--quiet"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        # This gets installed version, not latest. Try another approach.
-    except Exception:
-        pass
+    import json
+    import urllib.request
 
-    # Use pip index to get latest version
     try:
-        result = subprocess.run(
-            [
-                "python",
-                "-c",
-                "import urllib.request, json; "
-                "data = json.loads(urllib.request.urlopen("
-                "'https://pypi.org/pypi/freckle/json', timeout=5"
-                ").read()); "
-                "print(data['info']['version'])",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
+        with urllib.request.urlopen(
+            "https://pypi.org/pypi/freckle/json", timeout=5
+        ) as response:
+            data = json.loads(response.read())
+            return data["info"]["version"]
     except Exception:
-        pass
-
-    return None
+        return None
 
 
 def parse_version(version_str: str) -> tuple:
@@ -151,12 +129,11 @@ def version_upgrade(
             # Get new version after upgrade
             new_version = get_version()
 
-            if "already" in result.stdout.lower():
+            if new_version == current:
                 success("Already on the latest version")
             else:
-                plain(result.stdout.strip())
                 console.print(
-                    f"\n[bold green]✓ Upgraded to {new_version}[/bold green]"
+                    f"\n[bold green]✓ Upgraded: {current} → {new_version}[/bold green]"  # noqa: E501
                 )
         else:
             error(f"Upgrade failed: {result.stderr.strip()}")
