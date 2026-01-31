@@ -119,6 +119,10 @@ def discover(
     report = compare_with_config(discovered, config_tools)
     report.scan_stats = stats
 
+    # Track filtering for display
+    unfiltered_untracked_count = len(report.untracked)
+    filtered_count = 0
+
     # Filter results based on options
     if not all_:
         # Filter out dependencies and system packages
@@ -127,6 +131,7 @@ def discover(
             exclude_deps=True,
             exclude_system=True,
         )
+        filtered_count = unfiltered_untracked_count - len(report.untracked)
 
     # Output based on format and options
     if format_ == "json":
@@ -139,6 +144,7 @@ def discover(
             untracked_only=untracked,
             show_suggestions=suggest,
             verbose=verbose,
+            filtered_count=filtered_count,
         )
 
 
@@ -147,12 +153,18 @@ def _output_table(
     untracked_only: bool,
     show_suggestions: bool,
     verbose: bool,
+    filtered_count: int = 0,
 ) -> None:
     """Output discovery results as a formatted table."""
     plain("")
     header("Summary")
+    total_scanned = sum(report.scan_stats.values())
+    plain(f"  Total scanned:          {total_scanned}")
     plain(f"  Managed by freckle:     {len(report.managed)}")
-    plain(f"  Installed, not tracked: {len(report.untracked)}")
+    if filtered_count > 0:
+        plain(f"  Untracked:              {len(report.untracked)} ({filtered_count} deps/system packages hidden)")
+    else:
+        plain(f"  Untracked:              {len(report.untracked)}")
 
     # Show untracked tools
     if not untracked_only or report.untracked:
