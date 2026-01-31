@@ -8,6 +8,7 @@ from freckle.discovery import (
     NOTABLE_TOOLS,
     SYSTEM_PACKAGES,
     SystemScanner,
+    _normalize_name,
     compare_with_config,
     filter_notable_tools,
     generate_yaml_snippet,
@@ -318,6 +319,81 @@ class TestSystemScanner:
         scanner = SystemScanner()
         stats = scanner.get_scan_stats()
         assert stats == {}
+
+
+class TestNormalizeName:
+    """Tests for the _normalize_name function."""
+
+    def test_lowercase(self):
+        """Test that names are lowercased."""
+        assert _normalize_name("Cursor") == "cursor"
+        assert _normalize_name("SLACK") == "slack"
+
+    def test_removes_spaces_and_hyphens(self):
+        """Test that spaces and hyphens are removed."""
+        assert _normalize_name("Google Chrome") == "googlechrome"
+        assert _normalize_name("visual-studio-code") == "visualstudiocode"
+        assert _normalize_name("Karabiner-Elements") == "karabinerelements"
+
+    def test_removes_suffixes(self):
+        """Test that common suffixes are removed."""
+        assert _normalize_name("zoom.us") == "zoom"
+        assert _normalize_name("myapp.app") == "myapp"
+
+    def test_removes_leading_dots(self):
+        """Test that leading dots are removed."""
+        assert _normalize_name(".hidden-tool") == "hiddentool"
+
+    def test_combined_normalization(self):
+        """Test normalization with multiple transformations."""
+        # .app suffix removed, then hyphens removed
+        assert _normalize_name("My-Cool-Tool.app") == "mycooltool"
+        assert _normalize_name(".Karabiner-VirtualHIDDevice-Manager") == "karabinervirtualhiddevicemanager"
+
+
+class TestCompareWithConfigFuzzyMatching:
+    """Tests for fuzzy matching in compare_with_config."""
+
+    def test_case_insensitive_matching(self):
+        """Test that matching is case-insensitive."""
+        discovered = [
+            DiscoveredProgram(name="Cursor", source="application"),
+            DiscoveredProgram(name="SLACK", source="application"),
+        ]
+        config_tools = {
+            "cursor": {"install": {"brew_cask": "cursor"}},
+            "slack": {"install": {"brew_cask": "slack"}},
+        }
+        report = compare_with_config(discovered, config_tools)
+
+        assert len(report.managed) == 2
+        assert len(report.untracked) == 0
+
+    def test_matches_with_spaces(self):
+        """Test that names with spaces match hyphenated config names."""
+        discovered = [
+            DiscoveredProgram(name="Google Chrome", source="application"),
+        ]
+        config_tools = {
+            "chrome": {"install": {"brew_cask": "google-chrome"}},
+        }
+        report = compare_with_config(discovered, config_tools)
+
+        # "Google Chrome" normalized = "googlechrome"
+        # "google-chrome" normalized = "googlechrome"
+        assert len(report.managed) == 1
+
+    def test_matches_zoom_suffix(self):
+        """Test that zoom.us matches zoom."""
+        discovered = [
+            DiscoveredProgram(name="zoom.us", source="application"),
+        ]
+        config_tools = {
+            "zoom": {"install": {"brew_cask": "zoom"}},
+        }
+        report = compare_with_config(discovered, config_tools)
+
+        assert len(report.managed) == 1
 
 
 class TestConstants:
