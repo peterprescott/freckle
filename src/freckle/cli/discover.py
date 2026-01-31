@@ -15,13 +15,11 @@ from ..discovery import (
 from .helpers import get_config
 from .output import (
     console,
-    error,
     header,
     info,
     muted,
     plain,
     success,
-    warning,
 )
 
 
@@ -43,28 +41,11 @@ def discover(
         "-g",
         help="Include GUI apps (Applications, brew casks, flatpak)",
     ),
-    untracked: bool = typer.Option(
-        False,
-        "--untracked",
-        "-u",
-        help="Only show programs not in freckle.yaml",
-    ),
-    suggest: bool = typer.Option(
-        False,
-        "--suggest",
-        help="Show top suggestions for tools to add",
-    ),
     format_: str = typer.Option(
         "default",
         "--format",
         "-f",
         help="Output format: yaml, json",
-    ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Show detailed output",
     ),
 ):
     """Discover installed programs on your system.
@@ -75,8 +56,6 @@ def discover(
     Examples:
         freckle discover              # Scan CLI tools
         freckle discover --gui        # Include GUI apps
-        freckle discover --untracked  # Only untracked programs
-        freckle discover --suggest    # Get suggestions
         freckle discover -s brew      # Only scan Homebrew
         freckle discover --format yaml  # Output as YAML snippet
     """
@@ -100,8 +79,6 @@ def discover(
         for src, count in stats.items():
             if count > 0:
                 success(f"{src}: {count} programs", prefix="  ✓")
-            elif verbose:
-                muted(f"  - {src}: 0 programs")
 
     # Load config and compare
     try:
@@ -122,70 +99,44 @@ def discover(
     )
     filtered_count = unfiltered_untracked_count - len(report.untracked)
 
-    # Output based on format and options
+    # Output based on format
     if format_ == "json":
-        _output_json(report, untracked_only=untracked)
+        _output_json(report)
     elif format_ == "yaml":
-        _output_yaml(report, untracked_only=untracked)
+        _output_yaml(report)
     else:
-        _output_table(
-            report,
-            untracked_only=untracked,
-            show_suggestions=suggest,
-            verbose=verbose,
-            filtered_count=filtered_count,
-        )
+        _output_default(report, filtered_count)
 
 
-def _output_table(
-    report,
-    untracked_only: bool,
-    show_suggestions: bool,
-    verbose: bool,
-    filtered_count: int = 0,
-) -> None:
-    """Output discovery results as a formatted table."""
+def _output_default(report, filtered_count: int = 0) -> None:
+    """Output discovery results in default format."""
     plain("")
     header("Summary")
     total_scanned = sum(report.scan_stats.values())
     plain(f"  Total scanned:          {total_scanned}")
     plain(f"  Managed by freckle:     {len(report.managed)}")
     if filtered_count > 0:
-        plain(f"  Untracked:              {len(report.untracked)} ({filtered_count} deps/system packages hidden)")
+        plain(f"  Untracked:              {len(report.untracked)} ({filtered_count} deps/system hidden)")
     else:
         plain(f"  Untracked:              {len(report.untracked)}")
 
     # Show untracked tools
-    if not untracked_only or report.untracked:
-        plain("")
-        header("Untracked Programs")
+    plain("")
+    header("Untracked Programs")
 
-        if not report.untracked:
-            success("All discovered programs are tracked!", prefix="  ✓")
-        else:
-            if show_suggestions:
-                # Sort by priority (notable tools first)
-                suggestions = get_suggestions(report.untracked, max_suggestions=len(report.untracked))
-                for prog in suggestions:
-                    _print_program(prog, verbose)
-            else:
-                # Group by source
-                by_source = {}
-                for prog in report.untracked:
-                    by_source.setdefault(prog.source, []).append(prog)
+    if not report.untracked:
+        success("All discovered programs are tracked!", prefix="  ✓")
+    else:
+        # Group by source
+        by_source = {}
+        for prog in report.untracked:
+            by_source.setdefault(prog.source, []).append(prog)
 
-                for src, progs in sorted(by_source.items()):
-                    plain(f"  {src} ({len(progs)}):")
-                    for prog in progs:
-                        _print_program(prog, verbose, indent=4)
-                    plain("")
-
-    # Show managed tools (if verbose)
-    if verbose and not untracked_only and report.managed:
-        plain("")
-        header("Managed Tools")
-        for prog in report.managed:
-            success(f"{prog.name} ({prog.source})", prefix="  ✓")
+        for src, progs in sorted(by_source.items()):
+            plain(f"  {src} ({len(progs)}):")
+            for prog in progs:
+                _print_program(prog, indent=4)
+            plain("")
 
     # Show next steps
     if report.untracked:
@@ -193,41 +144,29 @@ def _output_table(
         info("  Tip: Run 'freckle discover --format yaml' to generate config")
 
 
-def _print_program(
-    prog: DiscoveredProgram,
-    verbose: bool,
-    indent: int = 2,
-) -> None:
+def _print_program(prog: DiscoveredProgram, indent: int = 2) -> None:
     """Print a single program line."""
     spaces = " " * indent
     version_str = f" ({prog.version})" if prog.version else ""
-    source_str = f"[{prog.source}]"
-
-    if verbose and prog.path:
-        plain(f"{spaces}• {prog.name}{version_str} {source_str}")
-        muted(f"{spaces}    {prog.path}")
-    else:
-        plain(f"{spaces}• {prog.name}{version_str} {source_str}")
+    plain(f"{spaces}• {prog.name}{version_str}")
 
 
-def _output_yaml(report, untracked_only: bool) -> None:
+def _output_yaml(report) -> None:
     """Output discovery results as YAML snippet."""
-    programs = report.untracked if untracked_only else report.untracked
-
-    if not programs:
+    if not report.untracked:
         console.print("# No untracked programs to add")
         return
 
-    # Get suggestions for cleaner output
-    suggestions = get_suggestions(programs, max_suggestions=50)
+    # Get suggestions for cleaner output (prioritized order)
+    suggestions = get_suggestions(report.untracked, max_suggestions=50)
 
     console.print("# Discovered tools not in freckle.yaml")
-    console.print(f"# Generated by: freckle discover --format yaml")
+    console.print("# Generated by: freckle discover --format yaml")
     console.print("")
     console.print(generate_yaml_snippet(suggestions))
 
 
-def _output_json(report, untracked_only: bool) -> None:
+def _output_json(report) -> None:
     """Output discovery results as JSON."""
     import json
 
@@ -237,30 +176,18 @@ def _output_json(report, untracked_only: bool) -> None:
             "untracked": len(report.untracked),
         },
         "scan_stats": report.scan_stats,
-    }
-
-    if untracked_only:
-        data["programs"] = [
-            {
-                "name": p.name,
-                "source": p.source,
-                "version": p.version,
-                "path": p.path,
-            }
-            for p in report.untracked
-        ]
-    else:
-        data["managed"] = [
+        "managed": [
             {"name": p.name, "source": p.source}
             for p in report.managed
-        ]
-        data["untracked"] = [
+        ],
+        "untracked": [
             {
                 "name": p.name,
                 "source": p.source,
                 "version": p.version,
             }
             for p in report.untracked
-        ]
+        ],
+    }
 
     console.print(json.dumps(data, indent=2))
