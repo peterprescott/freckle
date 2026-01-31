@@ -1,12 +1,11 @@
 """Unit tests for the discovery module."""
 
-import pytest
 
 from freckle.discovery import (
-    DiscoveredProgram,
-    DiscoveryReport,
     NOTABLE_TOOLS,
     SYSTEM_PACKAGES,
+    DiscoveredProgram,
+    DiscoveryReport,
     SystemScanner,
     _normalize_name,
     compare_with_config,
@@ -14,7 +13,7 @@ from freckle.discovery import (
     generate_yaml_snippet,
     get_suggestions,
 )
-from freckle.system import Environment, OS
+from freckle.system import Environment
 
 
 class TestDiscoveredProgram:
@@ -156,7 +155,8 @@ class TestCompareWithConfig:
         }
         report = compare_with_config(discovered, config_tools)
 
-        # git-delta should be recognized as managed because delta uses brew: git-delta
+        # git-delta should be recognized as managed because
+        # delta uses brew: git-delta
         assert len(report.managed) == 1
         assert report.managed[0].name == "git-delta"
         assert len(report.missing) == 0
@@ -183,8 +183,12 @@ class TestFilterNotableTools:
     def test_excludes_dependencies(self):
         """Test that dependencies are excluded by default."""
         programs = [
-            DiscoveredProgram(name="ripgrep", source="brew", is_dependency=False),
-            DiscoveredProgram(name="openssl", source="brew", is_dependency=True),
+            DiscoveredProgram(
+                name="ripgrep", source="brew", is_dependency=False
+            ),
+            DiscoveredProgram(
+                name="openssl", source="brew", is_dependency=True
+            ),
         ]
         filtered = filter_notable_tools(programs)
 
@@ -206,8 +210,12 @@ class TestFilterNotableTools:
     def test_include_dependencies_when_requested(self):
         """Test that dependencies can be included."""
         programs = [
-            DiscoveredProgram(name="ripgrep", source="brew", is_dependency=False),
-            DiscoveredProgram(name="openssl", source="brew", is_dependency=True),
+            DiscoveredProgram(
+                name="ripgrep", source="brew", is_dependency=False
+            ),
+            DiscoveredProgram(
+                name="openssl", source="brew", is_dependency=True
+            ),
         ]
         filtered = filter_notable_tools(programs, exclude_deps=False)
 
@@ -348,7 +356,8 @@ class TestNormalizeName:
         """Test normalization with multiple transformations."""
         # .app suffix removed, then hyphens removed
         assert _normalize_name("My-Cool-Tool.app") == "mycooltool"
-        assert _normalize_name(".Karabiner-VirtualHIDDevice-Manager") == "karabinervirtualhiddevicemanager"
+        result = _normalize_name(".Karabiner-VirtualHIDDevice-Manager")
+        assert result == "karabinervirtualhiddevicemanager"
 
 
 class TestCompareWithConfigFuzzyMatching:
