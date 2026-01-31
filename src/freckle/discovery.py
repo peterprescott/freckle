@@ -466,6 +466,32 @@ class SystemScanner:
         return programs
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize a program name for fuzzy matching.
+
+    Handles common variations:
+    - Case: "Cursor" → "cursor"
+    - Spaces/hyphens: "Google Chrome" → "googlechrome"
+    - Suffixes: "zoom.us" → "zoom"
+    - Common prefixes: removes leading dots
+    """
+    # Lowercase
+    normalized = name.lower()
+
+    # Remove leading dots (e.g., ".Karabiner-VirtualHIDDevice-Manager")
+    normalized = normalized.lstrip(".")
+
+    # Remove common suffixes
+    for suffix in [".us", ".app", "-app"]:
+        if normalized.endswith(suffix):
+            normalized = normalized[:-len(suffix)]
+
+    # Remove spaces, hyphens, underscores for comparison
+    normalized = normalized.replace(" ", "").replace("-", "").replace("_", "")
+
+    return normalized
+
+
 def compare_with_config(
     discovered: List[DiscoveredProgram],
     config_tools: Dict[str, dict],
@@ -479,28 +505,30 @@ def compare_with_config(
     Returns:
         DiscoveryReport with managed, untracked, and missing tools
     """
-    # Build set of tool names from config
-    # Also build mapping of package names to tool names
-    tracked_names: Set[str] = set(config_tools.keys())
-    package_to_tool: Dict[str, str] = {}
+    # Build normalized lookup tables for fuzzy matching
+    # Maps normalized name → original tool name
+    tracked_normalized: Dict[str, str] = {}
+    package_normalized: Dict[str, str] = {}
 
     for tool_name, tool_data in config_tools.items():
-        # Track the tool name itself
-        package_to_tool[tool_name] = tool_name
+        # Track the tool name itself (normalized)
+        tracked_normalized[_normalize_name(tool_name)] = tool_name
 
         # Also track package names from install section
         install = tool_data.get("install", {})
         if isinstance(install, dict):
             for pm, package in install.items():
                 if isinstance(package, str):
-                    package_to_tool[package] = tool_name
+                    package_normalized[_normalize_name(package)] = tool_name
 
     managed = []
     untracked = []
 
     for prog in discovered:
-        # Check if this program or its package name is tracked
-        if prog.name in tracked_names or prog.name in package_to_tool:
+        normalized = _normalize_name(prog.name)
+
+        # Check if this program matches any tracked name (fuzzy)
+        if normalized in tracked_normalized or normalized in package_normalized:
             managed.append(prog)
         else:
             untracked.append(prog)
