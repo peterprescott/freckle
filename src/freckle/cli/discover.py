@@ -154,19 +154,6 @@ def _output_table(
     plain(f"  Managed by freckle:     {len(report.managed)}")
     plain(f"  Installed, not tracked: {len(report.untracked)}")
 
-    if report.missing:
-        plain(f"  In config, not installed: {len(report.missing)}")
-
-    # Show missing tools
-    if report.missing:
-        plain("")
-        header("Missing Tools")
-        muted("  These tools are in your config but not installed:")
-        for name in report.missing[:10]:
-            warning(f"{name}", prefix="    ⚠")
-        if len(report.missing) > 10:
-            muted(f"    ... and {len(report.missing) - 10} more")
-
     # Show untracked tools
     if not untracked_only or report.untracked:
         plain("")
@@ -262,7 +249,6 @@ def _output_json(report, untracked_only: bool) -> None:
         "summary": {
             "managed": len(report.managed),
             "untracked": len(report.untracked),
-            "missing": len(report.missing),
         },
         "scan_stats": report.scan_stats,
     }
@@ -290,6 +276,5 @@ def _output_json(report, untracked_only: bool) -> None:
             }
             for p in report.untracked
         ]
-        data["missing"] = report.missing
 
     console.print(json.dumps(data, indent=2))
