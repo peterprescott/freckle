@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from .system import Environment, OS
+from .system import Environment
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,9 @@ class SystemScanner:
         # Skip GUI sources unless requested
         if not include_gui:
             gui_sources = {"brew_cask", "applications", "flatpak", "snap"}
-            scanners = {k: v for k, v in scanners.items() if k not in gui_sources}
+            scanners = {
+                k: v for k, v in scanners.items() if k not in gui_sources
+            }
 
         # Run scanners
         for source, scanner in scanners.items():
@@ -173,7 +175,9 @@ class SystemScanner:
 
     def get_scan_stats(self) -> Dict[str, int]:
         """Get counts of programs found per source."""
-        return {source: len(progs) for source, progs in self._scan_results.items()}
+        return {
+            source: len(progs) for source, progs in self._scan_results.items()
+        }
 
     def _run_command(
         self,
@@ -208,7 +212,10 @@ class SystemScanner:
 
         # Get list of explicitly installed (not dependencies)
         leaves_output = self._run_command(["brew", "leaves"])
-        leaves = set(leaves_output.strip().split("\n")) if leaves_output else set()
+        if leaves_output:
+            leaves = set(leaves_output.strip().split("\n"))
+        else:
+            leaves = set()
 
         for name in output.strip().split("\n"):
             if not name:
@@ -357,7 +364,9 @@ class SystemScanner:
             data = json.loads(output)
             deps = data.get("dependencies", {})
             for name, info in deps.items():
-                version = info.get("version") if isinstance(info, dict) else None
+                version = (
+                    info.get("version") if isinstance(info, dict) else None
+                )
                 programs.append(DiscoveredProgram(
                     name=name,
                     source="npm",
@@ -528,7 +537,9 @@ def compare_with_config(
         normalized = _normalize_name(prog.name)
 
         # Check if this program matches any tracked name (fuzzy)
-        if normalized in tracked_normalized or normalized in package_normalized:
+        in_tracked = normalized in tracked_normalized
+        in_package = normalized in package_normalized
+        if in_tracked or in_package:
             managed.append(prog)
         else:
             untracked.append(prog)
@@ -550,7 +561,8 @@ def compare_with_config(
             install = tool_data.get("install", {})
             if isinstance(install, dict):
                 for pm, package in install.items():
-                    if isinstance(package, str) and package in discovered_names:
+                    is_str = isinstance(package, str)
+                    if is_str and package in discovered_names:
                         found = True
                         break
 

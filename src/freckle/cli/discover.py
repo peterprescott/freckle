@@ -17,7 +17,6 @@ from .output import (
     console,
     header,
     info,
-    muted,
     plain,
     success,
 )
@@ -33,7 +32,7 @@ def discover(
         None,
         "--source",
         "-s",
-        help="Specific sources to scan (brew, cargo, uv_tool, npm, go, apt, snap)",
+        help="Specific sources to scan (brew, cargo, uv_tool, npm, apt)",
     ),
     include_gui: bool = typer.Option(
         False,
@@ -116,7 +115,8 @@ def _output_default(report, filtered_count: int = 0) -> None:
     plain(f"  Total scanned:          {total_scanned}")
     plain(f"  Managed by freckle:     {len(report.managed)}")
     if filtered_count > 0:
-        plain(f"  Untracked:              {len(report.untracked)} ({filtered_count} deps/system hidden)")
+        hidden = f"({filtered_count} deps/system hidden)"
+        plain(f"  Untracked:              {len(report.untracked)} {hidden}")
     else:
         plain(f"  Untracked:              {len(report.untracked)}")
 
