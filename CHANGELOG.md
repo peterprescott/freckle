@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.21.0](https://github.com/peterprescott/freckle/compare/v0.20.0...v0.21.0) (2026-01-31)
+
+
+### Features
+
+* add freckle discover command to scan installed programs ([#90](https://github.com/peterprescott/freckle/issues/90)) ([96983c8](https://github.com/peterprescott/freckle/commit/96983c8c2780028dd430f1cc95f0a8ca27af12a2))
+
+
+### Bug Fixes
+
+* resolve lint errors in discover module ([948ed26](https://github.com/peterprescott/freckle/commit/948ed26345d3d15686c95664f8544443aea0de98))
+* resolve lint errors in test_discovery.py ([e1321de](https://github.com/peterprescott/freckle/commit/e1321dee4a1f482d08335faa559dace61d3aaa0e))
+
 ## [0.20.0](https://github.com/peterprescott/freckle/compare/v0.19.3...v0.20.0) (2026-01-30)
 
 
