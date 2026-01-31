@@ -55,16 +55,10 @@ def discover(
         help="Show top suggestions for tools to add",
     ),
     format_: str = typer.Option(
-        "table",
+        "default",
         "--format",
         "-f",
-        help="Output format: table, yaml, json",
-    ),
-    all_: bool = typer.Option(
-        False,
-        "--all",
-        "-a",
-        help="Show all programs including dependencies",
+        help="Output format: yaml, json",
     ),
     verbose: bool = typer.Option(
         False,
@@ -89,7 +83,7 @@ def discover(
     scanner = SystemScanner()
 
     # Show scanning progress
-    if format_ == "table":
+    if format_ == "default":
         plain("Scanning system...")
 
     # Perform scan
@@ -102,7 +96,7 @@ def discover(
     stats = scanner.get_scan_stats()
 
     # Show scan summary
-    if format_ == "table" and stats:
+    if format_ == "default" and stats:
         for src, count in stats.items():
             if count > 0:
                 success(f"{src}: {count} programs", prefix="  ✓")
@@ -119,19 +113,14 @@ def discover(
     report = compare_with_config(discovered, config_tools)
     report.scan_stats = stats
 
-    # Track filtering for display
+    # Filter out dependencies and system packages
     unfiltered_untracked_count = len(report.untracked)
-    filtered_count = 0
-
-    # Filter results based on options
-    if not all_:
-        # Filter out dependencies and system packages
-        report.untracked = filter_notable_tools(
-            report.untracked,
-            exclude_deps=True,
-            exclude_system=True,
-        )
-        filtered_count = unfiltered_untracked_count - len(report.untracked)
+    report.untracked = filter_notable_tools(
+        report.untracked,
+        exclude_deps=True,
+        exclude_system=True,
+    )
+    filtered_count = unfiltered_untracked_count - len(report.untracked)
 
     # Output based on format and options
     if format_ == "json":
@@ -175,18 +164,10 @@ def _output_table(
             success("All discovered programs are tracked!", prefix="  ✓")
         else:
             if show_suggestions:
-                suggestions = get_suggestions(report.untracked, max_suggestions=15)
-                muted("  Top suggestions to add to freckle.yaml:")
-                plain("")
-
+                # Sort by priority (notable tools first)
+                suggestions = get_suggestions(report.untracked, max_suggestions=len(report.untracked))
                 for prog in suggestions:
                     _print_program(prog, verbose)
-
-                if len(report.untracked) > len(suggestions):
-                    remaining = len(report.untracked) - len(suggestions)
-                    plain("")
-                    muted(f"  ... and {remaining} more programs")
-                    muted("  Run with --all to see everything")
             else:
                 # Group by source
                 by_source = {}
@@ -195,26 +176,19 @@ def _output_table(
 
                 for src, progs in sorted(by_source.items()):
                     plain(f"  {src} ({len(progs)}):")
-                    for prog in progs[:5]:
+                    for prog in progs:
                         _print_program(prog, verbose, indent=4)
-                    if len(progs) > 5:
-                        muted(f"      ... and {len(progs) - 5} more")
                     plain("")
 
-    # Show managed tools (if verbose or not filtering)
+    # Show managed tools (if verbose)
     if verbose and not untracked_only and report.managed:
         plain("")
         header("Managed Tools")
-        for prog in report.managed[:10]:
+        for prog in report.managed:
             success(f"{prog.name} ({prog.source})", prefix="  ✓")
-        if len(report.managed) > 10:
-            muted(f"  ... and {len(report.managed) - 10} more")
 
     # Show next steps
-    if report.untracked and not show_suggestions:
-        plain("")
-        info("  Tip: Run 'freckle discover --suggest' to see recommendations")
-    elif report.untracked and show_suggestions:
+    if report.untracked:
         plain("")
         info("  Tip: Run 'freckle discover --format yaml' to generate config")
 
